@@ -64,9 +64,6 @@ protected:
 
 	FSpudSaveData SaveData;
 
-	static FString GetLevelName(const ULevel* Level);
-	static FString GetLevelNameForObject(const UObject* Obj);
-
 	void WriteCoreActorData(AActor* Actor, FArchive& Out) const;
 
 	class StorePropertyVisitor : public SpudPropertyUtil::PropertyVisitor
@@ -165,6 +162,9 @@ protected:
 		                           void* ContainerPtr, int Depth) override;
 	};
 public:
+
+	static FString GetLevelName(const ULevel* Level);
+	static FString GetLevelNameForObject(const UObject* Obj);
 
 	USpudState();
 

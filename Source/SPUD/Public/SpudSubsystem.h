@@ -8,6 +8,16 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSpudSubsystem, Verbose, Verbose);
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPreLoadGame, const FString&, SlotName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSpudPostLoadGame, const FString&, SlotName, bool, bSuccess);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPreSaveGame, const FString&, SlotName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSpudPostSaveGame, const FString&, SlotName, bool, bSuccess);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPreLevelStore, const FString&, LevelName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSpudPostLevelStore, const FString&, LevelName, bool, bSuccess);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPreLevelRestore, const FString&, LevelName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSpudPostLevelRestore, const FString&, LevelName, bool, bSuccess);
+
 UENUM(BlueprintType)
 enum class ESpudSystemState : uint8
 {
@@ -26,12 +36,41 @@ UCLASS()
 class SPUD_API USpudSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
+
+public:
+	/// Event fired just before a game is loaded
+	UPROPERTY(BlueprintAssignable)
+	FSpudPreLoadGame PreLoadGame;
+	/// Event fired just after a game has finished loading
+	UPROPERTY(BlueprintAssignable)
+	FSpudPostLoadGame PostLoadGame;
+	/// Event fired just before a game is saved
+	UPROPERTY(BlueprintAssignable)
+	FSpudPreSaveGame PreSaveGame;
+	/// Event fired just after a game finished saving
+	UPROPERTY(BlueprintAssignable)
+	FSpudPostSaveGame PostSaveGame;
+	/// Event fired just before we write the contents of a level to the state database
+	UPROPERTY(BlueprintAssignable)
+	FSpudPreLevelStore PreLevelStore;
+	/// Event fired just after we've written the contents of a level to the state database
+	UPROPERTY(BlueprintAssignable)
+	FSpudPostLevelStore PostLevelStore;
+	/// Event fired just before we're about to populate a loaded level from the state database
+	UPROPERTY(BlueprintAssignable)
+	FSpudPreLevelRestore PreLevelRestore;
+	/// Event fired just after we've finished populating a loaded level from the state database
+	UPROPERTY(BlueprintAssignable)
+	FSpudPostLevelRestore PostLevelRestore;
+	
+	
 protected:
 	FDelegateHandle OnPreLoadMapHandle;
 	FDelegateHandle OnPostLoadMapHandle;
 	int32 LoadUnloadRequests = 0;
 	bool FirstStreamRequestSinceMapLoad = true;
 	TMap<int32, FName> LevelsPendingLoad;
+	FString SlotNameInProgress;
 
 	UPROPERTY()
 	TArray<TWeakObjectPtr<UObject>> GlobalObjects;
@@ -79,6 +118,9 @@ protected:
 	UFUNCTION(BlueprintCallable)
     void PostUnloadStreamLevel(int32 LinkID);
 
+	void LoadComplete(const FString& SlotName, bool bSuccess);
+	void SaveComplete(const FString& SlotName, bool bSuccess);
+	
 public:
 
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;

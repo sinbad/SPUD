@@ -109,11 +109,14 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 		// In all cases, we try to load the state
 		if (IsValid(World)) // nullptr seems possible if load is aborted or something?
 		{
+			FString LevelName = UGameplayStatics::GetCurrentLevelName(World); 
 			UE_LOG(LogSpudSubsystem, Verbose, TEXT("OnPostLoadMap restore: %s"),
-			       *UGameplayStatics::GetCurrentLevelName(World));
+			       *LevelName);
 
 			auto State = GetActiveState();
+			PreLevelRestore.Broadcast(LevelName);
 			State->RestoreLoadedWorld(World);
+			PostLevelRestore.Broadcast(LevelName, true);
 
 			SubscribeLevelObjectEvents(World->GetCurrentLevel());
 		}
@@ -121,10 +124,8 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 		// If we were loading, this is the completion
 		if (CurrentState == ESpudSystemState::LoadingGame)
 		{
-			CurrentState = ESpudSystemState::RunningIdle;
+			LoadComplete(SlotNameInProgress, true);
 			UE_LOG(LogSpudSubsystem, Log, TEXT("Load: Success"));
-
-			// TODO: load completion callback
 		}
 	}
 }
@@ -139,7 +140,8 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 	}
 
 	CurrentState = ESpudSystemState::SavingGame;
-
+	PreSaveGame.Broadcast(SlotName);
+	
 	auto State = GetActiveState();
 
 	// We do NOT reset
@@ -170,7 +172,7 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 	IFileManager& FileMgr = IFileManager::Get();
 	auto Archive = TUniquePtr<FArchive>(FileMgr.CreateFileWriter(*GetSaveGameFilePath(SlotName)));
 
-	bool SaveOK = true;
+	bool SaveOK;
 	if(Archive)
 	{
 		State->SaveToArchive(*Archive, Title);
@@ -185,7 +187,7 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 		else
 		{
 			UE_LOG(LogSpudSubsystem, Log, TEXT("Save to slot %s: Success"), *SlotName);
-			SaveOK = false;
+			SaveOK = true;
 		}
 	}
 	else
@@ -193,10 +195,9 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 		UE_LOG(LogSpudSubsystem, Error, TEXT("Error while creating save game for slot %s"), *SlotName);
 		SaveOK = false;
 	}
-	
-	UE_LOG(LogSpudSubsystem, Log, TEXT("Save %s: Success"), *SlotName);
 
 	CurrentState = ESpudSystemState::RunningIdle;
+	PostSaveGame.Broadcast(SlotName, SaveOK);
 
 	return SaveOK;
 }
@@ -211,6 +212,7 @@ bool USpudSubsystem::LoadGame(const FString& SlotName)
 	}
 
 	CurrentState = ESpudSystemState::LoadingGame;
+	PreLoadGame.Broadcast(SlotName);
 
 	auto State = GetActiveState();
 
@@ -230,14 +232,14 @@ bool USpudSubsystem::LoadGame(const FString& SlotName)
 		if (Archive->IsError() || Archive->IsCriticalError())
 		{
 			UE_LOG(LogSpudSubsystem, Error, TEXT("Error while loading game from %s"), *SlotName);
-			CurrentState = ESpudSystemState::RunningIdle;
+			LoadComplete(SlotName, false);
 			return false;
 		}
 	}
 	else
 	{
 		UE_LOG(LogSpudSubsystem, Error, TEXT("Error while opening save game for slot %s"), *SlotName);		
-		CurrentState = ESpudSystemState::RunningIdle;
+		LoadComplete(SlotName, false);
 		return false;
 	}
 
@@ -255,9 +257,18 @@ bool USpudSubsystem::LoadGame(const FString& SlotName)
 	}
 
 	// This is deferred, final load process will happen in PostLoadMap
+	SlotNameInProgress = SlotName;
 	UGameplayStatics::OpenLevel(GetWorld(), FName(State->GetPersistentLevel()));
 
 	return true;
+}
+
+
+void USpudSubsystem::LoadComplete(const FString& SlotName, bool bSuccess)
+{
+	CurrentState = ESpudSystemState::RunningIdle;
+	SlotNameInProgress = "";
+	PostLoadGame.Broadcast(SlotName, bSuccess);
 }
 
 bool USpudSubsystem::DeleteSave(const FString& SlotName)
@@ -343,12 +354,15 @@ void USpudSubsystem::PostLoadStreamLevel(int32 LinkID)
 
 		if (StreamLevel)
 		{
+			ULevel* Level = StreamLevel->GetLoadedLevel();
+			PreLevelRestore.Broadcast(USpudState::GetLevelName(Level));
 			// It's important to note that this streaming level won't be added to UWorld::Levels yet
 			// This is usually where things like the TActorIterator get actors from, ULevel::Actors
 			// we have the ULevel here right now, so restore it directly
-			GetActiveState()->RestoreLevel(StreamLevel->GetLoadedLevel());			
+			GetActiveState()->RestoreLevel(Level);			
 			StreamLevel->SetShouldBeVisible(true);
-			SubscribeLevelObjectEvents(StreamLevel->GetLoadedLevel());
+			SubscribeLevelObjectEvents(Level);
+			PostLevelRestore.Broadcast(USpudState::GetLevelName(Level), true);
 		}
 	}
 }
@@ -359,22 +373,27 @@ void USpudSubsystem::UnloadStreamLevel(FName LevelName)
 	auto StreamLevel = UGameplayStatics::GetStreamingLevel(GetWorld(), LevelName);
 
 	if (StreamLevel)
-		UnsubscribeLevelObjectEvents(StreamLevel->GetLoadedLevel());
-	
-	if (CurrentState != ESpudSystemState::LoadingGame)
 	{
-		// save the state, if not loading game
-		// when loading game we will unload the current level and streaming and don't want to restore the active state from that
-		GetActiveState()->StoreLevel(GetWorld(), LevelName.ToString());
-	}
+		ULevel* Level = StreamLevel->GetLoadedLevel();
+		UnsubscribeLevelObjectEvents(Level);
 	
-	// Now unload
-	FLatentActionInfo Latent;
-	Latent.ExecutionFunction = "PostUnloadStreamLevel";
-	Latent.CallbackTarget = this;
-	int32 RequestID = LoadUnloadRequests++; // overflow is OK
-	Latent.UUID = RequestID; // this eliminates duplicate calls so should be unique
-	UGameplayStatics::UnloadStreamLevel(GetWorld(), LevelName, Latent, false);
+		if (CurrentState != ESpudSystemState::LoadingGame)
+		{
+			PreLevelStore.Broadcast(USpudState::GetLevelName(Level));
+			// save the state, if not loading game
+			// when loading game we will unload the current level and streaming and don't want to restore the active state from that
+			GetActiveState()->StoreLevel(GetWorld(), LevelName.ToString());
+			PostLevelStore.Broadcast(USpudState::GetLevelName(Level), true);
+		}
+		
+		// Now unload
+		FLatentActionInfo Latent;
+		Latent.ExecutionFunction = "PostUnloadStreamLevel";
+		Latent.CallbackTarget = this;
+		int32 RequestID = LoadUnloadRequests++; // overflow is OK
+		Latent.UUID = RequestID; // this eliminates duplicate calls so should be unique
+		UGameplayStatics::UnloadStreamLevel(GetWorld(), LevelName, Latent, false);
+	}	
 }
 
 void USpudSubsystem::ForceReset()
