@@ -313,7 +313,7 @@ void USpudState::StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
 		UE_LOG(LogSpudState, Verbose, TEXT("* Global object: %s"), *Obj->GetName());
 
 		if (bIsCallback)
-			ISpudObjectCallback::Execute_SpudPreSaveState(Obj, this);
+			ISpudObjectCallback::Execute_SpudPreStore(Obj, this);
 
 		PropData.Empty();
 		FMemoryWriter PropertyWriter(PropData);
@@ -328,9 +328,9 @@ void USpudState::StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
 			FMemoryWriter CustomDataWriter(Data->CustomData.Data);
 			auto CustomDataStruct = NewObject<USpudStateCustomData>();
 			CustomDataStruct->Init(&CustomDataWriter);
-			ISpudObjectCallback::Execute_SpudFinaliseSaveState(Obj, this, CustomDataStruct);
+			ISpudObjectCallback::Execute_SpudStoreCustomData(Obj, this, CustomDataStruct);
 			
-			ISpudObjectCallback::Execute_SpudPostSaveState(Obj, this);
+			ISpudObjectCallback::Execute_SpudPostStore(Obj, this);
 		}
 		
 	}
@@ -508,7 +508,7 @@ void USpudState::PreRestoreObject(UObject* Obj)
 {
 	if(Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass()))
 	{
-		ISpudObjectCallback::Execute_SpudPreLoadState(Obj, this);
+		ISpudObjectCallback::Execute_SpudPreRestore(Obj, this);
 		
 	}
 }
@@ -520,8 +520,8 @@ void USpudState::PostRestoreObject(UObject* Obj, const FSpudCustomData& FromCust
 		FMemoryReader Reader(FromCustomData.Data);
 		auto CustomData = NewObject<USpudStateCustomData>();
 		CustomData->Init(&Reader);
-		ISpudObjectCallback::Execute_SpudFinaliseLoadState(Obj, this, CustomData);
-		ISpudObjectCallback::Execute_SpudPostLoadState(Obj, this);
+		ISpudObjectCallback::Execute_SpudRestoreCustomData(Obj, this, CustomData);
+		ISpudObjectCallback::Execute_SpudPostRestore(Obj, this);
 	}
 }
 
@@ -804,7 +804,7 @@ void USpudState::StoreActor(AActor* Actor, FSpudLevelData* LevelData)
 	bool bIsCallback = Actor->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass());
 
 	if (bIsCallback)
-		ISpudObjectCallback::Execute_SpudPreSaveState(Actor, this);
+		ISpudObjectCallback::Execute_SpudPreStore(Actor, this);
 
 	// Core data first
 	pDestCoreData->Empty();
@@ -823,10 +823,10 @@ void USpudState::StoreActor(AActor* Actor, FSpudLevelData* LevelData)
 			FMemoryWriter CustomDataWriter(*pDestCustomData);
 			auto CustomDataStruct = NewObject<USpudStateCustomData>();
 			CustomDataStruct->Init(&CustomDataWriter);
-			ISpudObjectCallback::Execute_SpudFinaliseSaveState(Actor, this, CustomDataStruct);
+			ISpudObjectCallback::Execute_SpudStoreCustomData(Actor, this, CustomDataStruct);
 		}			
 	
-		ISpudObjectCallback::Execute_SpudPostSaveState(Actor, this);
+		ISpudObjectCallback::Execute_SpudPostStore(Actor, this);
 	}
 }
 

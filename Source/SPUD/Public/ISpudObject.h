@@ -46,7 +46,7 @@ class USpudObjectCallback : public UInterface
 
 /**
 * Interface for fine control of persistence. Implement this in your objects to be notified when they are persisted or
-* restored.
+* restored individually, and to include custom data in your stored records if you want.
 */
 class SPUD_API ISpudObjectCallback
 {
@@ -63,32 +63,32 @@ public:
 	
 	/// Called just before this object and its SaveGame properties are persisted into a game state
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
-    void SpudPreSaveState(const USpudState* State);
+    void SpudPreStore(const USpudState* State);
 	
 	/// Called just after all the automatic property data has been written to the state for this object, but before the
 	/// record is sealed. This is the place you can write any custom data you need that you can't expose in a UPROPERTY
 	/// for some reason. Use methods on USpudStateCustomData to write custom data.
 	/// You are in charge of making sure you write/read the same data in the finalise methods
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
-    void SpudFinaliseSaveState(const USpudState* State, USpudStateCustomData* CustomData);
+    void SpudStoreCustomData(const USpudState* State, USpudStateCustomData* CustomData);
 
 	/// Called just after this object and its SaveGame properties have been persisted (no further state can be written for this object)
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
-    void SpudPostSaveState(const USpudState* State);
+    void SpudPostStore(const USpudState* State);
 
 	/// Called just before this object's state is populated from a persistent state
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
-    void SpudPreLoadState(const USpudState* State);
+    void SpudPreRestore(const USpudState* State);
 	
 	/// Called just after all the automatic property data has been loaded for this object, but before the
 	/// record is finished. This is the place you can read any custom data you wrote during
 	/// for some reason. Use methods on USpudStateCustomData to write custom data.
 	/// You are in charge of making sure you write/read the same data in the finalise methods
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
-    void SpudFinaliseLoadState(USpudState* State, USpudStateCustomData* CustomData);
+    void SpudRestoreCustomData(USpudState* State, USpudStateCustomData* CustomData);
 
 	/// Called just after the state for this object has been fully restored.
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
-    void SpudPostLoadState(const USpudState* State);
+    void SpudPostRestore(const USpudState* State);
 
 };
