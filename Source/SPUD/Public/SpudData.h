@@ -623,7 +623,7 @@ struct FSpudLevelData : public FSpudChunk
 	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 Version) override;
 
 	/// Empty the lists of actors ready to be re-populated
-	virtual void PreUpdateFromWorld();
+	virtual void PreStoreWorld();
 
 	void Reset();
 };

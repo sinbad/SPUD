@@ -499,7 +499,7 @@ void FSpudLevelData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 Version
 	}
 }
 
-void FSpudLevelData::PreUpdateFromWorld()
+void FSpudLevelData::PreStoreWorld()
 {
 	// We do NOT empty the destroyed actors list because those are populated as things are removed
 	// Hence why NOT calling Reset()

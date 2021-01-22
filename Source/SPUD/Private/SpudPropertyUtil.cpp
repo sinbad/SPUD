@@ -436,7 +436,7 @@ bool SpudPropertyUtil::TryReadActorRefPropertyData(FProperty* Prop, void* Data,
 	
 }
 
-void SpudPropertyUtil::UpdateFromProperty(const UObject* RootObject, FProperty* Property, uint32 PrefixID,
+void SpudPropertyUtil::StoreProperty(const UObject* RootObject, FProperty* Property, uint32 PrefixID,
                                                 const void* ContainerPtr,
                                                 int Depth, FSpudClassDef& ClassDef,
                                                 TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FMemoryWriter& Out)
@@ -444,15 +444,15 @@ void SpudPropertyUtil::UpdateFromProperty(const UObject* RootObject, FProperty* 
 	// Arrays supported, but not maps / sets yet
 	if (const auto AProp = CastField<FArrayProperty>(Property))
 	{
-		UpdateFromArrayProperty(AProp, RootObject, PrefixID, ContainerPtr, Depth, ClassDef, PropertyOffsets, Meta, Out);
+		StoreArrayProperty(AProp, RootObject, PrefixID, ContainerPtr, Depth, ClassDef, PropertyOffsets, Meta, Out);
 	}
 	else
 	{
-		UpdateFromContainerProperty(Property, RootObject, PrefixID, ContainerPtr, false, Depth, ClassDef, PropertyOffsets, Meta, Out);
+		StoreContainerProperty(Property, RootObject, PrefixID, ContainerPtr, false, Depth, ClassDef, PropertyOffsets, Meta, Out);
 	}
 }
 
-void SpudPropertyUtil::UpdateFromArrayProperty(FArrayProperty* AProp, const UObject* RootObject, uint32 PrefixID,
+void SpudPropertyUtil::StoreArrayProperty(FArrayProperty* AProp, const UObject* RootObject, uint32 PrefixID,
                                                    const void* ContainerPtr,
                                                    int Depth, FSpudClassDef& ClassDef,
                                                    TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta,
@@ -478,12 +478,12 @@ void SpudPropertyUtil::UpdateFromArrayProperty(FArrayProperty* AProp, const UObj
 	for (int ArrayElem = 0; ArrayElem < NumElements; ++ArrayElem)
 	{
 		void *ElemPtr = ArrayHelper.GetRawPtr(ArrayElem);
-		UpdateFromContainerProperty(AProp->Inner, RootObject, PrefixID, ElemPtr, true, Depth, ClassDef, PropertyOffsets, Meta, Out);
+		StoreContainerProperty(AProp->Inner, RootObject, PrefixID, ElemPtr, true, Depth, ClassDef, PropertyOffsets, Meta, Out);
 	}
 	
 }
 
-void SpudPropertyUtil::UpdateFromContainerProperty(FProperty* Property, const UObject* RootObject, uint32 PrefixID,
+void SpudPropertyUtil::StoreContainerProperty(FProperty* Property, const UObject* RootObject, uint32 PrefixID,
                                                        const void* ContainerPtr, bool bIsArrayElement, int Depth,
                                                        FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets,
                                                        FSpudClassMetadata& Meta, FMemoryWriter& Out)
@@ -641,7 +641,7 @@ void SpudPropertyUtil::RestoreContainerProperty(UObject* RootObject, FProperty* 
 
 bool SpudPropertyUtil::StoredClassDefMatchesRuntime(const FSpudClassDef& ClassDef, const FSpudClassMetadata& Meta)
 {
-	// This implementation needs to iterate / recurse in *exactly* the same way as the UpdateFrom methods for the same
+	// This implementation needs to iterate / recurse in *exactly* the same way as the Store methods for the same
 	// Class. The visitor pattern ensures that.
 	// We *could* generate a hash of properties to compare stored to runtime, but since we'd have to generate the runtime
 	// hash every time anyway, it's actually quicker to just iterate and fail on the first non-match than calculate an entire hash

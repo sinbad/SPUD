@@ -96,7 +96,7 @@ void USpudSubsystem::OnPreLoadMap(const FString& MapName)
 			UE_LOG(LogSpudSubsystem, Verbose, TEXT("OnPreLoadMap saving: %s"), *UGameplayStatics::GetCurrentLevelName(World));
 
 			auto State = GetActiveState();
-			State->UpdateFromWorld(World);
+			State->StoreWorld(World);
 		}
 	}
 }
@@ -149,18 +149,18 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 	for (auto Ptr : GlobalObjects)
 	{
 		if (Ptr.IsValid())
-			State->UpdateFromGlobalObject(Ptr.Get());
+			State->StoreGlobalObject(Ptr.Get());
 	}
 	for (auto Pair : NamedGlobalObjects)
 	{
 		if (Pair.Value.IsValid())
-			State->UpdateFromGlobalObject(Pair.Value.Get(), Pair.Key);
+			State->StoreGlobalObject(Pair.Value.Get(), Pair.Key);
 	}
 	
 	// TODO: what this should REALLY do is only write data for globals and the currently loaded levels
 	// Then it should combine this data with other level data which isn't loaded right now, into a single
 	// save file. Ideally without loading all the other stuff into memory.
-	State->UpdateFromWorld(GetWorld());
+	State->StoreWorld(GetWorld());
 
 	// UGameplayStatics::SaveGameToSlot prefixes our save with a lot of crap that we don't need
 	// And also wraps it with FObjectAndNameAsStringProxyArchive, which again we don't need
@@ -365,7 +365,7 @@ void USpudSubsystem::UnloadStreamLevel(FName LevelName)
 	{
 		// save the state, if not loading game
 		// when loading game we will unload the current level and streaming and don't want to restore the active state from that
-		GetActiveState()->UpdateFromLevel(GetWorld(), LevelName.ToString());
+		GetActiveState()->StoreLevel(GetWorld(), LevelName.ToString());
 	}
 	
 	// Now unload
@@ -452,7 +452,7 @@ void USpudSubsystem::OnActorDestroyed(AActor* Actor)
 		if (Level && !Level->bIsBeingRemoved)
 		{
 			auto State = GetActiveState();
-			State->UpdateLevelActorDestroyed(Actor);
+			State->StoreLevelActorDestroyed(Actor);
 		}
 	}
 }

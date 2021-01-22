@@ -69,7 +69,7 @@ protected:
 
 	void WriteCoreActorData(AActor* Actor, FArchive& Out) const;
 
-	class UpdateFromPropertyVisitor : public SpudPropertyUtil::PropertyVisitor
+	class StorePropertyVisitor : public SpudPropertyUtil::PropertyVisitor
 	{
 	protected:
 		// Bare UObject but safe because we only call it inside GameState itself
@@ -78,7 +78,7 @@ protected:
 		FSpudClassMetadata& Meta;
 		FMemoryWriter& Out;
 	public:
-		UpdateFromPropertyVisitor(FSpudClassDef& InClassDef, TArray<uint32>& InPropertyOffsets, FSpudClassMetadata& InMeta, FMemoryWriter& InOut);
+		StorePropertyVisitor(FSpudClassDef& InClassDef, TArray<uint32>& InPropertyOffsets, FSpudClassMetadata& InMeta, FMemoryWriter& InOut);
 		virtual bool VisitProperty(UObject* RootObject, FProperty* Property, uint32 CurrentPrefixID,
 		                           void* ContainerPtr, int Depth) override;
 
@@ -94,11 +94,11 @@ protected:
 	FSpudNamedObjectData* GetGlobalObjectData(const UObject* Obj, bool AutoCreate);
 	FSpudNamedObjectData* GetGlobalObjectData(const FString& ID, bool AutoCreate);
 
-	void UpdateFromWorldImpl(UWorld* World, bool bSingleLevel, const FString& OnlyLevelName = "");
+	void StoreWorldImpl(UWorld* World, bool bSingleLevel, const FString& OnlyLevelName = "");
 	bool ShouldActorBeRespawnedOnRestore(AActor* Actor) const;
-	void UpdateFromActor(AActor* Actor, FSpudLevelData* LevelData);
-	void UpdateLevelActorDestroyed(AActor* Actor, FSpudLevelData* LevelData);
-	void UpdateFromGlobalObject(UObject* Obj, FSpudNamedObjectData* Data);
+	void StoreActor(AActor* Actor, FSpudLevelData* LevelData);
+	void StoreLevelActorDestroyed(AActor* Actor, FSpudLevelData* LevelData);
+	void StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data);
 
 	// Actually restores the world, on the assumption that it's already loaded into the correct map
 	void RestoreLoadedWorld(UWorld* World, bool bSingleLevel, const FString& OnlyLevelName = "");
@@ -171,38 +171,38 @@ public:
 	/// Clears all state
 	void ResetState();
 
-	/// Update the game state from every object in the current world. Only processes actors which implement ISpudObject,
+	/// Store every object in the current world in this state. Only processes actors which implement ISpudObject,
 	/// and associates them with the level they're attached to.
-	void UpdateFromWorld(UWorld* World);
+	void StoreWorld(UWorld* World);
 
-	/// Update the game state from objects in the current world which are attached to a specific level.
+	/// Store the state of objects in the current world which are attached to a specific level.
 	/// Only processes actors which implement ISpudObject.
-	void UpdateFromLevel(UWorld* World, const FString& LevelName);
+	void StoreLevel(UWorld* World, const FString& LevelName);
 
-	/// Update the game state from objects in the current world which are attached to a specific level.
+	/// Store the state of objects in the current world which are attached to a specific level.
 	/// Only processes actors which implement ISpudObject.
-	void UpdateFromLevel(ULevel* Level);
+	void StoreLevel(ULevel* Level);
 
-	/// Update the game state from an object in the world. Does not require the object to implement ISpudObject
+	/// Store the state of an actor. Does not require the object to implement ISpudObject
 	/// This object will be associated with its level, and so will only be restored when its level is loaded.
-	void UpdateFromActor(AActor* Obj);
+	void StoreActor(AActor* Obj);
 
 	/// Notify the state that an actor that is part of a level is being destroyed, and that should be remembered
-	void UpdateLevelActorDestroyed(AActor* Actor);
+	void StoreLevelActorDestroyed(AActor* Actor);
 
-	/// Update the game state from a global object, such as a GameInstance. Does not require the object to implement ISpudObject
+	/// Store the state of a global object, such as a GameInstance. Does not require the object to implement ISpudObject
 	/// This object will have the same state across all levels.
 	/// The identifier of this object is generated from its FName or SpudGUid property.
-	void UpdateFromGlobalObject(UObject* Obj);
+	void StoreGlobalObject(UObject* Obj);
 	
-	/// Update the game state from a global object, such as a GameInstance. Does not require the object to implement ISpudObject
+	/// Store the state of a global object, such as a GameInstance. Does not require the object to implement ISpudObject
 	/// This object will have the same state across all levels.
 	/// This version uses a specific ID instead of one generated from the object's FName or SpudGuid property. 
-	void UpdateFromGlobalObject(UObject* Obj, const FString& ID);
+	void StoreGlobalObject(UObject* Obj, const FString& ID);
 
 	/// Restore just the contents of a level from this state. The level must already be loaded, and most likely you
 	/// want it to only *just* have been loaded, so it doesn't contain any runtime objects yet.
-	/// Restores actors which implement ISpudObject as the reverse of UpdateFromLevel.
+	/// Restores actors which implement ISpudObject as the reverse of StoreLevel.
 	/// Does NOT restore any global object state (see RestoreGlobalObject).
 	void RestoreLevel(UWorld* World, const FString& LevelName);
 

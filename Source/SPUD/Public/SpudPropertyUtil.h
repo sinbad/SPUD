@@ -157,13 +157,13 @@ public:
 	/// Visit all properties of a class definition, with no instance
 	static void VisitPersistentProperties(const UStruct* Definition, PropertyVisitor& Visitor);
 	
-	static void UpdateFromProperty(const UObject* RootObject, FProperty* Property, uint32 PrefixID,
+	static void StoreProperty(const UObject* RootObject, FProperty* Property, uint32 PrefixID,
                              const void* ContainerPtr, int Depth,
                              FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FMemoryWriter& Out);
-	static void UpdateFromArrayProperty(FArrayProperty* AProp, const UObject* RootObject, uint32 PrefixID,
+	static void StoreArrayProperty(FArrayProperty* AProp, const UObject* RootObject, uint32 PrefixID,
                                  const void* ContainerPtr, int Depth, FSpudClassDef& ClassDef,
                                  TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FMemoryWriter& Out);
-	static void UpdateFromContainerProperty(FProperty* Property, const UObject* RootObject,
+	static void StoreContainerProperty(FProperty* Property, const UObject* RootObject,
                                      uint32 PrefixID, const void* ContainerPtr, bool bIsArrayElement, int Depth,
                                      FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FMemoryWriter& Out);
 

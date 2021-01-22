@@ -23,17 +23,17 @@ void USpudState::ResetState()
 }
 
 
-void USpudState::UpdateFromWorld(UWorld* World)
+void USpudState::StoreWorld(UWorld* World)
 {
-	UpdateFromWorldImpl(World, false);
+	StoreWorldImpl(World, false);
 }
 
-void USpudState::UpdateFromLevel(UWorld* World, const FString& LevelName)
+void USpudState::StoreLevel(UWorld* World, const FString& LevelName)
 {
-	UpdateFromWorldImpl(World, true, LevelName);
+	StoreWorldImpl(World, true, LevelName);
 }
 
-void USpudState::UpdateFromWorldImpl(UWorld* World, bool bSingleLevel, const FString& OnlyLevel)
+void USpudState::StoreWorldImpl(UWorld* World, bool bSingleLevel, const FString& OnlyLevel)
 {
 	SaveData.GlobalData.CurrentLevel = World->GetFName().ToString();
 
@@ -42,13 +42,13 @@ void USpudState::UpdateFromWorldImpl(UWorld* World, bool bSingleLevel, const FSt
 	{
 		if (!bSingleLevel || GetLevelName(Level) == OnlyLevel)
 		{
-			UpdateFromLevel(Level);
+			StoreLevel(Level);
 		}
 	}
 }
 
 
-void USpudState::UpdateFromLevel(ULevel* Level)
+void USpudState::StoreLevel(ULevel* Level)
 {
 	const FString LevelName = GetLevelName(Level);
 	auto LevelData = GetLevelData(LevelName, true);
@@ -56,18 +56,18 @@ void USpudState::UpdateFromLevel(ULevel* Level)
 	// Clear any existing data for levels being updated from
 	// Which is either the specific level, or all loaded levels
 	if (LevelData)
-		LevelData->PreUpdateFromWorld();
+		LevelData->PreStoreWorld();
 
 	for (auto Actor : Level->Actors)
 	{
 		if (SpudPropertyUtil::IsPersistentObject(Actor))
 		{
-			UpdateFromActor(Actor, LevelData);
+			StoreActor(Actor, LevelData);
 		}					
 	}
 }
 
-USpudState::UpdateFromPropertyVisitor::UpdateFromPropertyVisitor(
+USpudState::StorePropertyVisitor::StorePropertyVisitor(
 	FSpudClassDef& InClassDef, TArray<uint32>& InPropertyOffsets,
 	FSpudClassMetadata& InMeta, FMemoryWriter& InOut):
 	ClassDef(InClassDef),
@@ -77,15 +77,15 @@ USpudState::UpdateFromPropertyVisitor::UpdateFromPropertyVisitor(
 {
 }
 
-bool USpudState::UpdateFromPropertyVisitor::VisitProperty(UObject* RootObject, FProperty* Property,
+bool USpudState::StorePropertyVisitor::VisitProperty(UObject* RootObject, FProperty* Property,
                                                                     uint32 CurrentPrefixID, void* ContainerPtr,
                                                                     int Depth)
 {
-	SpudPropertyUtil::UpdateFromProperty(RootObject, Property, CurrentPrefixID, ContainerPtr, Depth, ClassDef, PropertyOffsets, Meta, Out);
+	SpudPropertyUtil::StoreProperty(RootObject, Property, CurrentPrefixID, ContainerPtr, Depth, ClassDef, PropertyOffsets, Meta, Out);
 	return true;
 }
 
-void USpudState::UpdateFromPropertyVisitor::UnsupportedProperty(UObject* RootObject,
+void USpudState::StorePropertyVisitor::UnsupportedProperty(UObject* RootObject,
     FProperty* Property, uint32 CurrentPrefixID, int Depth)
 {
 	UE_LOG(LogSpudState, Error, TEXT("Property %s/%s is marked for save but is an unsupported type, ignoring. E.g. Arrays of custom structs are not supported."),
@@ -93,7 +93,7 @@ void USpudState::UpdateFromPropertyVisitor::UnsupportedProperty(UObject* RootObj
 	
 }
 
-uint32 USpudState::UpdateFromPropertyVisitor::GetNestedPrefix(
+uint32 USpudState::StorePropertyVisitor::GetNestedPrefix(
 	FStructProperty* SProp, uint32 CurrentPrefixID)
 {
 	// When updating we generate new prefix IDs as needed
@@ -246,7 +246,7 @@ FSpudSpawnedActorData* USpudState::GetSpawnedActorData(AActor* Actor, FSpudLevel
 	return Ret;
 }
 
-void USpudState::UpdateFromActor(AActor* Obj)
+void USpudState::StoreActor(AActor* Obj)
 {
 	if (Obj->HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject|RF_BeginDestroyed))
 		return;
@@ -254,16 +254,16 @@ void USpudState::UpdateFromActor(AActor* Obj)
 	const FString LevelName = GetLevelNameForObject(Obj);
 
 	FSpudLevelData* LevelData = GetLevelData(LevelName, true);
-	UpdateFromActor(Obj, LevelData);
+	StoreActor(Obj, LevelData);
 		
 }
 
-void USpudState::UpdateLevelActorDestroyed(AActor* Actor)
+void USpudState::StoreLevelActorDestroyed(AActor* Actor)
 {
 	const FString LevelName = GetLevelNameForObject(Actor);
 
 	FSpudLevelData* LevelData = GetLevelData(LevelName, true);
-	UpdateLevelActorDestroyed(Actor, LevelData);
+	StoreLevelActorDestroyed(Actor, LevelData);
 }
 
 FSpudNamedObjectData* USpudState::GetGlobalObjectData(const UObject* Obj, bool AutoCreate)
@@ -287,17 +287,17 @@ FSpudNamedObjectData* USpudState::GetGlobalObjectData(const FString& ID, bool Au
 }
 
 
-void USpudState::UpdateFromGlobalObject(UObject* Obj)
+void USpudState::StoreGlobalObject(UObject* Obj)
 {
-	UpdateFromGlobalObject(Obj, GetGlobalObjectData(Obj, true));
+	StoreGlobalObject(Obj, GetGlobalObjectData(Obj, true));
 }
 
-void USpudState::UpdateFromGlobalObject(UObject* Obj, const FString& ID)
+void USpudState::StoreGlobalObject(UObject* Obj, const FString& ID)
 {
-	UpdateFromGlobalObject(Obj, GetGlobalObjectData(ID, true));
+	StoreGlobalObject(Obj, GetGlobalObjectData(ID, true));
 }
 
-void USpudState::UpdateFromGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
+void USpudState::StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
 {
 	
 	if (Data)
@@ -319,7 +319,7 @@ void USpudState::UpdateFromGlobalObject(UObject* Obj, FSpudNamedObjectData* Data
 		FMemoryWriter PropertyWriter(PropData);
 
 		// visit all properties and write out
-		UpdateFromPropertyVisitor Visitor(ClassDef, PropOffsets, Meta, PropertyWriter);
+		StorePropertyVisitor Visitor(ClassDef, PropOffsets, Meta, PropertyWriter);
 		SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor);
 		
 		if (bIsCallback)
@@ -737,7 +737,7 @@ void USpudState::RestoreGlobalObject(UObject* Obj, const FSpudNamedObjectData* D
 	}
 	
 }
-void USpudState::UpdateFromActor(AActor* Actor, FSpudLevelData* LevelData)
+void USpudState::StoreActor(AActor* Actor, FSpudLevelData* LevelData)
 {
 	if (Actor->HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject|RF_BeginDestroyed))
 		return;
@@ -812,7 +812,7 @@ void USpudState::UpdateFromActor(AActor* Actor, FSpudLevelData* LevelData)
 	WriteCoreActorData(Actor, CoreDataWriter);
 
 	// Now properties, visit all and write out
-	UpdateFromPropertyVisitor Visitor(ClassDef, *pOffsets, Meta, PropertyWriter);
+	StorePropertyVisitor Visitor(ClassDef, *pOffsets, Meta, PropertyWriter);
 	SpudPropertyUtil::VisitPersistentProperties(Actor, Visitor);
 
 	if (bIsCallback)
@@ -831,7 +831,7 @@ void USpudState::UpdateFromActor(AActor* Actor, FSpudLevelData* LevelData)
 }
 
 
-void USpudState::UpdateLevelActorDestroyed(AActor* Actor, FSpudLevelData* LevelData)
+void USpudState::StoreLevelActorDestroyed(AActor* Actor, FSpudLevelData* LevelData)
 {
 	// We don't check for duplicates, because it should only be possible to destroy a uniquely named level actor once
 	LevelData->DestroyedActors.Add(SpudPropertyUtil::GetLevelActorName(Actor));
