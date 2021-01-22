@@ -22,31 +22,23 @@ void USpudState::ResetState()
 	SaveData.Reset();
 }
 
-
-void USpudState::StoreWorld(UWorld* World)
+void USpudState::StoreWorldGlobals(UWorld* World)
 {
-	StoreWorldImpl(World, false);
+	SaveData.GlobalData.CurrentLevel = World->GetFName().ToString();
 }
+
 
 void USpudState::StoreLevel(UWorld* World, const FString& LevelName)
 {
-	StoreWorldImpl(World, true, LevelName);
-}
-
-void USpudState::StoreWorldImpl(UWorld* World, bool bSingleLevel, const FString& OnlyLevel)
-{
-	SaveData.GlobalData.CurrentLevel = World->GetFName().ToString();
-
-	// Persistent level AND streaming levels that are loaded show up in World->GetLevels
 	for (auto && Level : World->GetLevels())
 	{
-		if (!bSingleLevel || GetLevelName(Level) == OnlyLevel)
+		if (GetLevelName(Level) == LevelName)
 		{
 			StoreLevel(Level);
+			break;
 		}
 	}
 }
-
 
 void USpudState::StoreLevel(ULevel* Level)
 {

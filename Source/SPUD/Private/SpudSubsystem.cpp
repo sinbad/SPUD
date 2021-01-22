@@ -94,9 +94,7 @@ void USpudSubsystem::OnPreLoadMap(const FString& MapName)
 		if (IsValid(World))
 		{
 			UE_LOG(LogSpudSubsystem, Verbose, TEXT("OnPreLoadMap saving: %s"), *UGameplayStatics::GetCurrentLevelName(World));
-
-			auto State = GetActiveState();
-			State->StoreWorld(World);
+			StoreWorld(World);
 		}
 	}
 }
@@ -144,10 +142,14 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 	
 	auto State = GetActiveState();
 
+	auto World = GetWorld();
+
 	// We do NOT reset
 	// a) deleted objects must remain, they're built up over time
 	// b) we may not be updating all levels and must retain for the others
 
+	State->StoreWorldGlobals(World);
+	
 	for (auto Ptr : GlobalObjects)
 	{
 		if (Ptr.IsValid())
@@ -158,12 +160,9 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 		if (Pair.Value.IsValid())
 			State->StoreGlobalObject(Pair.Value.Get(), Pair.Key);
 	}
-	
-	// TODO: what this should REALLY do is only write data for globals and the currently loaded levels
-	// Then it should combine this data with other level data which isn't loaded right now, into a single
-	// save file. Ideally without loading all the other stuff into memory.
-	State->StoreWorld(GetWorld());
 
+	StoreWorld(World);
+	
 	// UGameplayStatics::SaveGameToSlot prefixes our save with a lot of crap that we don't need
 	// And also wraps it with FObjectAndNameAsStringProxyArchive, which again we don't need
 	// Plus it writes it all to memory first, which we don't need another copy of. Write direct to file
@@ -200,6 +199,31 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 	PostSaveGame.Broadcast(SlotName, SaveOK);
 
 	return SaveOK;
+}
+
+
+void USpudSubsystem::StoreWorld(UWorld* World)
+{
+	// TODO: what this should REALLY do is only write data for globals and the currently loaded levels
+	// Then it should combine this data with other level data which isn't loaded right now, into a single
+	// save file. Ideally without loading all the other stuff into memory.
+	auto State = GetActiveState();
+	for (auto && Level : World->GetLevels())
+	{
+		StoreLevel(Level);
+	}
+	
+}
+
+void USpudSubsystem::StoreLevel(ULevel* Level)
+{
+	const FString LevelName = USpudState::GetLevelName(Level);
+	PreLevelStore.Broadcast(LevelName);
+	GetActiveState()->StoreLevel(Level);
+	PostLevelStore.Broadcast(LevelName, true);	
+}
+void USpudSubsystem::SaveComplete(const FString& SlotName, bool bSuccess)
+{
 }
 
 bool USpudSubsystem::LoadGame(const FString& SlotName)
@@ -379,11 +403,9 @@ void USpudSubsystem::UnloadStreamLevel(FName LevelName)
 	
 		if (CurrentState != ESpudSystemState::LoadingGame)
 		{
-			PreLevelStore.Broadcast(USpudState::GetLevelName(Level));
 			// save the state, if not loading game
 			// when loading game we will unload the current level and streaming and don't want to restore the active state from that
-			GetActiveState()->StoreLevel(GetWorld(), LevelName.ToString());
-			PostLevelStore.Broadcast(USpudState::GetLevelName(Level), true);
+			StoreLevel(Level);
 		}
 		
 		// Now unload

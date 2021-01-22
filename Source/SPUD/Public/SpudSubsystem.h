@@ -99,7 +99,6 @@ protected:
 	// requesters have withdrawn
 	TMap<FName, TArray<TWeakObjectPtr<>>> LevelRequesters;
 
-
 	UFUNCTION()
 	void OnPreLoadMap(const FString& MapName);
 	UFUNCTION()
@@ -117,6 +116,9 @@ protected:
 	void PostLoadStreamLevel(int32 LinkID);
 	UFUNCTION(BlueprintCallable)
     void PostUnloadStreamLevel(int32 LinkID);
+
+	void StoreWorld(UWorld* World);
+	void StoreLevel(ULevel* Level);
 
 	void LoadComplete(const FString& SlotName, bool bSuccess);
 	void SaveComplete(const FString& SlotName, bool bSuccess);

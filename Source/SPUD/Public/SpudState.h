@@ -91,7 +91,6 @@ protected:
 	FSpudNamedObjectData* GetGlobalObjectData(const UObject* Obj, bool AutoCreate);
 	FSpudNamedObjectData* GetGlobalObjectData(const FString& ID, bool AutoCreate);
 
-	void StoreWorldImpl(UWorld* World, bool bSingleLevel, const FString& OnlyLevelName = "");
 	bool ShouldActorBeRespawnedOnRestore(AActor* Actor) const;
 	void StoreActor(AActor* Actor, FSpudLevelData* LevelData);
 	void StoreLevelActorDestroyed(AActor* Actor, FSpudLevelData* LevelData);
@@ -171,10 +170,9 @@ public:
 	/// Clears all state
 	void ResetState();
 
-	/// Store every object in the current world in this state. Only processes actors which implement ISpudObject,
-	/// and associates them with the level they're attached to.
-	void StoreWorld(UWorld* World);
-
+	/// Store the top-level information about the world, but none of the level contents
+	void StoreWorldGlobals(UWorld* World);
+	
 	/// Store the state of objects in the current world which are attached to a specific level.
 	/// Only processes actors which implement ISpudObject.
 	void StoreLevel(UWorld* World, const FString& LevelName);
