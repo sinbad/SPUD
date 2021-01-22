@@ -1,6 +1,6 @@
 #include "SpudSubsystem.h"
 #include "EngineUtils.h"
-#include "SpudGameState.h"
+#include "SpudState.h"
 #include "Engine/LevelStreaming.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -481,7 +481,7 @@ void USpudSubsystem::RefreshSaveGameList()
 		auto Info = NewObject<USpudSaveGameInfo>();
 		Info->SlotName = FPaths::GetBaseFilename(File);
 
-		USpudGameState::LoadSaveInfoFromArchive(*Archive, *Info);
+		USpudState::LoadSaveInfoFromArchive(*Archive, *Info);
 		Archive->Close();
 		
 		SaveGameList.Add(Info);		

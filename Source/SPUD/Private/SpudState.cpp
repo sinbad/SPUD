@@ -1,4 +1,4 @@
-#include "SpudGameState.h"
+#include "SpudState.h"
 
 #include "EngineUtils.h"
 #include "ISpudObject.h"
@@ -9,31 +9,31 @@
 #include "GameFramework/GameStateBase.h"
 #include "Kismet/GameplayStatics.h"
 
-DEFINE_LOG_CATEGORY(LogSpudGameState)
+DEFINE_LOG_CATEGORY(LogSpudState)
 
 //PRAGMA_DISABLE_OPTIMIZATION
 
-USpudGameState::USpudGameState()
+USpudState::USpudState()
 {
 }
 
-void USpudGameState::ResetState()
+void USpudState::ResetState()
 {
 	SaveData.Reset();
 }
 
 
-void USpudGameState::UpdateFromWorld(UWorld* World)
+void USpudState::UpdateFromWorld(UWorld* World)
 {
 	UpdateFromWorldImpl(World, false);
 }
 
-void USpudGameState::UpdateFromLevel(UWorld* World, const FString& LevelName)
+void USpudState::UpdateFromLevel(UWorld* World, const FString& LevelName)
 {
 	UpdateFromWorldImpl(World, true, LevelName);
 }
 
-void USpudGameState::UpdateFromWorldImpl(UWorld* World, bool bSingleLevel, const FString& OnlyLevel)
+void USpudState::UpdateFromWorldImpl(UWorld* World, bool bSingleLevel, const FString& OnlyLevel)
 {
 	SaveData.GlobalData.CurrentLevel = World->GetFName().ToString();
 
@@ -48,7 +48,7 @@ void USpudGameState::UpdateFromWorldImpl(UWorld* World, bool bSingleLevel, const
 }
 
 
-void USpudGameState::UpdateFromLevel(ULevel* Level)
+void USpudState::UpdateFromLevel(ULevel* Level)
 {
 	const FString LevelName = GetLevelName(Level);
 	auto LevelData = GetLevelData(LevelName, true);
@@ -67,7 +67,7 @@ void USpudGameState::UpdateFromLevel(ULevel* Level)
 	}
 }
 
-USpudGameState::UpdateFromPropertyVisitor::UpdateFromPropertyVisitor(
+USpudState::UpdateFromPropertyVisitor::UpdateFromPropertyVisitor(
 	FSpudClassDef& InClassDef, TArray<uint32>& InPropertyOffsets,
 	FSpudClassMetadata& InMeta, FMemoryWriter& InOut):
 	ClassDef(InClassDef),
@@ -77,7 +77,7 @@ USpudGameState::UpdateFromPropertyVisitor::UpdateFromPropertyVisitor(
 {
 }
 
-bool USpudGameState::UpdateFromPropertyVisitor::VisitProperty(UObject* RootObject, FProperty* Property,
+bool USpudState::UpdateFromPropertyVisitor::VisitProperty(UObject* RootObject, FProperty* Property,
                                                                     uint32 CurrentPrefixID, void* ContainerPtr,
                                                                     int Depth)
 {
@@ -85,22 +85,22 @@ bool USpudGameState::UpdateFromPropertyVisitor::VisitProperty(UObject* RootObjec
 	return true;
 }
 
-void USpudGameState::UpdateFromPropertyVisitor::UnsupportedProperty(UObject* RootObject,
+void USpudState::UpdateFromPropertyVisitor::UnsupportedProperty(UObject* RootObject,
     FProperty* Property, uint32 CurrentPrefixID, int Depth)
 {
-	UE_LOG(LogSpudGameState, Error, TEXT("Property %s/%s is marked for save but is an unsupported type, ignoring. E.g. Arrays of custom structs are not supported."),
+	UE_LOG(LogSpudState, Error, TEXT("Property %s/%s is marked for save but is an unsupported type, ignoring. E.g. Arrays of custom structs are not supported."),
         *RootObject->GetName(), *Property->GetName());
 	
 }
 
-uint32 USpudGameState::UpdateFromPropertyVisitor::GetNestedPrefix(
+uint32 USpudState::UpdateFromPropertyVisitor::GetNestedPrefix(
 	FStructProperty* SProp, uint32 CurrentPrefixID)
 {
 	// When updating we generate new prefix IDs as needed
 	return SpudPropertyUtil::FindOrAddNestedPrefixID(CurrentPrefixID, SProp, Meta);
 }
 
-void USpudGameState::WriteCoreActorData(AActor* Actor, FArchive& Out) const
+void USpudState::WriteCoreActorData(AActor* Actor, FArchive& Out) const
 {
 	// Save core information which isn't in properties
 	// We write this as packed data
@@ -140,13 +140,13 @@ void USpudGameState::WriteCoreActorData(AActor* Actor, FArchive& Out) const
 	
 }
 
-FString USpudGameState::GetLevelName(const ULevel* Level)
+FString USpudState::GetLevelName(const ULevel* Level)
 {
 	// FName isn't good enough, it's "PersistentLevel" rather than the actual map name
 	// Using the Outer to get the package name does it, same as for any other object
 	return GetLevelNameForObject(Level);
 }
-FString USpudGameState::GetLevelNameForObject(const UObject* Obj)
+FString USpudState::GetLevelNameForObject(const UObject* Obj)
 {
 	// Detect what level an object originated from
 	// GetLevel()->GetName / GetFName() returns "PersistentLevel" all the time
@@ -169,7 +169,7 @@ FString USpudGameState::GetLevelNameForObject(const UObject* Obj)
 	}	
 }
 
-FSpudLevelData* USpudGameState::GetLevelData(const FString& LevelName, bool AutoCreate)
+FSpudLevelData* USpudState::GetLevelData(const FString& LevelName, bool AutoCreate)
 {
 	auto Ret = SaveData.LevelDataMap.Contents.Find(LevelName);
 	if (!Ret && AutoCreate)
@@ -181,7 +181,7 @@ FSpudLevelData* USpudGameState::GetLevelData(const FString& LevelName, bool Auto
 	return Ret;
 }
 
-FSpudNamedObjectData* USpudGameState::GetLevelActorData(const AActor* Actor, FSpudLevelData* LevelData, bool AutoCreate)
+FSpudNamedObjectData* USpudState::GetLevelActorData(const AActor* Actor, FSpudLevelData* LevelData, bool AutoCreate)
 {
 	// FNames are constant within a level
 	const auto Name = SpudPropertyUtil::GetLevelActorName(Actor);
@@ -196,14 +196,14 @@ FSpudNamedObjectData* USpudGameState::GetLevelActorData(const AActor* Actor, FSp
 	return Ret;
 }
 
-FString USpudGameState::GetClassName(const UObject* Obj)
+FString USpudState::GetClassName(const UObject* Obj)
 {
 	// Full class name allows for re-spawning
 	// E.g. /Game/Blueprints/Class.Blah_C
 	return Obj->GetClass()->GetPathName();
 }
 
-FSpudSpawnedActorData* USpudGameState::GetSpawnedActorData(AActor* Actor, FSpudLevelData* LevelData, bool AutoCreate)
+FSpudSpawnedActorData* USpudState::GetSpawnedActorData(AActor* Actor, FSpudLevelData* LevelData, bool AutoCreate)
 {
 	// For automatically spawned singleton objects such as GameModes, Pawns you should create a SpudGuid
 	// property which you generate statically (not at construction), e.g. in the BP default value.
@@ -223,9 +223,9 @@ FSpudSpawnedActorData* USpudGameState::GetSpawnedActorData(AActor* Actor, FSpudL
 	
 	if (!GuidOk)
 	{
-		UE_LOG(LogSpudGameState, Error, TEXT("Ignoring runtime actor %s, missing or blank SpudGuid property"), *Actor->GetName())
-		UE_LOG(LogSpudGameState, Error, TEXT("  Runtime spawned actors should have a SpudGuid property to identify them, initialised to valid unique value."))
-		UE_LOG(LogSpudGameState, Error, TEXT("  NOTE: If this actor is part of a level and not runtime spawned, the cause of this false detection might be that you haven't SAVED the level before playing in the editor."))
+		UE_LOG(LogSpudState, Error, TEXT("Ignoring runtime actor %s, missing or blank SpudGuid property"), *Actor->GetName())
+		UE_LOG(LogSpudState, Error, TEXT("  Runtime spawned actors should have a SpudGuid property to identify them, initialised to valid unique value."))
+		UE_LOG(LogSpudState, Error, TEXT("  NOTE: If this actor is part of a level and not runtime spawned, the cause of this false detection might be that you haven't SAVED the level before playing in the editor."))
 
 		// TODO: if a class is a level object but happens to have a SpudGuid property anyway (maybe because sometimes runtime)
 		// the lack of a level save making it look like a runtime object cannot be detected. Can we *maybe* call editor code somehow
@@ -246,7 +246,7 @@ FSpudSpawnedActorData* USpudGameState::GetSpawnedActorData(AActor* Actor, FSpudL
 	return Ret;
 }
 
-void USpudGameState::UpdateFromActor(AActor* Obj)
+void USpudState::UpdateFromActor(AActor* Obj)
 {
 	if (Obj->HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject|RF_BeginDestroyed))
 		return;
@@ -258,7 +258,7 @@ void USpudGameState::UpdateFromActor(AActor* Obj)
 		
 }
 
-void USpudGameState::UpdateLevelActorDestroyed(AActor* Actor)
+void USpudState::UpdateLevelActorDestroyed(AActor* Actor)
 {
 	const FString LevelName = GetLevelNameForObject(Actor);
 
@@ -266,7 +266,7 @@ void USpudGameState::UpdateLevelActorDestroyed(AActor* Actor)
 	UpdateLevelActorDestroyed(Actor, LevelData);
 }
 
-FSpudNamedObjectData* USpudGameState::GetGlobalObjectData(const UObject* Obj, bool AutoCreate)
+FSpudNamedObjectData* USpudState::GetGlobalObjectData(const UObject* Obj, bool AutoCreate)
 {
 	// Get the identifier; prefer GUID if present, if not just use name
 	const FString ID = SpudPropertyUtil::GetGlobalObjectID(Obj);
@@ -274,7 +274,7 @@ FSpudNamedObjectData* USpudGameState::GetGlobalObjectData(const UObject* Obj, bo
 	return GetGlobalObjectData(ID, AutoCreate);
 }
 
-FSpudNamedObjectData* USpudGameState::GetGlobalObjectData(const FString& ID, bool AutoCreate)
+FSpudNamedObjectData* USpudState::GetGlobalObjectData(const FString& ID, bool AutoCreate)
 {
 	FSpudNamedObjectData* Ret = SaveData.GlobalData.Objects.Contents.Find(ID);
 	if (!Ret && AutoCreate)
@@ -287,17 +287,17 @@ FSpudNamedObjectData* USpudGameState::GetGlobalObjectData(const FString& ID, boo
 }
 
 
-void USpudGameState::UpdateFromGlobalObject(UObject* Obj)
+void USpudState::UpdateFromGlobalObject(UObject* Obj)
 {
 	UpdateFromGlobalObject(Obj, GetGlobalObjectData(Obj, true));
 }
 
-void USpudGameState::UpdateFromGlobalObject(UObject* Obj, const FString& ID)
+void USpudState::UpdateFromGlobalObject(UObject* Obj, const FString& ID)
 {
 	UpdateFromGlobalObject(Obj, GetGlobalObjectData(ID, true));
 }
 
-void USpudGameState::UpdateFromGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
+void USpudState::UpdateFromGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
 {
 	
 	if (Data)
@@ -310,7 +310,7 @@ void USpudGameState::UpdateFromGlobalObject(UObject* Obj, FSpudNamedObjectData* 
 		auto& PropData = Data->Properties.Data;
 		bool bIsCallback = Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass());
 
-		UE_LOG(LogSpudGameState, Verbose, TEXT("* Global object: %s"), *Obj->GetName());
+		UE_LOG(LogSpudState, Verbose, TEXT("* Global object: %s"), *Obj->GetName());
 
 		if (bIsCallback)
 			ISpudObjectCallback::Execute_SpudPreSaveState(Obj, this);
@@ -326,7 +326,7 @@ void USpudGameState::UpdateFromGlobalObject(UObject* Obj, FSpudNamedObjectData* 
 		{
 			Data->CustomData.Data.Empty();
 			FMemoryWriter CustomDataWriter(Data->CustomData.Data);
-			auto CustomDataStruct = NewObject<USpudGameStateCustomData>();
+			auto CustomDataStruct = NewObject<USpudStateCustomData>();
 			CustomDataStruct->Init(&CustomDataWriter);
 			ISpudObjectCallback::Execute_SpudFinaliseSaveState(Obj, this, CustomDataStruct);
 			
@@ -339,12 +339,12 @@ void USpudGameState::UpdateFromGlobalObject(UObject* Obj, FSpudNamedObjectData* 
 	
 }
 
-void USpudGameState::RestoreLevel(UWorld* World, const FString& LevelName)
+void USpudState::RestoreLevel(UWorld* World, const FString& LevelName)
 {
 	RestoreLoadedWorld(World, true, LevelName);
 }
 
-void USpudGameState::RestoreLevel(ULevel* Level)
+void USpudState::RestoreLevel(ULevel* Level)
 {
 	if (!IsValid(Level))
 		return;
@@ -354,7 +354,7 @@ void USpudGameState::RestoreLevel(ULevel* Level)
 
 	if (!LevelData)
 	{
-		UE_LOG(LogSpudGameState, Warning, TEXT("Unable to restore level %s because data is missing"), *LevelName);
+		UE_LOG(LogSpudState, Warning, TEXT("Unable to restore level %s because data is missing"), *LevelName);
 		return;
 	}
 
@@ -388,7 +388,7 @@ void USpudGameState::RestoreLevel(ULevel* Level)
 
 }
 
-void USpudGameState::RestoreActor(AActor* Actor)
+void USpudState::RestoreActor(AActor* Actor)
 {
 	if (Actor->HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject|RF_BeginDestroyed))
 		return;
@@ -398,7 +398,7 @@ void USpudGameState::RestoreActor(AActor* Actor)
 	FSpudLevelData* LevelData = GetLevelData(LevelName, false);
 	if (!LevelData)
 	{
-		UE_LOG(LogSpudGameState, Error, TEXT("Unable to restore Actor %s, missing level data"), *Actor->GetName());
+		UE_LOG(LogSpudState, Error, TEXT("Unable to restore Actor %s, missing level data"), *Actor->GetName());
 		return;
 	}
 
@@ -406,7 +406,7 @@ void USpudGameState::RestoreActor(AActor* Actor)
 }
 
 
-AActor* USpudGameState::RespawnActor(const FSpudSpawnedActorData& SpawnedActor,
+AActor* USpudState::RespawnActor(const FSpudSpawnedActorData& SpawnedActor,
                                            const FSpudClassMetadata& Meta,
                                            ULevel* Level)
 {
@@ -416,7 +416,7 @@ AActor* USpudGameState::RespawnActor(const FSpudSpawnedActorData& SpawnedActor,
 
 	if (!Class)
 	{
-		UE_LOG(LogSpudGameState, Error, TEXT("Cannot respawn instance of %s, class not found"), *ClassName);
+		UE_LOG(LogSpudState, Error, TEXT("Cannot respawn instance of %s, class not found"), *ClassName);
 		return nullptr;
 	}
 	FActorSpawnParameters Params;
@@ -428,13 +428,13 @@ AActor* USpudGameState::RespawnActor(const FSpudSpawnedActorData& SpawnedActor,
 	{
 		if (!SpudPropertyUtil::SetGuidProperty(Actor, SpawnedActor.Guid))
 		{
-			UE_LOG(LogSpudGameState, Error, TEXT("Re-spawned a runtime actor of class %s but it is missing a SpudGuid property!"), *ClassName);
+			UE_LOG(LogSpudState, Error, TEXT("Re-spawned a runtime actor of class %s but it is missing a SpudGuid property!"), *ClassName);
 		}		
 	}
 	return Actor;
 }
 
-void USpudGameState::DestroyActor(const FSpudDestroyedLevelActor& DestroyedActor, ULevel* Level)
+void USpudState::DestroyActor(const FSpudDestroyedLevelActor& DestroyedActor, ULevel* Level)
 {
 	// We only ever have to destroy level actors, not runtime objects (those are just missing on restore)
 	auto Obj = StaticFindObject(AActor::StaticClass(), Level, *DestroyedActor.Name);
@@ -444,7 +444,7 @@ void USpudGameState::DestroyActor(const FSpudDestroyedLevelActor& DestroyedActor
 	}
 }
 
-bool USpudGameState::ShouldRespawnRuntimeActor(const AActor* Actor) const
+bool USpudState::ShouldRespawnRuntimeActor(const AActor* Actor) const
 {
 	ESpudRespawnMode RespawnMode = ESpudRespawnMode::Default;
 	// I know this cast style only supports C++ not Blueprints, but this method can only be defined in C++ anyway
@@ -471,14 +471,14 @@ bool USpudGameState::ShouldRespawnRuntimeActor(const AActor* Actor) const
 }
 
 
-bool USpudGameState::ShouldActorBeRespawnedOnRestore(AActor* Actor) const
+bool USpudState::ShouldActorBeRespawnedOnRestore(AActor* Actor) const
 {
 	return SpudPropertyUtil::IsRuntimeActor(Actor) &&
 		ShouldRespawnRuntimeActor(Actor);
 }
 
 
-void USpudGameState::RestoreActor(AActor* Actor, FSpudLevelData* LevelData, const TMap<FGuid, UObject*>* RuntimeObjects)
+void USpudState::RestoreActor(AActor* Actor, FSpudLevelData* LevelData, const TMap<FGuid, UObject*>* RuntimeObjects)
 {
 	if (Actor->HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject|RF_BeginDestroyed))
 		return;
@@ -493,7 +493,7 @@ void USpudGameState::RestoreActor(AActor* Actor, FSpudLevelData* LevelData, cons
 
 	if (ActorData)
 	{
-		UE_LOG(LogSpudGameState, Verbose, TEXT("Restoring Actor %s"), *Actor->GetName())
+		UE_LOG(LogSpudState, Verbose, TEXT("Restoring Actor %s"), *Actor->GetName())
 		PreRestoreObject(Actor);
 		
 		RestoreCoreActorData(Actor, ActorData->CoreData);
@@ -504,7 +504,7 @@ void USpudGameState::RestoreActor(AActor* Actor, FSpudLevelData* LevelData, cons
 }
 
 
-void USpudGameState::PreRestoreObject(UObject* Obj)
+void USpudState::PreRestoreObject(UObject* Obj)
 {
 	if(Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass()))
 	{
@@ -513,19 +513,19 @@ void USpudGameState::PreRestoreObject(UObject* Obj)
 	}
 }
 
-void USpudGameState::PostRestoreObject(UObject* Obj, const FSpudCustomData& FromCustomData)
+void USpudState::PostRestoreObject(UObject* Obj, const FSpudCustomData& FromCustomData)
 {
 	if (Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass()))
 	{
 		FMemoryReader Reader(FromCustomData.Data);
-		auto CustomData = NewObject<USpudGameStateCustomData>();
+		auto CustomData = NewObject<USpudStateCustomData>();
 		CustomData->Init(&Reader);
 		ISpudObjectCallback::Execute_SpudFinaliseLoadState(Obj, this, CustomData);
 		ISpudObjectCallback::Execute_SpudPostLoadState(Obj, this);
 	}
 }
 
-void USpudGameState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& FromData)
+void USpudState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& FromData)
 {
 	// Restore core data based on version
 	// Unlike properties this is packed data, versioned
@@ -570,18 +570,18 @@ void USpudGameState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorDat
 	}
 	else
 	{
-		UE_LOG(LogSpudGameState, Error, TEXT("Core Actor Data for %s is corrupt, not restoring"), *Actor->GetName())
+		UE_LOG(LogSpudState, Error, TEXT("Core Actor Data for %s is corrupt, not restoring"), *Actor->GetName())
 		return;
 	}
 }
 
-void USpudGameState::RestoreObjectProperties(UObject* Obj, const FSpudPropertyData& FromData, const FSpudClassMetadata& Meta, const TMap<FGuid, UObject*>* RuntimeObjects)
+void USpudState::RestoreObjectProperties(UObject* Obj, const FSpudPropertyData& FromData, const FSpudClassMetadata& Meta, const TMap<FGuid, UObject*>* RuntimeObjects)
 {
 	const auto ClassName = GetClassName(Obj);
 	const auto ClassDef = Meta.GetClassDef(ClassName);
 	if (!ClassDef)
 	{
-		UE_LOG(LogSpudGameState, Error, TEXT("Unable to find ClassDef for: %s %s"), *GetClassName(Obj));
+		UE_LOG(LogSpudState, Error, TEXT("Unable to find ClassDef for: %s %s"), *GetClassName(Obj));
 		return;
 	}
 
@@ -596,12 +596,12 @@ void USpudGameState::RestoreObjectProperties(UObject* Obj, const FSpudPropertyDa
 }
 
 
-void USpudGameState::RestoreObjectPropertiesFast(UObject* Obj, const FSpudPropertyData& FromData,
+void USpudState::RestoreObjectPropertiesFast(UObject* Obj, const FSpudPropertyData& FromData,
                                                        const FSpudClassMetadata& Meta,
                                                        const FSpudClassDef* ClassDef,
                                                        const TMap<FGuid, UObject*>* RuntimeObjects)
 {
-	UE_LOG(LogSpudGameState, Verbose, TEXT("Restoring %s properties via FAST path, %d properties"), *ClassDef->ClassName, ClassDef->Properties.Num());
+	UE_LOG(LogSpudState, Verbose, TEXT("Restoring %s properties via FAST path, %d properties"), *ClassDef->ClassName, ClassDef->Properties.Num());
 	const auto StoredPropertyIterator = ClassDef->Properties.CreateConstIterator();
 
 	FMemoryReader In(FromData.Data);
@@ -610,12 +610,12 @@ void USpudGameState::RestoreObjectPropertiesFast(UObject* Obj, const FSpudProper
 	
 }
 
-void USpudGameState::RestoreObjectPropertiesSlow(UObject* Obj, const FSpudPropertyData& FromData,
+void USpudState::RestoreObjectPropertiesSlow(UObject* Obj, const FSpudPropertyData& FromData,
                                                        const FSpudClassMetadata& Meta,
                                                        const FSpudClassDef* ClassDef,
                                                        const TMap<FGuid, UObject*>* RuntimeObjects)
 {
-	UE_LOG(LogSpudGameState, Verbose, TEXT("Restoring %s properties via SLOW path, %d properties"), *ClassDef->ClassName, ClassDef->Properties.Num());
+	UE_LOG(LogSpudState, Verbose, TEXT("Restoring %s properties via SLOW path, %d properties"), *ClassDef->ClassName, ClassDef->Properties.Num());
 
 	FMemoryReader In(FromData.Data);
 	RestoreSlowPropertyVisitor Visitor(In, *ClassDef, Meta, RuntimeObjects);
@@ -623,14 +623,14 @@ void USpudGameState::RestoreObjectPropertiesSlow(UObject* Obj, const FSpudProper
 }
 
 
-uint32 USpudGameState::RestorePropertyVisitor::GetNestedPrefix(FStructProperty* SProp, uint32 CurrentPrefixID)
+uint32 USpudState::RestorePropertyVisitor::GetNestedPrefix(FStructProperty* SProp, uint32 CurrentPrefixID)
 {
 	// This doesn't create a new ID, expects it to be there already (should be since restoring)
 	return SpudPropertyUtil::GetNestedPrefixID(CurrentPrefixID, SProp, Meta);
 }
 
 
-bool USpudGameState::RestoreFastPropertyVisitor::VisitProperty(UObject* RootObject, FProperty* Property,
+bool USpudState::RestoreFastPropertyVisitor::VisitProperty(UObject* RootObject, FProperty* Property,
 	uint32 CurrentPrefixID, void* ContainerPtr, int Depth)
 {
 	// Fast path can just iterate both sides of properties because stored properties are in the same order
@@ -645,7 +645,7 @@ bool USpudGameState::RestoreFastPropertyVisitor::VisitProperty(UObject* RootObje
 	return true;
 }
 
-bool USpudGameState::RestoreSlowPropertyVisitor::VisitProperty(UObject* RootObject, FProperty* Property,
+bool USpudState::RestoreSlowPropertyVisitor::VisitProperty(UObject* RootObject, FProperty* Property,
                                                                      uint32 CurrentPrefixID, void* ContainerPtr, int Depth)
 {
 	// This is the slow alternate property restoration path
@@ -662,25 +662,25 @@ bool USpudGameState::RestoreSlowPropertyVisitor::VisitProperty(UObject* RootObje
 	auto InnerMapPtr = ClassDef.PropertyLookup.Find(CurrentPrefixID);
 	if (!InnerMapPtr)
 	{
-		UE_LOG(LogSpudGameState, Error, TEXT("Error in RestoreSlowPropertyVisitor, PrefixID invalid for %, class %s"), *Property->GetName(), *ClassDef.ClassName);
+		UE_LOG(LogSpudState, Error, TEXT("Error in RestoreSlowPropertyVisitor, PrefixID invalid for %, class %s"), *Property->GetName(), *ClassDef.ClassName);
 		return true;
 	}
 	
 	uint32 PropID = Meta.GetPropertyIDFromName(Property->GetName());
 	if (PropID == SPUDDATA_INDEX_NONE)
 	{
-		UE_LOG(LogSpudGameState, Warning, TEXT("Skipping property %s on class %s, not found in class definition"), *Property->GetName(), *ClassDef.ClassName);
+		UE_LOG(LogSpudState, Warning, TEXT("Skipping property %s on class %s, not found in class definition"), *Property->GetName(), *ClassDef.ClassName);
 		return true;
 	}
 	const int* PropertyIndexPtr = InnerMapPtr->Find(PropID);
 	if (!PropertyIndexPtr)
 	{
-		UE_LOG(LogSpudGameState, Warning, TEXT("Skipping property %s on class %s, data not found"), *Property->GetName(), *ClassDef.ClassName);
+		UE_LOG(LogSpudState, Warning, TEXT("Skipping property %s on class %s, data not found"), *Property->GetName(), *ClassDef.ClassName);
 		return true;		
 	}
 	if (*PropertyIndexPtr < 0 || *PropertyIndexPtr >= ClassDef.Properties.Num())
 	{
-		UE_LOG(LogSpudGameState, Error, TEXT("Error in RestoreSlowPropertyVisitor, invalid property index for %s on class %s"), *Property->GetName(), *ClassDef.ClassName);
+		UE_LOG(LogSpudState, Error, TEXT("Error in RestoreSlowPropertyVisitor, invalid property index for %s on class %s"), *Property->GetName(), *ClassDef.ClassName);
 		return true;		
 	}
 	auto& StoredProperty = ClassDef.Properties[*PropertyIndexPtr];
@@ -689,12 +689,12 @@ bool USpudGameState::RestoreSlowPropertyVisitor::VisitProperty(UObject* RootObje
 	return true;
 }
 
-void USpudGameState::RestoreLoadedWorld(UWorld* World)
+void USpudState::RestoreLoadedWorld(UWorld* World)
 {
 	RestoreLoadedWorld(World, false);
 }
 
-void USpudGameState::RestoreLoadedWorld(UWorld* World, bool bSingleLevel, const FString& OnlyLevel)
+void USpudState::RestoreLoadedWorld(UWorld* World, bool bSingleLevel, const FString& OnlyLevel)
 {
 	// So that we don't need to check every instance of a class for matching stored / runtime class properties
 	// we will keep a cache of whether to use the fast or slow path. It's only valid for this specific load
@@ -714,21 +714,21 @@ void USpudGameState::RestoreLoadedWorld(UWorld* World, bool bSingleLevel, const 
 
 }
 
-void USpudGameState::RestoreGlobalObject(UObject* Obj)
+void USpudState::RestoreGlobalObject(UObject* Obj)
 {
 	RestoreGlobalObject(Obj, GetGlobalObjectData(Obj, false));
 }
 
-void USpudGameState::RestoreGlobalObject(UObject* Obj, const FString& ID)
+void USpudState::RestoreGlobalObject(UObject* Obj, const FString& ID)
 {
 	RestoreGlobalObject(Obj, GetGlobalObjectData(ID, false));
 }
 
-void USpudGameState::RestoreGlobalObject(UObject* Obj, const FSpudNamedObjectData* Data)
+void USpudState::RestoreGlobalObject(UObject* Obj, const FSpudNamedObjectData* Data)
 {
 	if (Data)
 	{
-		UE_LOG(LogSpudGameState, Verbose, TEXT("Restoring Global Object %s"), *Data->Name)
+		UE_LOG(LogSpudState, Verbose, TEXT("Restoring Global Object %s"), *Data->Name)
 		PreRestoreObject(Obj);
 		
 		RestoreObjectProperties(Obj, Data->Properties, SaveData.GlobalData.Metadata, nullptr);
@@ -737,7 +737,7 @@ void USpudGameState::RestoreGlobalObject(UObject* Obj, const FSpudNamedObjectDat
 	}
 	
 }
-void USpudGameState::UpdateFromActor(AActor* Actor, FSpudLevelData* LevelData)
+void USpudState::UpdateFromActor(AActor* Actor, FSpudLevelData* LevelData)
 {
 	if (Actor->HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject|RF_BeginDestroyed))
 		return;
@@ -794,9 +794,9 @@ void USpudGameState::UpdateFromActor(AActor* Actor, FSpudLevelData* LevelData)
 	
 
 	if (bRespawn)
-		UE_LOG(LogSpudGameState, Verbose, TEXT("* Runtime object: %s (%s)"), *Guid.ToString(EGuidFormats::DigitsWithHyphens), *Name)
+		UE_LOG(LogSpudState, Verbose, TEXT("* Runtime object: %s (%s)"), *Guid.ToString(EGuidFormats::DigitsWithHyphens), *Name)
 	else
-		UE_LOG(LogSpudGameState, Verbose, TEXT("* Level object: %s/%s"), *LevelData->Name, *Name);
+		UE_LOG(LogSpudState, Verbose, TEXT("* Level object: %s/%s"), *LevelData->Name, *Name);
 
 	pDestPropertyData->Empty();
 	FMemoryWriter PropertyWriter(*pDestPropertyData);
@@ -821,7 +821,7 @@ void USpudGameState::UpdateFromActor(AActor* Actor, FSpudLevelData* LevelData)
 		{
 			pDestCustomData->Empty();
 			FMemoryWriter CustomDataWriter(*pDestCustomData);
-			auto CustomDataStruct = NewObject<USpudGameStateCustomData>();
+			auto CustomDataStruct = NewObject<USpudStateCustomData>();
 			CustomDataStruct->Init(&CustomDataWriter);
 			ISpudObjectCallback::Execute_SpudFinaliseSaveState(Actor, this, CustomDataStruct);
 		}			
@@ -831,13 +831,13 @@ void USpudGameState::UpdateFromActor(AActor* Actor, FSpudLevelData* LevelData)
 }
 
 
-void USpudGameState::UpdateLevelActorDestroyed(AActor* Actor, FSpudLevelData* LevelData)
+void USpudState::UpdateLevelActorDestroyed(AActor* Actor, FSpudLevelData* LevelData)
 {
 	// We don't check for duplicates, because it should only be possible to destroy a uniquely named level actor once
 	LevelData->DestroyedActors.Add(SpudPropertyUtil::GetLevelActorName(Actor));
 }
 
-void USpudGameState::SaveToArchive(FArchive& Ar, const FText& Title)
+void USpudState::SaveToArchive(FArchive& Ar, const FText& Title)
 {
 	// We use separate read / write in order to more clearly support chunked file format
 	// with the backwards compatibility that comes with 
@@ -847,13 +847,13 @@ void USpudGameState::SaveToArchive(FArchive& Ar, const FText& Title)
 
 }
 
-void USpudGameState::LoadFromArchive(FArchive& Ar)
+void USpudState::LoadFromArchive(FArchive& Ar)
 {
 	auto ChunkedAr = FSpudChunkedDataArchive(Ar);
 	SaveData.ReadFromArchive(ChunkedAr, 0);	
 }
 
-bool USpudGameState::LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInfo)
+bool USpudState::LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInfo)
 {
 	auto ChunkedAr = FSpudChunkedDataArchive(Ar);
 	FSpudSaveInfo StorageInfo;

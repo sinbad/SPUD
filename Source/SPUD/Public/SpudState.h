@@ -4,10 +4,10 @@
 #include "SpudData.h"
 #include "SpudPropertyUtil.h"
 
-#include "SpudGameState.generated.h"
+#include "SpudState.generated.h"
 
 
-DECLARE_LOG_CATEGORY_EXTERN(LogSpudGameState, Verbose, Verbose);
+DECLARE_LOG_CATEGORY_EXTERN(LogSpudState, Verbose, Verbose);
 
 /// Description of a save game for display in load game lists, finding latest
 /// All properties are read-only because they can only be populated via calls to save game
@@ -54,11 +54,11 @@ class SPUD_API USpudSaveGameInfo : public UObject
 /// in the single save file, or the separated active file. That means on save we can recombine the files without
 /// actually loading / parsing the data back in.
 UCLASS(BlueprintType)
-class SPUD_API USpudGameState : public UObject
+class SPUD_API USpudState : public UObject
 {
 	GENERATED_BODY()
 
-	friend class USpudGameStateCustomData;
+	friend class USpudStateCustomData;
 
 protected:
 
@@ -166,7 +166,7 @@ protected:
 	};
 public:
 
-	USpudGameState();
+	USpudState();
 
 	/// Clears all state
 	void ResetState();
@@ -244,14 +244,14 @@ public:
 };
 
 UCLASS()
-class SPUD_API USpudGameStateCustomData : public UObject
+class SPUD_API USpudStateCustomData : public UObject
 {
 	GENERATED_BODY()
 protected:
 	FArchive *Ar;
 
 public:
-	USpudGameStateCustomData() : Ar(nullptr) {}
+	USpudStateCustomData() : Ar(nullptr) {}
 
 	void Init(FArchive* InOut)
 	{
@@ -269,7 +269,7 @@ public:
 	{
 		if (!CanWrite())
 		{
-			UE_LOG(LogSpudGameState, Error, TEXT("CustomData invalid for writing"));
+			UE_LOG(LogSpudState, Error, TEXT("CustomData invalid for writing"));
 			return;
 		}
 		
@@ -282,12 +282,12 @@ public:
 	{
 		if (!CanRead())
 		{
-			UE_LOG(LogSpudGameState, Error, TEXT("CustomData invalid for reading"));
+			UE_LOG(LogSpudState, Error, TEXT("CustomData invalid for reading"));
 			return false;
 		}
 		if (AtEnd())
 		{
-			UE_LOG(LogSpudGameState, Error, TEXT("CustomData has reached the end, cannot read"));
+			UE_LOG(LogSpudState, Error, TEXT("CustomData has reached the end, cannot read"));
 			return false;
 		}
 		

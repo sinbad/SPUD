@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "SpudGameState.h"
+#include "SpudState.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 
 #include "SpudSubsystem.generated.h"
@@ -46,12 +46,12 @@ protected:
 
 	// The currently active game state
 	UPROPERTY()
-	USpudGameState* ActiveState;
+	USpudState* ActiveState;
 
-	USpudGameState* GetActiveState()
+	USpudState* GetActiveState()
 	{
 		if (!IsValid(ActiveState))
-			ActiveState = NewObject<USpudGameState>();
+			ActiveState = NewObject<USpudState>();
 
 		return ActiveState;
 	}
