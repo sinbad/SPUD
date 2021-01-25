@@ -106,6 +106,7 @@ void USpudState::WriteCoreActorData(AActor* Actor, FArchive& Out) const
 	// - Transform (FTransform)
 	// - Velocity (FVector)
 	// - AngularVelocity (FVector)
+	// - Control rotation (FRotator) (non-zero for Pawns only)
 
 	// We could omit some of this data for non-movables but it's simpler to include for all
 
@@ -116,6 +117,7 @@ void USpudState::WriteCoreActorData(AActor* Actor, FArchive& Out) const
 	
 	FVector Velocity = FVector::ZeroVector;
 	FVector AngularVelocity = FVector::ZeroVector;
+	FRotator ControlRotation = FRotator::ZeroRotator;
 
 	const auto RootComp = Actor->GetRootComponent();
 	if (RootComp && RootComp->Mobility == EComponentMobility::Movable &&
@@ -127,8 +129,13 @@ void USpudState::WriteCoreActorData(AActor* Actor, FArchive& Out) const
 			AngularVelocity = PrimComp->GetPhysicsAngularVelocityInDegrees();
 		}
 	}
+	if (const auto Pawn = Cast<APawn>(Actor))
+	{
+		ControlRotation = Pawn->GetControlRotation();
+	}
 	SpudPropertyUtil::WriteRaw(Velocity, Out);
 	SpudPropertyUtil::WriteRaw(AngularVelocity, Out);
+	SpudPropertyUtil::WriteRaw(ControlRotation, Out);
 	
 }
 
@@ -537,6 +544,7 @@ void USpudState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& F
 		// - Transform (FTransform)
 		// - Velocity (FVector)
 		// - AngularVelocity (FVector)
+		// - Control rotation (FRotator) (non-zero for Pawns only)
 
 		bool Hidden;
 		SpudPropertyUtil::ReadRaw(Hidden, In);
@@ -549,6 +557,7 @@ void USpudState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& F
 		FVector Velocity, AngularVelocity;
 		SpudPropertyUtil::ReadRaw(Velocity, In);
 		SpudPropertyUtil::ReadRaw(AngularVelocity, In);
+
 		const auto RootComp = Actor->GetRootComponent();
 		if (RootComp && RootComp->Mobility == EComponentMobility::Movable &&
             RootComp->IsSimulatingPhysics())
@@ -559,6 +568,17 @@ void USpudState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& F
 				PrimComp->SetPhysicsAngularVelocityInDegrees(AngularVelocity);
 			}
 		}
+
+		FRotator ControlRotation;
+		SpudPropertyUtil::ReadRaw(ControlRotation, In);
+		if (auto Pawn = Cast<APawn>(Actor))
+		{
+			if (auto Controller = Pawn->GetController())
+			{
+				Controller->SetControlRotation(ControlRotation);
+			}
+		}
+
 	}
 	else
 	{
