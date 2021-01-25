@@ -257,7 +257,7 @@ public:
 	}
 
 	bool CanRead() const { return Ar && Ar->IsLoading(); }
-	bool CanWrite() const { return Ar && Ar->IsLoading(); }
+	bool CanWrite() const { return Ar && Ar->IsSaving(); }
 	bool AtEnd() const { return Ar && Ar->AtEnd(); }
 
 	/// Write a value to the custom data
