@@ -544,7 +544,7 @@ void USpudState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& F
 
 		FTransform XForm;
 		SpudPropertyUtil::ReadRaw(XForm, In);
-		Actor->SetActorTransform(XForm);
+		Actor->SetActorTransform(XForm, false, nullptr, ETeleportType::ResetPhysics);
 
 		FVector Velocity, AngularVelocity;
 		SpudPropertyUtil::ReadRaw(Velocity, In);
