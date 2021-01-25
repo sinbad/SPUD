@@ -293,6 +293,117 @@ public:
 		return true;
 	}
 
+	// Now a bunch of explicit functions so that Blueprints can do something useful with this
+
+	/// Write a vector
+	UFUNCTION(BlueprintCallable)
+	void WriteVector(const FVector& V) { Write(V); }
+	/**
+	 * @brief Read a vector
+	 * @param OutVector The vector we read if successful
+	 * @return True if the value was read successfully
+	 */
+	UFUNCTION(BlueprintCallable)
+    bool ReadVector(FVector& OutVector) { return Read(OutVector); }
+
+	/// Write a rotator
+	UFUNCTION(BlueprintCallable)
+    void WriteRotator(const FRotator& Rot) { Write(Rot); }
+	/**
+	* @brief Read a rotator
+	* @param OutRotator The rotator we read if successful
+	* @return True if the value was read successfully
+	*/
+	UFUNCTION(BlueprintCallable)
+    bool ReadRotator(FRotator& OutRotator) { return Read(OutRotator); }
+
+	/// Write a transform
+	UFUNCTION(BlueprintCallable)
+    void WriteTransform(const FTransform& T) { Write(T); }
+	/**
+	* @brief Read a transform
+	* @param OutTransform The transform we read if successful
+	* @return True if the value was read successfully
+	*/
+	UFUNCTION(BlueprintCallable)
+    bool ReadTransform(FTransform& OutTransform) { return Read(OutTransform); }
+
+	/// Write a quaternion
+	UFUNCTION(BlueprintCallable)
+    void WriteQuaternion(const FQuat& Q) { Write(Q); }
+	/**
+	* @brief Read a quaternion
+	* @param OutQuaternion The quaternion we read if successful
+	* @return True if the value was read successfully
+	*/
+	UFUNCTION(BlueprintCallable)
+    bool ReadQuaternion(FQuat& OutQuaternion) { return Read(OutQuaternion); }
+
+	/// Write a string
+	UFUNCTION(BlueprintCallable)
+    void WriteString(const FString& S) { Write(S); }
+	/**
+	* @brief Read a string
+	* @param OutString The string we read if successful
+	* @return True if the value was read successfully
+	*/
+	UFUNCTION(BlueprintCallable)
+    bool ReadString(FString& OutString) { return Read(OutString); }
+
+	/// Write text
+	UFUNCTION(BlueprintCallable)
+    void WriteText(const FText& S) { Write(S); }
+	/**
+	* @brief Read text
+	* @param OutText The text we read if successful
+	* @return True if the value was read successfully
+	*/
+	UFUNCTION(BlueprintCallable)
+    bool ReadText(FText& OutText) { return Read(OutText); }
+
+	/// Write an int
+	UFUNCTION(BlueprintCallable)
+    void WriteInt(int V) { Write(V); }
+	/**
+	* @brief Read an int
+	* @param OutInt The int we read if successful
+	* @return True if the value was read successfully
+	*/
+	UFUNCTION(BlueprintCallable)
+    bool ReadInt(int& OutInt) { return Read(OutInt); }
+
+	/// Write an int64
+	UFUNCTION(BlueprintCallable)
+    void WriteInt64(int64 V) { Write(V); }
+	/**
+	* @brief Read an int64
+	* @param OutInt64 The int64 we read if successful
+	* @return True if the value was read successfully
+	*/
+	UFUNCTION(BlueprintCallable)
+    bool ReadInt64(int64& OutInt64) { return Read(OutInt64); }
+
+	/// Write a float
+	UFUNCTION(BlueprintCallable)
+    void WriteFloat(float V) { Write(V); }
+	/**
+	* @brief Read a float
+	* @param OutFloat The float we read if successful
+	* @return True if the value was read successfully
+	*/
+	UFUNCTION(BlueprintCallable)
+    bool ReadFloat(float& OutFloat) { return Read(OutFloat); }
+
+	/// Write a byte
+	UFUNCTION(BlueprintCallable)
+    void WriteByte(uint8 V) { Write(V); }
+	/**
+	* @brief Read a byte
+	* @param OutByte The byte we read if successful
+	* @return True if the value was read successfully
+	*/
+	UFUNCTION(BlueprintCallable)
+    bool ReadByte(uint8& OutByte) { return Read(OutByte); }
 
 };
 
