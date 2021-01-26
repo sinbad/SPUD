@@ -552,25 +552,32 @@ void USpudState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& F
 
 		FTransform XForm;
 		SpudPropertyUtil::ReadRaw(XForm, In);
-		Actor->SetActorTransform(XForm, false, nullptr, ETeleportType::ResetPhysics);
 
 		FVector Velocity, AngularVelocity;
 		SpudPropertyUtil::ReadRaw(Velocity, In);
 		SpudPropertyUtil::ReadRaw(AngularVelocity, In);
 
-		const auto RootComp = Actor->GetRootComponent();
-		if (RootComp && RootComp->Mobility == EComponentMobility::Movable &&
-            RootComp->IsSimulatingPhysics())
-		{
-			if (const auto &PrimComp = Cast<UPrimitiveComponent>(RootComp))
-			{
-				PrimComp->SetPhysicsLinearVelocity(Velocity);
-				PrimComp->SetPhysicsAngularVelocityInDegrees(AngularVelocity);
-			}
-		}
-
 		FRotator ControlRotation;
 		SpudPropertyUtil::ReadRaw(ControlRotation, In);
+
+		const auto RootComp = Actor->GetRootComponent();
+		if (RootComp && RootComp->Mobility == EComponentMobility::Movable)
+		{
+			// Only set the actor transform if movable, to avoid editor warnings about static/stationary objects
+			Actor->SetActorTransform(XForm, false, nullptr, ETeleportType::ResetPhysics);
+			
+			if (RootComp->IsSimulatingPhysics())
+			{
+				if (const auto &PrimComp = Cast<UPrimitiveComponent>(RootComp))
+				{
+					PrimComp->SetPhysicsLinearVelocity(Velocity);
+					PrimComp->SetPhysicsAngularVelocityInDegrees(AngularVelocity);
+				}
+			}
+
+		}
+
+
 		if (auto Pawn = Cast<APawn>(Actor))
 		{
 			if (auto Controller = Pawn->GetController())
