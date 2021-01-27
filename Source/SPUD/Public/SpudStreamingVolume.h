@@ -22,7 +22,8 @@ protected:
 	ASpudStreamingVolume(const FObjectInitializer& ObjectInitializer);
 
 	virtual void BeginPlay() override;
-	
+	bool IsActorWeCareAbout(AActor* Actor) const;
+
 public:
 
 	virtual void NotifyActorBeginOverlap(AActor* OtherActor) override;
