@@ -31,6 +31,15 @@ void ASpudStreamingVolume::BeginPlay()
 
 void ASpudStreamingVolume::NotifyActorBeginOverlap(AActor* OtherActor)
 {
+	// This gets called for Cameras and Pawns (I just prefer this to cameras-only for 3rd person setups, having to
+	// worry about a distant camera poking out of the volume when the character is still in it)
+	// However, only consider player-controlled pawns to avoid AI keeping levels alive
+	if (auto Pawn = Cast<APawn>(OtherActor))
+	{
+		if (!Pawn->IsPlayerControlled())
+			return;
+	}	
+	
 	++ActorsOverlapping;
 	
 	//UE_LOG(LogTemp, Warning, TEXT("Actor: %s begin overlap"), *OtherActor->GetName());
