@@ -99,6 +99,8 @@ protected:
 	// requesters have withdrawn
 	TMap<FName, TArray<TWeakObjectPtr<>>> LevelRequesters;
 
+	bool ServerCheck(bool LogWarning) const;
+
 	UFUNCTION()
 	void OnPreLoadMap(const FString& MapName);
 	UFUNCTION()
@@ -129,38 +131,38 @@ public:
 	virtual void Deinitialize() override;
 
 	/// Start a new game with a blank persistent state
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void NewGame();
 
 	/// Terminate a running game. Does not save state. Call this when returning to a main menu for example.
 	/// All map changes after this are ignored by the persistence system
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	void EndGame();
 
 	/// Trigger an autosave of the game; this one will register as the latest save, but will NOT count as a Quick Save
 	/// for Quick Load purposes
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void AutoSaveGame();
 	/// Perform a Quick Save of the game in a single re-used slot, in response to a player request
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void QuickSaveGame();
 	/// Quick load the game from the last player-requested Quick Save slot (NOT the last autosave or manual save)
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void QuickLoadGame();
 	/// Continue a game from the latest save of any kind - autosave, quick save, manual save. The same as calling LoadGame on the most recent. 
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void LoadLatestSaveGame();
 
 
 	/// Save the game in a given slot name, with an optional descriptive title
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     bool SaveGame(const FString& SlotName, const FText& Title = FText());
 	/// Load the game in a given slot name
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     bool LoadGame(const FString& SlotName);
 
 	/// Delete the save game in a given slot
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     bool DeleteSave(const FString& SlotName);
 
 	/**
@@ -174,7 +176,7 @@ public:
 	 * then either add a predefined SpudGuid (FGuid) property and always set it to a known value, or use the alternative
 	 * AddPersistentGlobalObjectWithName method, which identifies this object explicitly.
 	 */
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	void AddPersistentGlobalObject(UObject* Obj);
 	
 	/**
@@ -187,37 +189,37 @@ public:
 	 * want this object to be identified by this name. You could also add a constant FGuid property called SpudGuid to
 	 * identify the object, but this method means you don't have to do that.
 	 */
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void AddPersistentGlobalObjectWithName(UObject* Obj, const FString& Name);
 
 	/**
 	 * @brief Remove an object from tracking so it will no longer be saved or loaded.
 	 * @param Obj The object to remove from tracking
 	 */
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void RemovePersistentGlobalObject(UObject* Obj);
 
 	/// Make a request that a streaming level is loaded. Won't load if already loaded, but will
 	/// record the request count so that unloading is done when all requests are withdrawn.
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	void AddRequestForStreamingLevel(UObject* Requester, FName LevelName, bool BlockingLoad);
 	/// Withdraw a request for a streaming level. Once all requesters have rescinded their requests, the
 	/// streaming level will be considered ready to be unloaded.
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	void WithdrawRequestForStreamingLevel(UObject* Requester, FName LevelName);
 
 	/// Get the list of the save games with metadata
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	const TArray<USpudSaveGameInfo*>& GetSaveGameList();
 
 	/// Get info about the latest save game
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	USpudSaveGameInfo* GetLatestSaveGame();
 
 	/// By default you're not allowed to interrupt save / load operations and any requests received while another is
 	/// believed to be ongoing is ignored. This method basically overrides this and tells the system to accept
 	/// new requests regardless. This is a last resort that you should never need, but it's here as a safety valve in case of errors.
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void ForceReset();
 
 	/// Load a streaming level by name, correctly handling state restoration

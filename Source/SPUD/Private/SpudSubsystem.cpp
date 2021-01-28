@@ -13,39 +13,57 @@ DEFINE_LOG_CATEGORY(LogSpudSubsystem)
 
 void USpudSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
-	OnPostLoadMapHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &USpudSubsystem::OnPostLoadMap);
-	OnPreLoadMapHandle = FCoreUObjectDelegates::PreLoadMap.AddUObject(this, &USpudSubsystem::OnPreLoadMap);
+	if (GIsServer)
+	{
+		OnPostLoadMapHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &USpudSubsystem::OnPostLoadMap);
+		OnPreLoadMapHandle = FCoreUObjectDelegates::PreLoadMap.AddUObject(this, &USpudSubsystem::OnPreLoadMap);
 
 #if WITH_EDITORONLY_DATA
-	// The one problem we have is that in PIE mode, PostLoadMap doesn't get fired for the current map you're on
-	// So we'll need to trigger it manually
-	auto World = GetWorld();
-	if (World && World->WorldType == EWorldType::PIE)
-	{
-		// TODO: make this more configurable, use a known save etc
-		NewGame();
-	}
-	
+		// The one problem we have is that in PIE mode, PostLoadMap doesn't get fired for the current map you're on
+		// So we'll need to trigger it manually
+		auto World = GetWorld();
+		if (World && World->WorldType == EWorldType::PIE)
+		{
+			// TODO: make this more configurable, use a known save etc
+			NewGame();
+		}
+		
 #endif
+	}
 }
 
 void USpudSubsystem::Deinitialize()
 {
-	FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(OnPostLoadMapHandle);
-	FCoreUObjectDelegates::PreLoadMap.Remove(OnPreLoadMapHandle);
+	if (GIsServer)
+	{
+		FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(OnPostLoadMapHandle);
+		FCoreUObjectDelegates::PreLoadMap.Remove(OnPreLoadMapHandle);
+	}
 }
 
 
 void USpudSubsystem::NewGame()
 {
+	if (!GIsServer)
+		return;
+		
 	EndGame();
 	CurrentState = ESpudSystemState::RunningIdle;
 	SubscribeAllLevelObjectEvents();
 }
 
+bool USpudSubsystem::ServerCheck(bool LogWarning) const
+{
+	if (LogWarning && !GIsServer)
+		UE_LOG(LogSpudSubsystem, Warning, TEXT("Attempted to interact with USpudSystem on a client-only instance, not valid!"))
+	return GIsServer;
+}
 
 void USpudSubsystem::EndGame()
 {
+	if (!ServerCheck(true))
+		return;
+
 	// Allow GC to collect
 	ActiveState = nullptr;
 
@@ -125,6 +143,9 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 
 bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "" */)
 {
+	if (!ServerCheck(true))
+		return false;
+
 	if (CurrentState != ESpudSystemState::RunningIdle)
 	{
 		// TODO: ignore or queue?
@@ -223,6 +244,9 @@ void USpudSubsystem::SaveComplete(const FString& SlotName, bool bSuccess)
 
 bool USpudSubsystem::LoadGame(const FString& SlotName)
 {
+	if (!ServerCheck(true))
+		return false;
+
 	if (CurrentState != ESpudSystemState::RunningIdle)
 	{
 		// TODO: ignore or queue?
@@ -292,22 +316,34 @@ void USpudSubsystem::LoadComplete(const FString& SlotName, bool bSuccess)
 
 bool USpudSubsystem::DeleteSave(const FString& SlotName)
 {
+	if (!ServerCheck(true))
+		return false;
+	
 	IFileManager& FileMgr = IFileManager::Get();
 	return FileMgr.Delete(*GetSaveGameFilePath(SlotName), false, true);
 }
 
 void USpudSubsystem::AddPersistentGlobalObject(UObject* Obj)
 {
+	if (!ServerCheck(false))
+		return;
+
 	GlobalObjects.AddUnique(TWeakObjectPtr<UObject>(Obj));	
 }
 
 void USpudSubsystem::AddPersistentGlobalObjectWithName(UObject* Obj, const FString& Name)
 {
+	if (!ServerCheck(false))
+		return;
+
 	NamedGlobalObjects.Add(Name, Obj);
 }
 
 void USpudSubsystem::RemovePersistentGlobalObject(UObject* Obj)
 {
+	if (!ServerCheck(false))
+		return;
+
 	GlobalObjects.Remove(TWeakObjectPtr<UObject>(Obj));
 	
 	for (auto It = NamedGlobalObjects.CreateIterator(); It; ++It)
@@ -319,6 +355,9 @@ void USpudSubsystem::RemovePersistentGlobalObject(UObject* Obj)
 
 void USpudSubsystem::AddRequestForStreamingLevel(UObject* Requester, FName LevelName, bool BlockingLoad)
 {
+	if (!ServerCheck(false))
+		return;
+
 	auto && Requesters = LevelRequesters.FindOrAdd(LevelName);
 	Requesters.AddUnique(Requester);
 	// Load on the first request only
@@ -328,6 +367,9 @@ void USpudSubsystem::AddRequestForStreamingLevel(UObject* Requester, FName Level
 
 void USpudSubsystem::WithdrawRequestForStreamingLevel(UObject* Requester, FName LevelName)
 {
+	if (!ServerCheck(false))
+		return;
+
 	if (auto Requesters = LevelRequesters.Find(LevelName))
 	{
 		Requesters->Remove(Requester);
