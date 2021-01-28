@@ -95,6 +95,7 @@ void USpudSubsystem::LoadLatestSaveGame()
 
 void USpudSubsystem::OnPreLoadMap(const FString& MapName)
 {
+	PreTravelToNewMap.Broadcast(MapName);
 	LevelRequesters.Empty();
 	FirstStreamRequestSinceMapLoad = true;
 
@@ -139,6 +140,8 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 			UE_LOG(LogSpudSubsystem, Log, TEXT("Load: Success"));
 		}
 	}
+
+	PostTravelToNewMap.Broadcast();
 }
 
 bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "" */)
@@ -386,6 +389,8 @@ void USpudSubsystem::WithdrawRequestForStreamingLevel(UObject* Requester, FName 
 
 void USpudSubsystem::LoadStreamLevel(FName LevelName, bool Blocking)
 {
+	PreLoadStreamingLevel.Broadcast(LevelName);
+	
 	FLatentActionInfo Latent;
 	Latent.ExecutionFunction = "PostLoadStreamLevel";
 	Latent.CallbackTarget = this;
@@ -411,6 +416,7 @@ void USpudSubsystem::PostLoadStreamLevel(int32 LinkID)
 	if (LevelsPendingLoad.Contains(LinkID))
 	{
 		FName LevelName = LevelsPendingLoad.FindAndRemoveChecked(LinkID);
+		PostLoadStreamingLevel.Broadcast(LevelName);
 		auto StreamLevel = UGameplayStatics::GetStreamingLevel(GetWorld(), LevelName);
 
 		if (StreamLevel)
@@ -435,6 +441,7 @@ void USpudSubsystem::UnloadStreamLevel(FName LevelName)
 
 	if (StreamLevel)
 	{
+		PreUnloadStreamingLevel.Broadcast(LevelName);
 		ULevel* Level = StreamLevel->GetLoadedLevel();
 		UnsubscribeLevelObjectEvents(Level);
 	
@@ -451,6 +458,7 @@ void USpudSubsystem::UnloadStreamLevel(FName LevelName)
 		Latent.CallbackTarget = this;
 		int32 RequestID = LoadUnloadRequests++; // overflow is OK
 		Latent.UUID = RequestID; // this eliminates duplicate calls so should be unique
+		LevelsPendingUnload.Add(RequestID, LevelName);
 		UGameplayStatics::UnloadStreamLevel(GetWorld(), LevelName, Latent, false);
 	}	
 }
@@ -462,7 +470,8 @@ void USpudSubsystem::ForceReset()
 
 void USpudSubsystem::PostUnloadStreamLevel(int32 LinkID)
 {
-	// Nothing to do here right now
+	const FName LevelName = LevelsPendingUnload.FindAndRemoveChecked(LinkID);
+	PostUnloadStreamingLevel.Broadcast(LevelName);
 }
 
 void USpudSubsystem::SubscribeAllLevelObjectEvents()

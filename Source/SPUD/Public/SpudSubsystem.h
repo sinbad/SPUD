@@ -18,6 +18,14 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSpudPostLevelStore, const FString&
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPreLevelRestore, const FString&, LevelName);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSpudPostLevelRestore, const FString&, LevelName, bool, bSuccess);
 
+/// Helper delegates to allow blueprints to listen in on map transitions & streaming if they want
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPreTravelToNewMap, const FString&, NextMapName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSpudPostTravelToNewMap);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPreLoadStreamingLevel, const FName&, LevelName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPostLoadStreamingLevel, const FName&, LevelName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPreUnloadStreamingLevel, const FName&, LevelName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPostUnloadStreamingLevel, const FName&, LevelName);
+
 UENUM(BlueprintType)
 enum class ESpudSystemState : uint8
 {
@@ -62,6 +70,27 @@ public:
 	/// Event fired just after we've finished populating a loaded level from the state database
 	UPROPERTY(BlueprintAssignable)
 	FSpudPostLevelRestore PostLevelRestore;
+
+	/// Event fired just prior to travelling to a new map (convenience for blueprints mainly, who don't have access to FCoreDelegates)
+	UPROPERTY(BlueprintAssignable)
+	FSpudPreTravelToNewMap PreTravelToNewMap;
+	/// Event fired just after travelling to a new map (convenience for blueprints mainly, who don't have access to FCoreDelegates)
+	UPROPERTY(BlueprintAssignable)
+	FSpudPostTravelToNewMap PostTravelToNewMap;
+	/// Event fired just before this subsystem loads a streaming level
+	UPROPERTY(BlueprintAssignable)
+	FSpudPreLoadStreamingLevel PreLoadStreamingLevel;
+	/// Event fired just after a streaming level has loaded, but BEFORE any state has been restored
+	UPROPERTY(BlueprintAssignable)
+	FSpudPostLoadStreamingLevel PostLoadStreamingLevel;
+	/// Event fired just before this subsystem unloads a streaming level, BEFORE any state has been stored if needed
+	/// This is ALMOST the same as PreLevelStore, except when loading a game that's not called, but this is
+	UPROPERTY(BlueprintAssignable)
+	FSpudPreUnloadStreamingLevel PreUnloadStreamingLevel;
+	/// Event fired just after a streaming level has unloaded
+	UPROPERTY(BlueprintAssignable)
+	FSpudPostUnloadStreamingLevel PostUnloadStreamingLevel;
+	
 	
 	
 protected:
@@ -70,6 +99,7 @@ protected:
 	int32 LoadUnloadRequests = 0;
 	bool FirstStreamRequestSinceMapLoad = true;
 	TMap<int32, FName> LevelsPendingLoad;
+	TMap<int32, FName> LevelsPendingUnload;
 	FString SlotNameInProgress;
 
 	UPROPERTY()
