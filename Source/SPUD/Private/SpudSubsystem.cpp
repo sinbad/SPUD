@@ -458,6 +458,7 @@ void USpudSubsystem::UnloadStreamLevel(FName LevelName)
 		Latent.CallbackTarget = this;
 		int32 RequestID = LoadUnloadRequests++; // overflow is OK
 		Latent.UUID = RequestID; // this eliminates duplicate calls so should be unique
+		Latent.Linkage = RequestID;
 		LevelsPendingUnload.Add(RequestID, LevelName);
 		UGameplayStatics::UnloadStreamLevel(GetWorld(), LevelName, Latent, false);
 	}	
