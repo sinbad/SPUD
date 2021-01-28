@@ -54,6 +54,9 @@ void USpudSubsystem::NewGame()
 
 bool USpudSubsystem::ServerCheck(bool LogWarning) const
 {
+	// What's the correct way to check authority here? GIsServer doesn't work in Standalone mode
+	return true;
+	
 	if (LogWarning && !GIsServer)
 		UE_LOG(LogSpudSubsystem, Warning, TEXT("Attempted to interact with USpudSystem on a client-only instance, not valid!"))
 	return GIsServer;
