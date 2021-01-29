@@ -310,7 +310,7 @@ protected:
 			StoredPropertyTypeMatchesRuntime(Prop, StoredProperty, true)) // we ignore array flag since we could be processing inner
 		{
 			ValueType Val = ReadStructPropertyData<ValueType>(Prop, Data, In);
-    		UE_LOG(LogSpudProps, Verbose, TEXT(" READ %s = %s"), *Prop->GetNameCPP(), *ToString(&Val));
+    		UE_LOG(LogSpudProps, Verbose, TEXT(" |- %s = %s"), *Prop->GetNameCPP(), *ToString(&Val));
 			return true;
 		}
 		return false;
@@ -322,7 +322,7 @@ protected:
 		if (IProp && StoredPropertyTypeMatchesRuntime(Prop, StoredProperty, true)) // we ignore array flag since we could be processing inner
 		{
 			auto Val = ReadPropertyData<PropType, ValueType>(IProp, Data, In);
-    		UE_LOG(LogSpudProps, Verbose, TEXT(" READ %s = %s"), *Prop->GetNameCPP(), *ToString(Val));
+    		UE_LOG(LogSpudProps, Verbose, TEXT(" |- %s = %s"), *Prop->GetNameCPP(), *ToString(Val));
 			return true;
 		}
 		return false;   

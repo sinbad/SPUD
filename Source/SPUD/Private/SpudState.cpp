@@ -309,7 +309,7 @@ void USpudState::StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
 		auto& PropData = Data->Properties.Data;
 		bool bIsCallback = Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass());
 
-		UE_LOG(LogSpudState, Verbose, TEXT("* Global object: %s"), *Obj->GetName());
+		UE_LOG(LogSpudState, Verbose, TEXT("* STORE Global object: %s"), *Obj->GetName());
 
 		if (bIsCallback)
 			ISpudObjectCallback::Execute_SpudPreStore(Obj, this);
@@ -353,10 +353,11 @@ void USpudState::RestoreLevel(ULevel* Level)
 
 	if (!LevelData)
 	{
-		UE_LOG(LogSpudState, Warning, TEXT("Unable to restore level %s because data is missing"), *LevelName);
+		UE_LOG(LogSpudState, Warning, TEXT("Skipping restore level %s, no data (this may be fine)"), *LevelName);
 		return;
 	}
 
+	UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - Start"), *LevelName);
 	TMap<FGuid, UObject*> RuntimeObjectsByGuid;
 	// Respawn dynamic actors first; they need to exist in order for cross-references in level actors to work
 	for (auto&& SpawnedActor : LevelData->SpawnedActors.Contents)
@@ -384,6 +385,7 @@ void USpudState::RestoreLevel(ULevel* Level)
 	{
 		DestroyActor(DestroyedActor, Level);			
 	}
+	UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - Complete"), *LevelName);
 
 }
 
@@ -420,6 +422,8 @@ AActor* USpudState::RespawnActor(const FSpudSpawnedActorData& SpawnedActor,
 	}
 	FActorSpawnParameters Params;
 	Params.OverrideLevel = Level;
+	UE_LOG(LogSpudState, Verbose, TEXT(" * Respawning actor %s of type %s"), *SpawnedActor.Guid.ToString(), *ClassName);
+
 	// Important to spawn using level's world, our GetWorld may not be valid it turns out
 	auto World = Level->GetWorld();
 	AActor* Actor = World->SpawnActor<AActor>(Class, Params);
@@ -430,6 +434,10 @@ AActor* USpudState::RespawnActor(const FSpudSpawnedActorData& SpawnedActor,
 			UE_LOG(LogSpudState, Error, TEXT("Re-spawned a runtime actor of class %s but it is missing a SpudGuid property!"), *ClassName);
 		}		
 	}
+	else
+	{
+		UE_LOG(LogSpudState, Error, TEXT("Error spawning actor of type %s"), *ClassName);
+	}
 	return Actor;
 }
 
@@ -439,6 +447,7 @@ void USpudState::DestroyActor(const FSpudDestroyedLevelActor& DestroyedActor, UL
 	auto Obj = StaticFindObject(AActor::StaticClass(), Level, *DestroyedActor.Name);
 	if (auto Actor = Cast<AActor>(Obj))
 	{
+		UE_LOG(LogSpudState, Verbose, TEXT(" * Destroying actor %s"), *DestroyedActor.Name);
 		Level->GetWorld()->DestroyActor(Actor);
 	}
 }
@@ -486,13 +495,18 @@ void USpudState::RestoreActor(AActor* Actor, FSpudLevelData* LevelData, const TM
 	const FSpudObjectData* ActorData;
 
 	if (bRespawned)
-		ActorData = GetSpawnedActorData(Actor, LevelData, false);		
+	{
+		ActorData = GetSpawnedActorData(Actor, LevelData, false);
+		UE_LOG(LogSpudState, Verbose, TEXT(" * RESTORE Level Actor: %s"), *Actor->GetName())
+	}
 	else
+	{
 		ActorData = GetLevelActorData(Actor, LevelData, false);
+		UE_LOG(LogSpudState, Verbose, TEXT(" * RESTORE Level Actor: %s"), *Actor->GetName())
+	}
 
 	if (ActorData)
 	{
-		UE_LOG(LogSpudState, Verbose, TEXT("Restoring Actor %s"), *Actor->GetName())
 		PreRestoreObject(Actor);
 		
 		RestoreCoreActorData(Actor, ActorData->CoreData);
@@ -608,6 +622,8 @@ void USpudState::RestoreObjectProperties(UObject* Obj, const FSpudPropertyData& 
 	// ClassDef caches the result of this across the context of one loaded file
 	const bool bUseFastPath = ClassDef->MatchesRuntimeClass(Meta);	
 
+	UE_LOG(LogSpudState, Verbose, TEXT(" |- Class: %s"), *ClassDef->ClassName);
+
 	if (bUseFastPath)
 		RestoreObjectPropertiesFast(Obj, FromData, Meta, ClassDef, RuntimeObjects);
 	else
@@ -620,7 +636,7 @@ void USpudState::RestoreObjectPropertiesFast(UObject* Obj, const FSpudPropertyDa
                                                        const FSpudClassDef* ClassDef,
                                                        const TMap<FGuid, UObject*>* RuntimeObjects)
 {
-	UE_LOG(LogSpudState, Verbose, TEXT("Restoring %s properties via FAST path, %d properties"), *ClassDef->ClassName, ClassDef->Properties.Num());
+	UE_LOG(LogSpudState, Verbose, TEXT(" |- FAST path, %d properties"), ClassDef->Properties.Num());
 	const auto StoredPropertyIterator = ClassDef->Properties.CreateConstIterator();
 
 	FMemoryReader In(FromData.Data);
@@ -634,7 +650,7 @@ void USpudState::RestoreObjectPropertiesSlow(UObject* Obj, const FSpudPropertyDa
                                                        const FSpudClassDef* ClassDef,
                                                        const TMap<FGuid, UObject*>* RuntimeObjects)
 {
-	UE_LOG(LogSpudState, Verbose, TEXT("Restoring %s properties via SLOW path, %d properties"), *ClassDef->ClassName, ClassDef->Properties.Num());
+	UE_LOG(LogSpudState, Verbose, TEXT(" |- SLOW path, %d properties"), ClassDef->Properties.Num());
 
 	FMemoryReader In(FromData.Data);
 	RestoreSlowPropertyVisitor Visitor(In, *ClassDef, Meta, RuntimeObjects);
@@ -747,7 +763,7 @@ void USpudState::RestoreGlobalObject(UObject* Obj, const FSpudNamedObjectData* D
 {
 	if (Data)
 	{
-		UE_LOG(LogSpudState, Verbose, TEXT("Restoring Global Object %s"), *Data->Name)
+		UE_LOG(LogSpudState, Verbose, TEXT("* RESTORE Global Object %s"), *Data->Name)
 		PreRestoreObject(Obj);
 		
 		RestoreObjectProperties(Obj, Data->Properties, SaveData.GlobalData.Metadata, nullptr);
@@ -813,9 +829,9 @@ void USpudState::StoreActor(AActor* Actor, FSpudLevelData* LevelData)
 	
 
 	if (bRespawn)
-		UE_LOG(LogSpudState, Verbose, TEXT("* Runtime object: %s (%s)"), *Guid.ToString(EGuidFormats::DigitsWithHyphens), *Name)
+		UE_LOG(LogSpudState, Verbose, TEXT("* STORE Runtime Actor: %s (%s)"), *Guid.ToString(EGuidFormats::DigitsWithHyphens), *Name)
 	else
-		UE_LOG(LogSpudState, Verbose, TEXT("* Level object: %s/%s"), *LevelData->Name, *Name);
+		UE_LOG(LogSpudState, Verbose, TEXT("* STORE Level Actor: %s/%s"), *LevelData->Name, *Name);
 
 	pDestPropertyData->Empty();
 	FMemoryWriter PropertyWriter(*pDestPropertyData);
