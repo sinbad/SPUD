@@ -425,6 +425,11 @@ void USpudSubsystem::PostLoadStreamLevel(int32 LinkID)
 		if (StreamLevel)
 		{
 			ULevel* Level = StreamLevel->GetLoadedLevel();
+			if (!Level)
+			{
+				UE_LOG(LogSpudSubsystem, Warning, TEXT("PostLoadStreamLevel called for %s but level is null; probably unloaded again?"), *LevelName.ToString());
+				return;
+			}
 			PreLevelRestore.Broadcast(USpudState::GetLevelName(Level));
 			// It's important to note that this streaming level won't be added to UWorld::Levels yet
 			// This is usually where things like the TActorIterator get actors from, ULevel::Actors
@@ -434,6 +439,10 @@ void USpudSubsystem::PostLoadStreamLevel(int32 LinkID)
 			SubscribeLevelObjectEvents(Level);
 			PostLevelRestore.Broadcast(USpudState::GetLevelName(Level), true);
 		}
+	}
+	else
+	{
+		UE_LOG(LogSpudSubsystem, Error, TEXT("PostLoadStreamLevel called but not for a level we loaded??"));
 	}
 }
 
