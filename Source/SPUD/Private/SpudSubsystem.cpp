@@ -13,7 +13,7 @@ DEFINE_LOG_CATEGORY(LogSpudSubsystem)
 
 void USpudSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
-	if (GIsServer)
+	if (ServerCheck(false))
 	{
 		OnPostLoadMapHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &USpudSubsystem::OnPostLoadMap);
 		OnPreLoadMapHandle = FCoreUObjectDelegates::PreLoadMap.AddUObject(this, &USpudSubsystem::OnPreLoadMap);
@@ -34,7 +34,7 @@ void USpudSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void USpudSubsystem::Deinitialize()
 {
-	if (GIsServer)
+	if (ServerCheck(false))
 	{
 		FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(OnPostLoadMapHandle);
 		FCoreUObjectDelegates::PreLoadMap.Remove(OnPreLoadMapHandle);
@@ -44,7 +44,7 @@ void USpudSubsystem::Deinitialize()
 
 void USpudSubsystem::NewGame()
 {
-	if (!GIsServer)
+	if (!ServerCheck(true))
 		return;
 		
 	EndGame();
@@ -263,6 +263,8 @@ bool USpudSubsystem::LoadGame(const FString& SlotName)
 	CurrentState = ESpudSystemState::LoadingGame;
 	PreLoadGame.Broadcast(SlotName);
 
+	UE_LOG(LogSpudSubsystem, Verbose, TEXT("Loading Game from slot %s"), *SlotName);		
+
 	auto State = GetActiveState();
 
 	State->ResetState();
@@ -307,6 +309,7 @@ bool USpudSubsystem::LoadGame(const FString& SlotName)
 
 	// This is deferred, final load process will happen in PostLoadMap
 	SlotNameInProgress = SlotName;
+	UE_LOG(LogSpudSubsystem, Verbose, TEXT("(Re)loading map: %s"), *State->GetPersistentLevel());		
 	UGameplayStatics::OpenLevel(GetWorld(), FName(State->GetPersistentLevel()));
 
 	return true;
