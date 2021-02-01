@@ -7,6 +7,7 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/GameStateBase.h"
+#include "GameFramework/MovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 DEFINE_LOG_CATEGORY(LogSpudState)
@@ -120,15 +121,21 @@ void USpudState::WriteCoreActorData(AActor* Actor, FArchive& Out) const
 	FRotator ControlRotation = FRotator::ZeroRotator;
 
 	const auto RootComp = Actor->GetRootComponent();
-	if (RootComp && RootComp->Mobility == EComponentMobility::Movable &&
-		RootComp->IsSimulatingPhysics())
+	if (RootComp && RootComp->Mobility == EComponentMobility::Movable)
 	{
-		if (const auto &PrimComp = Cast<UPrimitiveComponent>(RootComp))
+		const auto PrimComp = Cast<UPrimitiveComponent>(RootComp);
+		if (PrimComp && PrimComp->IsSimulatingPhysics())
 		{
 			Velocity = Actor->GetVelocity();
 			AngularVelocity = PrimComp->GetPhysicsAngularVelocityInDegrees();
 		}
+		else if (const auto	MoveComponent = Cast<UMovementComponent>(Actor->FindComponentByClass(UMovementComponent::StaticClass())))
+		{
+			Velocity = MoveComponent->Velocity;
+		}
 	}
+
+	
 	if (const auto Pawn = Cast<APawn>(Actor))
 	{
 		ControlRotation = Pawn->GetControlRotation();
@@ -136,7 +143,7 @@ void USpudState::WriteCoreActorData(AActor* Actor, FArchive& Out) const
 	SpudPropertyUtil::WriteRaw(Velocity, Out);
 	SpudPropertyUtil::WriteRaw(AngularVelocity, Out);
 	SpudPropertyUtil::WriteRaw(ControlRotation, Out);
-	
+
 }
 
 FString USpudState::GetLevelName(const ULevel* Level)
@@ -580,12 +587,18 @@ void USpudState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& F
 			// Only set the actor transform if movable, to avoid editor warnings about static/stationary objects
 			Actor->SetActorTransform(XForm, false, nullptr, ETeleportType::ResetPhysics);
 			
-			if (RootComp->IsSimulatingPhysics())
+			if (Velocity.SizeSquared() > FLT_EPSILON || AngularVelocity.SizeSquared() > FLT_EPSILON)
 			{
-				if (const auto &PrimComp = Cast<UPrimitiveComponent>(RootComp))
+				const auto PrimComp = Cast<UPrimitiveComponent>(RootComp);
+				
+				if (PrimComp && PrimComp->IsSimulatingPhysics())
 				{
 					PrimComp->SetPhysicsLinearVelocity(Velocity);
 					PrimComp->SetPhysicsAngularVelocityInDegrees(AngularVelocity);
+				}
+				else if (const auto	MoveComponent = Cast<UMovementComponent>(Actor->FindComponentByClass(UMovementComponent::StaticClass())))
+				{
+					MoveComponent->Velocity = Velocity;
 				}
 			}
 
