@@ -422,26 +422,33 @@ void USpudSubsystem::PostLoadStreamLevel(int32 LinkID)
 	if (LevelsPendingLoad.Contains(LinkID))
 	{
 		FName LevelName = LevelsPendingLoad.FindAndRemoveChecked(LinkID);
-		PostLoadStreamingLevel.Broadcast(LevelName);
-		auto StreamLevel = UGameplayStatics::GetStreamingLevel(GetWorld(), LevelName);
 
+		// This might look odd but for physics restoration to work properly we need a very specific
+		// set of circumstances:
+		// 1. Level must be made visible first
+		// 2. We need to wait for all the objects to be ticked at least once
+		// 3. Then we restore
+		//
+		// Failure to do this means SetPhysicsLinearVelocity etc just does *nothing* silently
+
+		// Make visible
+		auto StreamLevel = UGameplayStatics::GetStreamingLevel(GetWorld(), LevelName);
 		if (StreamLevel)
 		{
 			ULevel* Level = StreamLevel->GetLoadedLevel();
-			if (!Level)
-			{
-				UE_LOG(LogSpudSubsystem, Warning, TEXT("PostLoadStreamLevel called for %s but level is null; probably unloaded again?"), *LevelName.ToString());
-				return;
-			}
-			PreLevelRestore.Broadcast(USpudState::GetLevelName(Level));
-			// It's important to note that this streaming level won't be added to UWorld::Levels yet
-			// This is usually where things like the TActorIterator get actors from, ULevel::Actors
-			// we have the ULevel here right now, so restore it directly
-			GetActiveState()->RestoreLevel(Level);			
 			StreamLevel->SetShouldBeVisible(true);
-			SubscribeLevelObjectEvents(Level);
-			PostLevelRestore.Broadcast(USpudState::GetLevelName(Level), true);
-		}
+		}		
+
+		// Defer the restore to the game thread
+		AsyncTask(ENamedThreads::GameThread, [this, LevelName]()
+        {
+			// But also add a slight delay so we get a tick in between so physics works
+			FTimerHandle H;
+			GetWorld()->GetTimerManager().SetTimer(H, [this, LevelName]()
+			{
+				PostLoadStreamLevelGameThread(LevelName);				
+			}, 0.01, false);
+        });		
 	}
 	else
 	{
@@ -449,6 +456,30 @@ void USpudSubsystem::PostLoadStreamLevel(int32 LinkID)
 	}
 }
 
+
+void USpudSubsystem::PostLoadStreamLevelGameThread(FName LevelName)
+{
+	PostLoadStreamingLevel.Broadcast(LevelName);
+	auto StreamLevel = UGameplayStatics::GetStreamingLevel(GetWorld(), LevelName);
+
+	if (StreamLevel)
+	{
+		ULevel* Level = StreamLevel->GetLoadedLevel();
+		if (!Level)
+		{
+			UE_LOG(LogSpudSubsystem, Warning, TEXT("PostLoadStreamLevel called for %s but level is null; probably unloaded again?"), *LevelName.ToString());
+			return;
+		}
+		PreLevelRestore.Broadcast(LevelName.ToString());
+		// It's important to note that this streaming level won't be added to UWorld::Levels yet
+		// This is usually where things like the TActorIterator get actors from, ULevel::Actors
+		// we have the ULevel here right now, so restore it directly
+		GetActiveState()->RestoreLevel(Level);			
+		StreamLevel->SetShouldBeVisible(true);
+		SubscribeLevelObjectEvents(Level);
+		PostLevelRestore.Broadcast(LevelName.ToString(), true);
+	}
+}
 
 void USpudSubsystem::UnloadStreamLevel(FName LevelName)
 {

@@ -148,6 +148,8 @@ protected:
 	void PostLoadStreamLevel(int32 LinkID);
 	UFUNCTION(BlueprintCallable)
     void PostUnloadStreamLevel(int32 LinkID);
+	UFUNCTION(BlueprintCallable)
+    void PostLoadStreamLevelGameThread(FName LevelName);
 
 	void StoreWorld(UWorld* World);
 	void StoreLevel(ULevel* Level);

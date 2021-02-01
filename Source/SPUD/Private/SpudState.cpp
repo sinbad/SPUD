@@ -590,11 +590,13 @@ void USpudState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& F
 			if (Velocity.SizeSquared() > FLT_EPSILON || AngularVelocity.SizeSquared() > FLT_EPSILON)
 			{
 				const auto PrimComp = Cast<UPrimitiveComponent>(RootComp);
-				
-				if (PrimComp && PrimComp->IsSimulatingPhysics())
+
+				// note: DO NOT use IsSimulatingPhysics() since that's dependent on BodyInstance.BodySetup being valid, which
+				// it might not be at setup. We only want the *intention* to simulate physics, not whether it's currently happening
+				if (PrimComp && PrimComp->BodyInstance.bSimulatePhysics)
 				{
-					PrimComp->SetPhysicsLinearVelocity(Velocity);
-					PrimComp->SetPhysicsAngularVelocityInDegrees(AngularVelocity);
+					PrimComp->SetAllPhysicsLinearVelocity(Velocity);
+					PrimComp->SetAllPhysicsAngularVelocityInDegrees(AngularVelocity);
 				}
 				else if (const auto	MoveComponent = Cast<UMovementComponent>(Actor->FindComponentByClass(UMovementComponent::StaticClass())))
 				{
