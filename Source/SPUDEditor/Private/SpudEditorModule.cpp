@@ -1,5 +1,10 @@
 #include "SpudEditorModule.h"
 
+
+#include "ISettingsModule.h"
+#include "ISettingsSection.h"
+#include "SPUDEditor/Public/SpudPluginSettings.h"
+
 IMPLEMENT_GAME_MODULE(FSpudEditorModule, SPUDEditor);
 
 DEFINE_LOG_CATEGORY(LogSpudEditor);
@@ -12,6 +17,17 @@ void FSpudEditorModule::StartupModule()
     
     PrePIEHandle = FEditorDelegates::PostPIEStarted.AddStatic(&FSpudEditorModule::PostPIEStarted);
 
+	// register settings
+	ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
+
+	if (SettingsModule)
+	{
+		ISettingsSectionPtr SettingsSection = SettingsModule->RegisterSettings("Project", "Plugins", "SPUD",
+            LOCTEXT("SpudSettingsName", "SPUD"),
+            LOCTEXT("SpudSettingsDescription", "Configure the SPUD plug-in."),
+            GetMutableDefault<USpudPluginSettings>()
+        );
+	}
 }
 
 void FSpudEditorModule::ShutdownModule()
@@ -23,6 +39,7 @@ void FSpudEditorModule::ShutdownModule()
 void FSpudEditorModule::PostPIEStarted(bool)
 {
 	TArray<FString> UnsavedLevels;
+	const bool AutoSave = GetDefault<USpudPluginSettings>()->SaveAllLevelsOnPlayInEditor;
 	// If playing in editor with unsaved levels, level objects can APPEAR as if they're runtime objects because the
     // level association is not visible until a newly added object is saved.
     for (ULevel* Level : GEditor->EditorWorld->GetLevels())
@@ -35,10 +52,23 @@ void FSpudEditorModule::PostPIEStarted(bool)
 
 	if (UnsavedLevels.Num() > 0)
 	{
-		UE_LOG(LogSpudEditor, Error, TEXT("Unsaved Levels: %s\n"
-			"  Unsaved levels cause problems with persistence, because detecting which objects are runtime spawned or level spawned is unreliable.\n"
-			"  Save ALL your levels (including streaming levels) before playing in editor to fix this error."),
-			*FString::Join(UnsavedLevels, TEXT(", ")));		
+		if (AutoSave)
+		{
+			UE_LOG(LogSpudEditor, Warning, TEXT("Auto-saving Levels: %s"), *FString::Join(UnsavedLevels, TEXT(", ")));
+			// Use the same options as the File > Save All Levels command
+			const bool bPromptUserToSave = false;
+			const bool bSaveMapPackages = true;
+			const bool bSaveContentPackages = false;
+			const bool bFastSave = false;
+			FEditorFileUtils::SaveDirtyPackages( bPromptUserToSave, bSaveMapPackages, bSaveContentPackages, bFastSave );		
+		}
+		else
+		{
+			UE_LOG(LogSpudEditor, Error, TEXT("Unsaved Levels: %s\n"
+                "  Unsaved levels cause problems with persistence, because detecting which objects are runtime spawned or level spawned is unreliable.\n"
+                "  Use File > Save All Levels before playing in editor to fix this error, or enable auto-save in the SPUD plugin settings."),
+                *FString::Join(UnsavedLevels, TEXT(", ")));
+		}
 	}
     
 }
