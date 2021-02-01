@@ -99,12 +99,17 @@ Studio Project Files".
 >
 > You **MUST** save all your levels before playing in editor (PIE). Failure to
 > do so results in mis-categorisation of some level objects. The Output Log will
-> dump an error about this when unsaved levels are detected. Do not report any bugs 
-> unless you've done this!!
-> 
-> See the menu option **"File -> Save All Levels".**
-> 
-> Also, see the [FAQ](./doc/faq.md)
+> dump an error about this when unsaved levels are detected. 
+>
+> To fix this, either:
+>
+> 1. Use the menu option *File -> Save All Levels* before playing in the editor
+> 2. In Project Settings > Plugins > SPUD, enable the option *Save All Levels On Play In Editor*.
+>
+> The latter option is your best bet for making sure you don't accidentally have
+> strange bugs, at the expense of a slight delay to PIE if you have unsaved levels.
+>
+> Do not report any bugs unless you've checked your levels are saved!!
 
 The core functionality of SPUD is writing the state of chosen UObjects, including 
 a chosen subset of their properties, to a persistent data format so it can be 
@@ -236,7 +241,8 @@ More information is available in [Levels and Streaming](./doc/levelstreaming.md)
 
 ## More details
 
-See [Technical Details](./doc/tech.md)
+* [Frequently Asked Questions](./doc/faq.md)
+* [Technical Details](./doc/tech.md)
 
 
 ## License

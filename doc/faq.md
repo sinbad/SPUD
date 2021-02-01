@@ -6,9 +6,13 @@ First and foremost, **make sure you've saved all your levels**. If you're playin
 in the editor (PIE) and your levels aren't saved, the data UE reports to SPUD isn't
 reliable and can cause problems.
 
-> Always Use "File > Save All Levels" before playing in the editor!
+Either:
 
-The Output Log will report an error about this if it detects unsaved levels.
+1. Always use "File > Save All Levels" before playing in the editor, or
+2. Enable auto-saving of all levels before PIE in "Project Settings > Plugins > SPUD"
+
+The Output Log will report an error about this if it detects you're running
+with unsaved levels.
 
 ## It's not working in Standalone mode!
 
