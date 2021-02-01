@@ -15,7 +15,7 @@ class SPUDEDITOR_API USpudPluginSettings
 	GENERATED_BODY()
 
 public:
-	/// Whether to save all levels before play in editor (PIE). Saving all levels is CRITICAL to SPUD
+	/// Whether to auto-save all levels before play in editor (PIE). Saving all levels is CRITICAL to SPUD
 	/// being able to reliably categorise actors into those stored in the level, and those that were runtime spawned.
 	/// Enabling this option is HIGHLY recommended, but not defaulted to avoid surprise
 	UPROPERTY(config, EditAnywhere, Category=General)
