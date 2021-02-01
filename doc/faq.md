@@ -37,3 +37,91 @@ positions and velocities are restored correctly.
 This is not a SPUD bug, it's just the way UE's physics are. You'd get the same
 result if you loaded your level and applied the same forces, each time things
 would play out slightly differently.
+
+## Player pawn falls through the level before it's streamed in!
+
+On spawning or loading a game, assuming your player pawn implements ISpudObject
+it will be moved to the correct location. However, level streaming can take a
+little time so the character could fall through the level until that's done.
+
+One way to fix this is to put some sort of collider in the Persistent Level (which
+is always loaded) to catch things until the level is loaded, but that's only really
+practical for simple worlds. 
+
+A better way is to disable your character's movement and gravity until it can 
+tell that the ground has appeared underneath it. This is what the example
+character does.
+
+Firstly, on BeginPlay, and on TeleportTo and post-restore (by implementing ISpudObjectCallback)
+we call `BeginWaitingForStreaming`. This means whenever there's a chance the character
+has moved quickly into a new area, we wait for the ground to appear:
+
+```c++
+
+void ASPUDExamplesCharacter::BeginWaitingForStreaming()
+{
+	// Just after we've been spawned, or just after teleport, the level around us might not be streamed in yet
+	bIsWaitingForStreaming = true;
+	if (UCharacterMovementComponent* MoveComp = Cast<UCharacterMovementComponent>(GetMovementComponent()))
+	{
+		MoveComp->GravityScale = 0;			
+	}
+}
+```
+
+We also override `IsMoveInputIgnored` to make sure the character isn't allowed to 
+move.
+
+```c++
+bool ASPUDExamplesCharacter::IsMoveInputIgnored() const
+{
+	// Don't allow movement until streaming is ready
+	return Super::IsMoveInputIgnored() || bIsWaitingForStreaming;
+}
+```
+
+Then, on Tick we check whether things are OK yet, by doing a sphere trace downwards.
+As soon as a static world is seen underneath us, we know it's ok to enable 
+gravity and movement again.
+
+```c++ 
+void ASPUDExamplesCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	if (bIsWaitingForStreaming)
+		CheckStreamingOK();
+}
+
+void ASPUDExamplesCharacter::CheckStreamingOK()
+{
+	FHitResult OutHit;
+	TArray<AActor*> ToIgnore;
+	if (UKismetSystemLibrary::SphereTraceSingle(GetWorld(),
+        GetActorLocation(), GetActorLocation() + FVector::DownVector * 200,
+        30, UEngineTypes::ConvertToTraceType(ECC_WorldStatic),
+        false, ToIgnore, EDrawDebugTrace::None, OutHit, true))
+	{
+		bIsWaitingForStreaming = false;
+		if (UCharacterMovementComponent* MoveComp = Cast<UCharacterMovementComponent>(GetMovementComponent()))
+		{
+			MoveComp->GravityScale = 1;			
+		}
+		
+	}
+}
+```
+
+And that's how you make your characters streaming / teleporting / loading friendly!
+
+## Cross-references across streaming level boundaries
+
+Persistent object cross-references are supported as saved state. However, 
+they can only reference objects in the same level, because you cannot guarantee
+that both levels are loaded at once.
+
+If objects needs to cross streaming level boundaries then you might consider
+putting them in the Persistent Level instead of the streamed level. However, 
+be careful about making them respond to gravity if there's a chance they can be
+in an area that unloads.
+
