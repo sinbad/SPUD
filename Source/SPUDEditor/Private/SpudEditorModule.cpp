@@ -15,7 +15,7 @@ void FSpudEditorModule::StartupModule()
 {
     UE_LOG(LogSpudEditor, Warning, TEXT("SpudEditor: StartupModule"));
     
-    PrePIEHandle = FEditorDelegates::PostPIEStarted.AddStatic(&FSpudEditorModule::PostPIEStarted);
+    PrePIEHandle = FEditorDelegates::PreBeginPIE.AddStatic(&FSpudEditorModule::PreBeginPIE);
 
 	// register settings
 	ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
@@ -36,13 +36,13 @@ void FSpudEditorModule::ShutdownModule()
     UE_LOG(LogSpudEditor, Warning, TEXT("SpudEditor: ShutdownModule"));
 }
 
-void FSpudEditorModule::PostPIEStarted(bool)
+void FSpudEditorModule::PreBeginPIE(bool)
 {
 	TArray<FString> UnsavedLevels;
 	const bool AutoSave = GetDefault<USpudPluginSettings>()->SaveAllLevelsOnPlayInEditor;
 	// If playing in editor with unsaved levels, level objects can APPEAR as if they're runtime objects because the
     // level association is not visible until a newly added object is saved.
-    for (ULevel* Level : GEditor->EditorWorld->GetLevels())
+    for (ULevel* Level : GWorld->GetLevels())
     {
     	if (Level->GetOutermost()->IsDirty())
     	{
