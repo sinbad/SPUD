@@ -8,7 +8,7 @@
 /**
 * Settings for the SPUD plug-in.
 */
-UCLASS(config=EditorUserSettings)
+UCLASS(config=Engine)
 class SPUDEDITOR_API USpudPluginSettings
     : public UObject
 {
