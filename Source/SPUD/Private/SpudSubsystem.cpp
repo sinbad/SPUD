@@ -395,6 +395,7 @@ void USpudSubsystem::WithdrawRequestForStreamingLevel(UObject* Requester, FName 
 
 void USpudSubsystem::LoadStreamLevel(FName LevelName, bool Blocking)
 {
+	FScopeLock PendingLoadLock(&LevelsPendingLoadMutex);
 	PreLoadStreamingLevel.Broadcast(LevelName);
 	
 	FLatentActionInfo Latent;
@@ -418,6 +419,8 @@ void USpudSubsystem::LoadStreamLevel(FName LevelName, bool Blocking)
 
 void USpudSubsystem::PostLoadStreamLevel(int32 LinkID)
 {
+	FScopeLock PendingLoadLock(&LevelsPendingLoadMutex);
+	
 	// We should be able to obtain the level name
 	if (LevelsPendingLoad.Contains(LinkID))
 	{
@@ -439,7 +442,7 @@ void USpudSubsystem::PostLoadStreamLevel(int32 LinkID)
 			StreamLevel->SetShouldBeVisible(true);
 		}		
 
-		// Defer the restore to the game thread
+		// Defer the restore to the game thread, streaming calls happen in loading thread?
 		AsyncTask(ENamedThreads::GameThread, [this, LevelName]()
         {
 			// But also add a slight delay so we get a tick in between so physics works
@@ -499,6 +502,8 @@ void USpudSubsystem::UnloadStreamLevel(FName LevelName)
 		}
 		
 		// Now unload
+		FScopeLock PendingUnloadLock(&LevelsPendingUnloadMutex);
+
 		FLatentActionInfo Latent;
 		Latent.ExecutionFunction = "PostUnloadStreamLevel";
 		Latent.CallbackTarget = this;
@@ -517,7 +522,20 @@ void USpudSubsystem::ForceReset()
 
 void USpudSubsystem::PostUnloadStreamLevel(int32 LinkID)
 {
+	FScopeLock PendingUnloadLock(&LevelsPendingUnloadMutex);
+	
 	const FName LevelName = LevelsPendingUnload.FindAndRemoveChecked(LinkID);
+
+	// Pass back to the game thread, streaming calls happen in loading thread?
+	AsyncTask(ENamedThreads::GameThread, [this, LevelName]()
+    {
+        PostUnloadStreamLevelGameThread(LevelName);				
+    });
+}
+
+
+void USpudSubsystem::PostUnloadStreamLevelGameThread(FName LevelName)
+{
 	PostUnloadStreamingLevel.Broadcast(LevelName);
 }
 

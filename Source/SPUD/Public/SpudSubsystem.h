@@ -100,6 +100,9 @@ protected:
 	bool FirstStreamRequestSinceMapLoad = true;
 	TMap<int32, FName> LevelsPendingLoad;
 	TMap<int32, FName> LevelsPendingUnload;
+	FCriticalSection LevelsPendingLoadMutex;
+	FCriticalSection LevelsPendingUnloadMutex;
+	
 	FString SlotNameInProgress;
 
 	UPROPERTY()
@@ -150,6 +153,8 @@ protected:
     void PostUnloadStreamLevel(int32 LinkID);
 	UFUNCTION(BlueprintCallable)
     void PostLoadStreamLevelGameThread(FName LevelName);
+	UFUNCTION(BlueprintCallable)
+    void PostUnloadStreamLevelGameThread(FName LevelName);
 
 	void StoreWorld(UWorld* World);
 	void StoreLevel(ULevel* Level);
