@@ -148,10 +148,21 @@ you can opt these objects in to persistence so they also get saved:
 Global objects must always exist, SPUD won't re-create them on load, but it will
 re-populate their state.
 
+### Standard Persistent State
+
+Just by opting the class in to SPUD persistence, the following state is
+automatically saved:
+
+* Hidden flag
+* Transform (Movable objects only)
+* Controller Rotation (Pawns only)
+* Physics velocities (Physics objects only)
+* Any Movement Component's velocity (e.g. player movement, projectile movement, if present)
+
 ### Pick Properties to Save
 
-Once an object is opted in to being saved, you need to mark the properties of 
-the object you want to preserve. You use the "SaveGame" flag to do this.
+In addition to the standard state, you can then tell SPUD to save additional properties of 
+the object. You use the "SaveGame" `UPROPERTY` flag to do this.
 
 In C++:
 
@@ -166,15 +177,6 @@ or Blueprints, in the advanced property details section:
 
 For the most common case of an object in a level, that's it! 
 Many types of property are supported. For more details, see [Properties](./doc/props.md);
-
-### Core State
-
-In addition to properties, SPUD saves some core state automatically on every actor:
-
-* Hidden flag
-* Transform (Movable objects only)
-* Controller Rotation (Pawns only)
-* Physics velocities (Physics objects only)
 
 ### Destroyed Actors
 

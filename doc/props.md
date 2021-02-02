@@ -69,11 +69,11 @@ of its top-level properties, you can implement the optional `ISpudObjectCallback
 This interface gets the opportunity to save / load any custom data it wants, which
 is stored with the rest of the object state. 
 
-So for example, in the FirstPersonExample in UE4, there's a projectile class
-that doesn't use physics and so doesn't automatically get its velocity back
-on load - that's done in its ProjectileMovement class. One way to address this
-is with custom data:
+
 
 ![Custom Data in Blueprints](./images/BPCustomData.png)
 
-Custom Data isn't made upgrade-proof like properties
+Custom Data isn't made upgrade-proof like properties, so be careful with this.
+You have to read / write custom data the same way. But it allows you to essentially
+store anything from anywhere if you can't make it work using a `UPROPERTY` on 
+the root object.

@@ -112,7 +112,9 @@ void ASPUDExamplesCharacter::CheckStreamingOK()
 }
 ```
 
-And that's how you make your characters streaming / teleporting / loading friendly!
+So that's one way to make your characters streaming / teleporting / loading friendly!
+If your characters move differently or it's possible you could save them above
+a large or even infinite drop, then you might need to tweak this a bit.
 
 ## Cross-references across streaming level boundaries
 
