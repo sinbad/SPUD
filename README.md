@@ -24,6 +24,7 @@ Some more details:
 * Usable in C++ or Blueprints
 
 An introduction video:
+
 [![Intro Video](http://img.youtube.com/vi/AzDoMGeJgi4/0.jpg)](http://www.youtube.com/watch?v=AzDoMGeJgi4 "Intro to SPUD")
 
 ## Examples
