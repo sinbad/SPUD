@@ -492,6 +492,11 @@ void USpudSubsystem::UnloadStreamLevel(FName LevelName)
 	{
 		PreUnloadStreamingLevel.Broadcast(LevelName);
 		ULevel* Level = StreamLevel->GetLoadedLevel();
+		if (!Level)
+		{
+			// Already unloaded
+			return;
+		}
 		UnsubscribeLevelObjectEvents(Level);
 	
 		if (CurrentState != ESpudSystemState::LoadingGame)
