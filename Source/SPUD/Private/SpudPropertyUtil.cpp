@@ -1,5 +1,5 @@
-#include <limits>
 #include "SpudPropertyUtil.h"
+#include <limits>
 #include "ISpudObject.h"
 
 DEFINE_LOG_CATEGORY(LogSpudProps)
