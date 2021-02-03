@@ -54,7 +54,7 @@ template <> const ESpudStorageType SpudTypeInfo<FName>::EnumType = ESST_Name;
 
 /// Utility class which does all the nuts & bolts related to property persistence without actually being stateful
 /// Also none of this is exposed to Blueprints, is completely internal to C++ persistence
-class SpudPropertyUtil
+class SPUD_API SpudPropertyUtil
 {
 public:
 	/**
