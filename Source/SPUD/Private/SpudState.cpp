@@ -891,7 +891,7 @@ void USpudState::SaveToArchive(FArchive& Ar, const FText& Title)
 {
 	// We use separate read / write in order to more clearly support chunked file format
 	// with the backwards compatibility that comes with 
-	auto ChunkedAr = FSpudChunkedDataArchive(Ar);
+	FSpudChunkedDataArchive ChunkedAr(Ar);
 	SaveData.PrepareForWrite(Title);
 	SaveData.WriteToArchive(ChunkedAr);
 
@@ -899,13 +899,13 @@ void USpudState::SaveToArchive(FArchive& Ar, const FText& Title)
 
 void USpudState::LoadFromArchive(FArchive& Ar)
 {
-	auto ChunkedAr = FSpudChunkedDataArchive(Ar);
+	FSpudChunkedDataArchive ChunkedAr(Ar);
 	SaveData.ReadFromArchive(ChunkedAr, 0);	
 }
 
 bool USpudState::LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInfo)
 {
-	auto ChunkedAr = FSpudChunkedDataArchive(Ar);
+	FSpudChunkedDataArchive ChunkedAr(Ar);
 	FSpudSaveInfo StorageInfo;
 	const bool Ok = FSpudSaveData::ReadSaveInfoFromArchive(ChunkedAr, StorageInfo);
 	if (Ok)
