@@ -167,6 +167,15 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
+	UFUNCTION(BlueprintPure)
+	bool IsLoadingGame() const { return CurrentState == ESpudSystemState::LoadingGame; }
+
+	UFUNCTION(BlueprintPure)
+    bool IsSavingGame() const { return CurrentState == ESpudSystemState::SavingGame; }
+
+	UFUNCTION(BlueprintPure)
+    bool IsIdle() const { return CurrentState == ESpudSystemState::RunningIdle; }
+
 	/// Start a new game with a blank persistent state
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void NewGame();

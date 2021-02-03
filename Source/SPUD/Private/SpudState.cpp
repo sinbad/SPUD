@@ -3,6 +3,7 @@
 #include "EngineUtils.h"
 #include "ISpudObject.h"
 #include "SpudPropertyUtil.h"
+#include "SpudSubsystem.h"
 #include "Engine/LevelStreaming.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/GameModeBase.h"
@@ -581,6 +582,20 @@ void USpudState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& F
 		FRotator ControlRotation;
 		SpudPropertyUtil::ReadRaw(ControlRotation, In);
 
+
+		auto Pawn = Cast<APawn>(Actor);
+		if (Pawn && Pawn->IsPlayerControlled() &&
+			!GetSpudSubsystem(Pawn->GetWorld())->IsLoadingGame())
+		{
+			// This is a player-controlled pawn, and we're not loading the game
+			// That means this was a map transition. In this case we do NOT want to reset the pawn's position
+			// because we don't know that the player wants to appear at the last place they were
+			// Let user code decide which player start is used
+			// SKIP the rest - but we must have still read data above
+			return;
+			
+		}
+
 		const auto RootComp = Actor->GetRootComponent();
 		if (RootComp && RootComp->Mobility == EComponentMobility::Movable)
 		{
@@ -603,11 +618,10 @@ void USpudState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& F
 					MoveComponent->Velocity = Velocity;
 				}
 			}
-
 		}
 
 
-		if (auto Pawn = Cast<APawn>(Actor))
+		if (Pawn)
 		{
 			if (auto Controller = Pawn->GetController())
 			{
