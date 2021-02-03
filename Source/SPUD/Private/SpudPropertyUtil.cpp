@@ -1,3 +1,4 @@
+#include <limits>
 #include "SpudPropertyUtil.h"
 #include "ISpudObject.h"
 
