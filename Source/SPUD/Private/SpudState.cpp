@@ -13,14 +13,17 @@
 
 DEFINE_LOG_CATEGORY(LogSpudState)
 
-//PRAGMA_DISABLE_OPTIMIZATION
+PRAGMA_DISABLE_OPTIMIZATION
 
 USpudState::USpudState()
 {
+	// In case game crashed etc, remove all garbage active level files at construction too
+	RemoveAllActiveGameLevelFiles();
 }
 
 void USpudState::ResetState()
 {
+	RemoveAllActiveGameLevelFiles();
 	SaveData.Reset();
 }
 
@@ -30,19 +33,19 @@ void USpudState::StoreWorldGlobals(UWorld* World)
 }
 
 
-void USpudState::StoreLevel(UWorld* World, const FString& LevelName)
+void USpudState::StoreLevel(UWorld* World, const FString& LevelName, bool bRelease)
 {
 	for (auto && Level : World->GetLevels())
 	{
 		if (GetLevelName(Level) == LevelName)
 		{
-			StoreLevel(Level);
+			StoreLevel(Level, bRelease);
 			break;
 		}
 	}
 }
 
-void USpudState::StoreLevel(ULevel* Level)
+void USpudState::StoreLevel(ULevel* Level, bool bRelease)
 {
 	const FString LevelName = GetLevelName(Level);
 	auto LevelData = GetLevelData(LevelName, true);
@@ -59,6 +62,9 @@ void USpudState::StoreLevel(ULevel* Level)
 			StoreActor(Actor, LevelData);
 		}					
 	}
+
+	if (bRelease)
+		ReleaseLevelData(LevelName);
 }
 
 USpudState::StorePropertyVisitor::StorePropertyVisitor(
@@ -178,14 +184,20 @@ FString USpudState::GetLevelNameForObject(const UObject* Obj)
 
 FSpudLevelData* USpudState::GetLevelData(const FString& LevelName, bool AutoCreate)
 {
-	auto Ret = SaveData.LevelDataMap.Contents.Find(LevelName);
+	auto Ret = SaveData.GetLevelData(LevelName, true, GetActiveGameLevelFolder());
+	
 	if (!Ret && AutoCreate)
 	{
-		Ret = &SaveData.LevelDataMap.Contents.Add(LevelName);
-		Ret->Name = LevelName;
+		Ret = SaveData.CreateLevelData(LevelName);
 	}
 	
 	return Ret;
+}
+
+
+void USpudState::ReleaseLevelData(const FString& LevelName)
+{
+	SaveData.WriteAndReleaseLevelData(LevelName, GetActiveGameLevelFolder());
 }
 
 FSpudNamedObjectData* USpudState::GetLevelActorData(const AActor* Actor, FSpudLevelData* LevelData, bool AutoCreate)
@@ -907,14 +919,21 @@ void USpudState::SaveToArchive(FArchive& Ar, const FText& Title)
 	// with the backwards compatibility that comes with 
 	FSpudChunkedDataArchive ChunkedAr(Ar);
 	SaveData.PrepareForWrite(Title);
-	SaveData.WriteToArchive(ChunkedAr);
+	// Use WritePaged in all cases; if all data is loaded it amounts to the same thing
+	SaveData.WritePagedToArchive(ChunkedAr, GetActiveGameLevelFolder());
 
 }
 
-void USpudState::LoadFromArchive(FArchive& Ar)
+void USpudState::LoadFromArchive(FArchive& Ar, bool bFullyLoadAllLevelData)
 {
+	// Firstly, destroy any active game level files
+	RemoveAllActiveGameLevelFiles();
+	
 	FSpudChunkedDataArchive ChunkedAr(Ar);
-	SaveData.ReadFromArchive(ChunkedAr);	
+	if (bFullyLoadAllLevelData)
+		SaveData.ReadFromArchive(ChunkedAr);
+	else
+		SaveData.ReadPagedFromArchive(ChunkedAr, GetActiveGameLevelFolder());
 }
 
 bool USpudState::LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInfo)
@@ -932,5 +951,15 @@ bool USpudState::LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInf
 }
 
 
-//PRAGMA_ENABLE_OPTIMIZATION
+FString USpudState::GetActiveGameLevelFolder()
+{
+	return FString::Printf(TEXT("%sActiveGameCache/"), *FPaths::ProjectSavedDir());	
+}
 
+void USpudState::RemoveAllActiveGameLevelFiles()
+{
+	FSpudSaveData::DeleteAllLevelDataFiles(GetActiveGameLevelFolder());
+}
+
+
+PRAGMA_ENABLE_OPTIMIZATION

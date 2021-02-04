@@ -594,12 +594,25 @@ struct FSpudClassMetadata : public FSpudChunk
 	void Reset();
 };
 
-enum LevelDataStatus
+enum ELevelDataStatus
 {
-	Unloaded,
-	Loading,
-	Loaded,
-	Unloading
+	LDS_Unloaded,
+	LDS_Loaded
+};
+
+struct FSpudGlobalData : public FSpudChunk
+{
+	/// The map name of the level the player was currently on, so we can load back to that point
+	FString CurrentLevel;
+	/// Class definitions etc for all objects in this global data set
+	FSpudClassMetadata Metadata;
+	/// Actual storage of object data
+	FSpudGlobalObjectMap Objects;
+
+	virtual const char* GetMagic() const override { return SPUDDATA_GLOBALDATA_MAGIC; }
+	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
+	void Reset();
 };
 
 struct FSpudLevelData : public FSpudChunk
@@ -622,12 +635,27 @@ struct FSpudLevelData : public FSpudChunk
 	/// Actors which were present in the level at load time but have been subsequently destroyed
 	FSpudDestroyedActorArray DestroyedActors;
 
+	/// non-persistent status flag to support placeholder level data which is not currently loaded
+	ELevelDataStatus Status;
+	FCriticalSection StatusMutex;
+	
 	/// Key value for indexing this item; name is unique
 	FString Key() const { return Name; }
 
-	/// non-persistent status flag to support placaeholder level data which is not currently loaded
-	LevelDataStatus Status;
-	
+	FSpudLevelData() {}
+
+	// We need an explicit copy constructor in order to not try to copy the mutex
+	FSpudLevelData(const FSpudLevelData& Other)
+		: FSpudChunk(Other),
+		  Name(Other.Name),
+		  Metadata(Other.Metadata),
+		  LevelActors(Other.LevelActors),
+		  SpawnedActors(Other.SpawnedActors),
+		  DestroyedActors(Other.DestroyedActors),
+		  Status(Other.Status)
+	{
+	}
+
 	virtual const char* GetMagic() const override { return SPUDDATA_LEVELDATA_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
 	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
@@ -638,26 +666,12 @@ struct FSpudLevelData : public FSpudChunk
 	void Reset();
 };
 
-struct FSpudGlobalData : public FSpudChunk
-{
-	/// The map name of the level the player was currently on, so we can load back to that point
-	FString CurrentLevel;
-	/// Class definitions etc for all objects in this global data set
-	FSpudClassMetadata Metadata;
-	/// Actual storage of object data
-	FSpudGlobalObjectMap Objects;
-
-	virtual const char* GetMagic() const override { return SPUDDATA_GLOBALDATA_MAGIC; }
-	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
-	void Reset();
-};
-
 struct FSpudLevelDataMap : public FSpudStructMapData<FString, FSpudLevelData>
 {
 	virtual const char* GetMagic() const override { return SPUDDATA_LEVELDATAMAP_MAGIC; }
 	virtual const char* GetChildMagic() const override { return SPUDDATA_LEVELDATA_MAGIC; }
 };
+
 
 /// Description of the save game, so we can just read this chunk to get info about it
 /// This is better than having a separate metadata file describing the save in order to get description, date/time etc
@@ -687,12 +701,69 @@ struct FSpudSaveData : public FSpudChunk
 
 	virtual const char* GetMagic() const override { return SPUDDATA_SAVEGAME_MAGIC; }
 	void PrepareForWrite(const FText& Title);
-	/// Write the entire in-memory contents to a singe archive
+	/// Write the entire in-memory contents to a singe archive, assumes all data is in memory
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
 	/// Read the entire save file into memory
 	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
+	
+	/**
+	 * @brief Read a save file but only read the global data into memory. All level chunks should be piped
+	 * directly into their own separate named files in LevelPath, so their state is only loaded into memory when
+	 * needed. Entries for these levels will still be present in LevelDataMap, but with an unloaded state
+	 * @param Ar Source archive for the entire save file
+	 * @param LevelPath The parent directory where level chunks should be written as separate files
+	 */
+	virtual void ReadPagedFromArchive(FSpudChunkedDataArchive& Ar, const FString& LevelPath);
+	
+	/**
+	 * @brief Retrieve data for a single level, loading it if necessary
+	 * @param LevelName The name of the level
+	 * @param bLoadIfNeeded Load (synchronously) if the level is present but unloaded
+	 * @param LevelPath The parent directory where level chunks can be found as separate files
+	 * @return The level data or null if not available
+	 */
+	virtual FSpudLevelData* GetLevelData(const FString& LevelName, bool bLoadIfNeeded, const FString& LevelPath);
+
+	
+	/**
+	 * @brief Create level data for a new level
+	 * @param LevelName The name of the level
+	 * @return Pointer to the new level data
+	 */
+	virtual FSpudLevelData* CreateLevelData(const FString& LevelName);
+
+
+	/**
+	 * @brief Write a combined save file including all the in-memory state, plus any unloaded level state
+	 * which will be piped from the separate files in LevelPath
+	 * @param Ar Archive to write to
+	 * @param LevelPath The path in which to find level data which is unloaded
+	 */
+	virtual void WritePagedToArchive(FSpudChunkedDataArchive& Ar, const FString& LevelPath);
+
+	/**
+	* @brief Write any loaded data for a single level to disk, and unload it from memory . It becomes part of the
+	* on-disk state for the active game which can later be re-combined with others into a single save game.
+	* @param LevelName The name of the level
+    * @param LevelPath The path in which to write the level data
+	*/
+	virtual bool WriteAndReleaseLevelData(const FString& LevelName, const FString& LevelPath);
+	
+	/**
+	 * @brief Delete any state associated with a given level, forgetting any saved state for it.
+	 * @param LevelName The name of the level
+	 * @param LevelPath The path in which paged out level data may have been written
+	 */
+	virtual void DeleteLevelData(const FString& LevelName, const FString& LevelPath);
 
 	virtual void Reset();
+
+	/// Remove all the level data files in a given path
+	static void DeleteAllLevelDataFiles(const FString& LevelPath);
+
+	/// Get the path of the file to use to store state for a specific level
+	static FString GetLevelDataPath(const FString& LevelPath, const FString& LevelName);
+
 
 	/// Utility method to read an archive just up to the end of the FSpudSaveInfo, and output details
 	static bool ReadSaveInfoFromArchive(FSpudChunkedDataArchive& Ar, FSpudSaveInfo& OutInfo);

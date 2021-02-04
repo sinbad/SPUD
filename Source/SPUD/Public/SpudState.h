@@ -160,6 +160,15 @@ protected:
 		virtual bool VisitProperty(UObject* RootObject, FProperty* Property, uint32 CurrentPrefixID,
 		                           void* ContainerPtr, int Depth) override;
 	};
+
+
+	/// Get the folder which will contain the level-specific game data for the active game while it's running
+	/// This is so that not all level data needs to be in memory at once.
+	FString GetActiveGameLevelFolder();
+
+	/// Purge the active game's level data on disk, ready for a new game or loaded game.	
+	void RemoveAllActiveGameLevelFiles();
+
 public:
 
 	static FString GetLevelName(const ULevel* Level);
@@ -172,21 +181,36 @@ public:
 
 	/// Store the top-level information about the world, but none of the level contents
 	void StoreWorldGlobals(UWorld* World);
-	
-	/// Store the state of objects in the current world which are attached to a specific level.
-	/// Only processes actors which implement ISpudObject.
-	void StoreLevel(UWorld* World, const FString& LevelName);
 
-	/// Store the state of objects in the current world which are attached to a specific level.
-	/// Only processes actors which implement ISpudObject.
-	void StoreLevel(ULevel* Level);
+
+	/**
+	* @brief Store the state of objects in the current world which are attached to a specific level.
+	* Only processes actors which implement ISpudObject.
+	* @param World The world pointer
+	* @param LevelName Name of the level
+	* @param bReleaseAfter If true, after storing the level data, it is removed from memory and stored on disk
+	*/
+	void StoreLevel(UWorld* World, const FString& LevelName, bool bReleaseAfter);
+
+	/**
+	 * @brief Store the state of objects in the current world which are attached to a specific level.
+	 * Only processes actors which implement ISpudObject.
+	 * @param Level The level to store
+	 * @param bReleaseAfter If true, after storing the level data, it is removed from memory and stored on disk
+	 */
+	void StoreLevel(ULevel* Level, bool bReleaseAfter);
 
 	/// Store the state of an actor. Does not require the object to implement ISpudObject
 	/// This object will be associated with its level, and so will only be restored when its level is loaded.
+	/// Will page in the level data concerned from disk if necessary and will retain it in memory
 	void StoreActor(AActor* Obj);
 
 	/// Notify the state that an actor that is part of a level is being destroyed, and that should be remembered
+	/// Will page in the level data concerned from disk if necessary and will retain it in memory
 	void StoreLevelActorDestroyed(AActor* Actor);
+
+	/// Stores any data for a level to disk and releases the memory its using to store persistent state
+	void ReleaseLevelData(const FString& LevelName);
 
 	/// Store the state of a global object, such as a GameInstance. Does not require the object to implement ISpudObject
 	/// This object will have the same state across all levels.
@@ -230,8 +254,18 @@ public:
 	// interface, the Editor would crash on startup, calling my Serialize in the middle of loading some wind component???
 	// Must be because it was matching some pattern and the interface was drawing attention or something. Let's keep
 	// it completely custom so we don't have to deal with crap like that.
+
+	/// Save all contents to an archive
+	/// This includes all paged out level data, which will be recombined
 	virtual void SaveToArchive(FArchive& Ar, const FText& Title);
-	virtual void LoadFromArchive(FArchive& Ar);
+
+	/**
+	 * @brief 
+	 * @param Ar The save file archive
+	 * @param bFullyLoadAllLevelData If true, load all data into memory including all data for all levels. If false,
+	 * only load global data and enumerate levels, piping level data to separate disk files instead for loading individually later
+	 */
+	virtual void LoadFromArchive(FArchive& Ar, bool bFullyLoadAllLevelData);
 
 	/// Get the name of the persistent level which the player is on in this state
 	FString GetPersistentLevel() const { return SaveData.GlobalData.CurrentLevel; }
@@ -239,6 +273,7 @@ public:
 	/// Utility method to read *just* the information part of a save game from the start of an archive
 	/// This only reads the minimum needed to describe the save file and doesn't load any other data.
 	static bool LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInfo);
+
 };
 
 UCLASS()

@@ -1,6 +1,8 @@
 #include "SpudData.h"
 #include "SpudPropertyUtil.h"
 
+PRAGMA_DISABLE_OPTIMIZATION
+
 DEFINE_LOG_CATEGORY(LogSpudData)
 
 #define SPUD_SAVEGAME_CURRENT_VERSION 1
@@ -663,6 +665,35 @@ void FSpudSaveData::Reset()
 	LevelDataMap.Empty();
 }
 
+FSpudLevelData* FSpudSaveData::CreateLevelData(const FString& LevelName)
+{
+	auto Ret = &LevelDataMap.Contents.Add(LevelName);
+	Ret->Name = LevelName;
+	Ret->Status = LDS_Loaded; // assume loaded if we're creating
+	return Ret;
+}
+
+void FSpudSaveData::DeleteAllLevelDataFiles(const FString& LevelPath)
+{
+	IFileManager& FM = IFileManager::Get();
+	
+	TArray<FString> LevelFiles;
+	FM.FindFiles(LevelFiles, *LevelPath, TEXT(".lvl"));
+
+	for (auto && File : LevelFiles)
+	{
+		// We want to parse just the very first part of the file, not all of it
+		FString AbsoluteFilename = FPaths::Combine(LevelPath, File);
+		FM.Delete(*AbsoluteFilename);
+	}
+
+}
+
+FString FSpudSaveData::GetLevelDataPath(const FString& LevelPath, const FString& LevelName)
+{
+	return FString::Printf(TEXT("%s%s.lvl"), *LevelPath, *LevelName);		
+}
+
 bool FSpudSaveData::ReadSaveInfoFromArchive(FSpudChunkedDataArchive& Ar, FSpudSaveInfo& OutInfo)
 {
 	// Read manually, no stateful ChunkStart/End
@@ -685,3 +716,95 @@ bool FSpudSaveData::ReadSaveInfoFromArchive(FSpudChunkedDataArchive& Ar, FSpudSa
 	return true;
 	
 }
+
+
+void FSpudSaveData::ReadPagedFromArchive(FSpudChunkedDataArchive& Ar, const FString& LevelPath)
+{
+}
+
+void FSpudSaveData::WritePagedToArchive(FSpudChunkedDataArchive& Ar, const FString& LevelPath)
+{
+}
+
+FSpudLevelData* FSpudSaveData::GetLevelData(const FString& LevelName, bool bLoadIfNeeded, const FString& LevelPath)
+{
+	auto Ret = LevelDataMap.Contents.Find(LevelName);
+	if (Ret && bLoadIfNeeded)
+	{
+		//FScopeLock StatusLock(&Ret->StatusMutex);
+		if (Ret->Status == LDS_Unloaded)
+		{
+			// Load individual level file back into memory
+			IFileManager& FileMgr = IFileManager::Get();
+			const auto Filename = GetLevelDataPath(LevelPath, LevelName);
+			const auto Archive = TUniquePtr<FArchive>(FileMgr.CreateFileReader(*Filename));
+
+			if(Archive)
+			{
+				FSpudChunkedDataArchive ChunkedAr(*Archive);
+				
+				Ret->ReadFromArchive(ChunkedAr);
+				ChunkedAr.Close();
+
+				if (ChunkedAr.IsError() || ChunkedAr.IsCriticalError())
+				{
+					UE_LOG(LogSpudData, Error, TEXT("Error while loading active game level file from %s"), *Filename);
+				}
+			}
+			else
+			{
+				UE_LOG(LogSpudData, Error, TEXT("Error opening active game level state file %s"), *Filename);		
+			}
+		}
+	}
+
+	return Ret;
+}
+
+bool FSpudSaveData::WriteAndReleaseLevelData(const FString& LevelName, const FString& LevelPath)
+{
+	auto Ret = LevelDataMap.Contents.Find(LevelName);
+	if (Ret)
+	{
+		//FScopeLock StatusLock(&Ret->StatusMutex);
+		if (Ret->Status == LDS_Loaded)
+		{
+			// Write just this level state to disk
+			IFileManager& FileMgr = IFileManager::Get();
+			const FString Filename = GetLevelDataPath(LevelPath, LevelName);
+			const auto Archive = TUniquePtr<FArchive>(FileMgr.CreateFileWriter(*Filename));
+
+			if(Archive)
+			{
+				FSpudChunkedDataArchive ChunkedAr(*Archive);
+				Ret->WriteToArchive(ChunkedAr);
+				// Always explicitly close to catch errors from flush/close
+				ChunkedAr.Close();
+
+				if (ChunkedAr.IsError() || ChunkedAr.IsCriticalError())
+				{
+					UE_LOG(LogSpudData, Error, TEXT("Error while writing level data to %s"), *Filename);
+					return false;
+				}
+			}
+			else
+			{
+				UE_LOG(LogSpudData, Error, TEXT("Error opening level data file for writing: %s"), *Filename);
+					return false;
+			}
+		}
+	}
+	return true;
+}
+
+void FSpudSaveData::DeleteLevelData(const FString& LevelName, const FString& LevelPath)
+{
+	LevelDataMap.Contents.Remove(LevelName);
+
+	IFileManager& FileMgr = IFileManager::Get();
+	const FString Filename = GetLevelDataPath(LevelPath, LevelName);
+	FileMgr.Delete(*Filename, false, true, true);
+	
+}
+
+PRAGMA_ENABLE_OPTIMIZATION
