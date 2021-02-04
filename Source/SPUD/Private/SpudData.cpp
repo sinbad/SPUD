@@ -140,7 +140,7 @@ void FSpudClassDef::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	}	
 }
 
-void FSpudClassDef::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 DataVersion)
+void FSpudClassDef::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 {
 	if (ChunkStart(Ar))
 	{
@@ -231,11 +231,11 @@ void FSpudPropertyData::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	FSpudDataHolder::WriteToArchive(Ar);
 }
 
-void FSpudPropertyData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 DataVersion)
+void FSpudPropertyData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 {
 	PropertyOffsets.Empty();
 	Ar << PropertyOffsets;
-	FSpudDataHolder::ReadFromArchive(Ar, DataVersion);
+	FSpudDataHolder::ReadFromArchive(Ar);
 }
 
 void FSpudPropertyData::Reset()
@@ -261,7 +261,7 @@ void FSpudDataHolder::WriteToArchive(FSpudChunkedDataArchive& Ar)
 		ChunkEnd(Ar);
 	}
 }
-void FSpudDataHolder::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 DataVersion)
+void FSpudDataHolder::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 {
 	if (ChunkStart(Ar))
 	{
@@ -286,7 +286,7 @@ void FSpudDestroyedLevelActor::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	}
 }
 
-void FSpudDestroyedLevelActor::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 DataVersion)
+void FSpudDestroyedLevelActor::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 {
 	// Simple case
 	if (ChunkStart(Ar))
@@ -309,14 +309,14 @@ void FSpudNamedObjectData::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	}
 }
 
-void FSpudNamedObjectData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 DataVersion)
+void FSpudNamedObjectData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 {
 	if (ChunkStart(Ar))
 	{
 		Ar << Name;
-		CoreData.ReadFromArchive(Ar, DataVersion);
-		Properties.ReadFromArchive(Ar, DataVersion);
-		CustomData.ReadFromArchive(Ar, DataVersion);
+		CoreData.ReadFromArchive(Ar);
+		Properties.ReadFromArchive(Ar);
+		CustomData.ReadFromArchive(Ar);
 		ChunkEnd(Ar);
 	}
 }
@@ -334,15 +334,15 @@ void FSpudSpawnedActorData::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	}
 }
 
-void FSpudSpawnedActorData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 DataVersion)
+void FSpudSpawnedActorData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 {
 	if (ChunkStart(Ar))
 	{
 		Ar << ClassID;
 		Ar << Guid;
-		CoreData.ReadFromArchive(Ar, DataVersion);
-		Properties.ReadFromArchive(Ar, DataVersion);
-		CustomData.ReadFromArchive(Ar, DataVersion);
+		CoreData.ReadFromArchive(Ar);
+		Properties.ReadFromArchive(Ar);
+		CustomData.ReadFromArchive(Ar);
 		ChunkEnd(Ar);
 	}
 }
@@ -368,7 +368,7 @@ void FSpudClassMetadata::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	}
 }
 
-void FSpudClassMetadata::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 Version)
+void FSpudClassMetadata::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 {
 	if (ChunkStart(Ar))
 	{
@@ -380,11 +380,11 @@ void FSpudClassMetadata::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 Ver
 		{
 			Ar.PreviewNextChunk(Hdr, true);
 			if (Hdr.Magic == ClassNameIndexID)
-				ClassNameIndex.ReadFromArchive(Ar, Version);
+				ClassNameIndex.ReadFromArchive(Ar);
 			else if (Hdr.Magic == ClassDefListID)
-				ClassDefinitions.ReadFromArchive(Ar, Version);
+				ClassDefinitions.ReadFromArchive(Ar);
 			else if (Hdr.Magic == PropertyNameIndexID)
-				PropertyNameIndex.ReadFromArchive(Ar, Version);
+				PropertyNameIndex.ReadFromArchive(Ar);
 			else
 				Ar.SkipNextChunk();
 		}
@@ -468,7 +468,7 @@ void FSpudLevelData::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	}
 }
 
-void FSpudLevelData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 Version)
+void FSpudLevelData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 {
 	// Separate loading process since it's easier to deal with chunk robustness and versions
 	if (ChunkStart(Ar))
@@ -484,13 +484,13 @@ void FSpudLevelData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 Version
 		{
 			Ar.PreviewNextChunk(Hdr, true);
 			if (Hdr.Magic == MetadataID)
-				Metadata.ReadFromArchive(Ar, Version);
+				Metadata.ReadFromArchive(Ar);
 			else if (Hdr.Magic == LevelActorsID)
-				LevelActors.ReadFromArchive(Ar, Version);
+				LevelActors.ReadFromArchive(Ar);
 			else if (Hdr.Magic == SpawnedActorsID)
-				SpawnedActors.ReadFromArchive(Ar, Version);
+				SpawnedActors.ReadFromArchive(Ar);
 			else if (Hdr.Magic == DestroyedActorsID)
-				DestroyedActors.ReadFromArchive(Ar, Version);
+				DestroyedActors.ReadFromArchive(Ar);
 			else
 				Ar.SkipNextChunk();
 		}
@@ -529,7 +529,7 @@ void FSpudGlobalData::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	}
 }
 
-void FSpudGlobalData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 Version)
+void FSpudGlobalData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 {
 	// Separate loading process since it's easier to deal with chunk robustness and versions
 	if (ChunkStart(Ar))
@@ -543,9 +543,9 @@ void FSpudGlobalData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 Versio
 		{
 			Ar.PreviewNextChunk(Hdr, true);
 			if (Hdr.Magic == MetadataID)
-				Metadata.ReadFromArchive(Ar, Version);
+				Metadata.ReadFromArchive(Ar);
 			else if (Hdr.Magic == ObjectsID)
-				Objects.ReadFromArchive(Ar, Version);
+				Objects.ReadFromArchive(Ar);
 			else
 				Ar.SkipNextChunk();
 		}
@@ -577,7 +577,7 @@ void FSpudSaveInfo::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	}
 }
 
-void FSpudSaveInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 IGNOREDDataVersion)
+void FSpudSaveInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 {
 	if (ChunkStart(Ar))
 	{
@@ -615,7 +615,7 @@ void FSpudSaveData::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	}
 }
 
-void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 IGNOREDDataVersion)
+void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 {
 	if (ChunkStart(Ar))
 	{
@@ -631,7 +631,7 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 IGNOREDD
 			return;
 		}
 
-		Info.ReadFromArchive(Ar, IGNOREDDataVersion);
+		Info.ReadFromArchive(Ar);
 
 		if (Ar.IsLoading() && Info.Version != SPUD_SAVEGAME_CURRENT_VERSION)
 		{
@@ -643,11 +643,11 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 IGNOREDD
 		{
 			Ar.PreviewNextChunk(Hdr, true);
 			if (Hdr.Magic == GlobalDataID)
-				GlobalData.ReadFromArchive(Ar, Info.Version);
+				GlobalData.ReadFromArchive(Ar);
 			else if (Hdr.Magic == LevelDataMapID)
 			{
 				// Important: in this case we're reading from a combined save game, so all levels are present
-				LevelDataMap.ReadFromArchive(Ar, Info.Version);
+				LevelDataMap.ReadFromArchive(Ar);
 			}
 			else
 				Ar.SkipNextChunk();
@@ -680,7 +680,7 @@ bool FSpudSaveData::ReadSaveInfoFromArchive(FSpudChunkedDataArchive& Ar, FSpudSa
 		UE_LOG(LogSpudData, Error, TEXT("Cannot get info for save game, INFO chunk isn't present at start"))
 		return false;		
 	}
-	OutInfo.ReadFromArchive(Ar, 0);
+	OutInfo.ReadFromArchive(Ar);
 
 	return true;
 	

@@ -914,7 +914,7 @@ void USpudState::SaveToArchive(FArchive& Ar, const FText& Title)
 void USpudState::LoadFromArchive(FArchive& Ar)
 {
 	FSpudChunkedDataArchive ChunkedAr(Ar);
-	SaveData.ReadFromArchive(ChunkedAr, 0);	
+	SaveData.ReadFromArchive(ChunkedAr);	
 }
 
 bool USpudState::LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInfo)
