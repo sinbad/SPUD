@@ -188,6 +188,18 @@ struct FSpudChunk
 	bool IsStillInChunk(FArchive& Ar) const;
 };
 
+// An ad-hoc chunk used to wrap other chunks. 
+struct FSpudAdhocWrapperChunk : public FSpudChunk
+{
+	const char* Magic;
+	
+	FSpudAdhocWrapperChunk(const char* InMagic) : Magic(InMagic) {}
+	virtual const char* GetMagic() const override { return Magic; }
+	// You should not call read/write, this chunk is solely for wrapping others without owning them
+	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override { check(false);}
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override { check(false); }
+};
+
 /// Definition of a property on a class
 /// We store a list of these for each known leaf class
 /// Each instance will store related offsets within its data buffer (those can be variable because
@@ -666,13 +678,6 @@ struct FSpudLevelData : public FSpudChunk
 	void Reset();
 };
 
-struct FSpudLevelDataMap : public FSpudStructMapData<FString, FSpudLevelData>
-{
-	virtual const char* GetMagic() const override { return SPUDDATA_LEVELDATAMAP_MAGIC; }
-	virtual const char* GetChildMagic() const override { return SPUDDATA_LEVELDATA_MAGIC; }
-};
-
-
 /// Description of the save game, so we can just read this chunk to get info about it
 /// This is better than having a separate metadata file describing the save in order to get description, date/time etc
 /// because it means saves can just be copied as single standalone files
@@ -697,23 +702,28 @@ struct FSpudSaveData : public FSpudChunk
 {
 	FSpudSaveInfo Info;
 	FSpudGlobalData GlobalData;
-	FSpudLevelDataMap LevelDataMap;
+
+	// Plain map for level data, because we can page this out so don't write it in bulk
+	TMap<FString, FSpudLevelData> LevelDataMap;
 
 	virtual const char* GetMagic() const override { return SPUDDATA_SAVEGAME_MAGIC; }
 	void PrepareForWrite(const FText& Title);
 	/// Write the entire in-memory contents to a singe archive, assumes all data is in memory
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
+	/// Write contents to archive, with the option of loading back in level data that's been released (doesn't all have to be in memory)
+	void WriteToArchive(FSpudChunkedDataArchive& Ar, const FString& LevelPath);
 	/// Read the entire save file into memory
 	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
 	
 	/**
-	 * @brief Read a save file but only read the global data into memory. All level chunks should be piped
+	 * @brief Read a save file with extra options. Options to pipe all level data chunks
 	 * directly into their own separate named files in LevelPath, so their state is only loaded into memory when
 	 * needed. Entries for these levels will still be present in LevelDataMap, but with an unloaded state
 	 * @param Ar Source archive for the entire save file
+	 * @param bLoadAllLevels If true, all levels will be loaded into memory. If false, none will be & data will be split for later loading
 	 * @param LevelPath The parent directory where level chunks should be written as separate files
 	 */
-	virtual void ReadPagedFromArchive(FSpudChunkedDataArchive& Ar, const FString& LevelPath);
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLevels, const FString& LevelPath);
 	
 	/**
 	 * @brief Retrieve data for a single level, loading it if necessary
@@ -732,14 +742,6 @@ struct FSpudSaveData : public FSpudChunk
 	 */
 	virtual FSpudLevelData* CreateLevelData(const FString& LevelName);
 
-
-	/**
-	 * @brief Write a combined save file including all the in-memory state, plus any unloaded level state
-	 * which will be piped from the separate files in LevelPath
-	 * @param Ar Archive to write to
-	 * @param LevelPath The path in which to find level data which is unloaded
-	 */
-	virtual void WritePagedToArchive(FSpudChunkedDataArchive& Ar, const FString& LevelPath);
 
 	/**
 	* @brief Write any loaded data for a single level to disk, and unload it from memory . It becomes part of the

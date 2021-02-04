@@ -497,6 +497,8 @@ void FSpudLevelData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 				Ar.SkipNextChunk();
 		}
 
+		Status = LDS_Loaded;
+		
 		ChunkEnd(Ar);
 	}
 }
@@ -604,20 +606,49 @@ void FSpudSaveData::PrepareForWrite(const FText& Title)
 
 void FSpudSaveData::WriteToArchive(FSpudChunkedDataArchive& Ar)
 {
+	WriteToArchive(Ar, "");
+}
+
+void FSpudSaveData::WriteToArchive(FSpudChunkedDataArchive& Ar, const FString& LevelPath)
+{
 	if (ChunkStart(Ar))
 	{
 		Info.WriteToArchive(Ar);	
 		GlobalData.WriteToArchive(Ar);
-		// Important: in this case we're writing a combined save game, so all levels are present
-		LevelDataMap.WriteToArchive(Ar);
 
-		// TODO: read screenshot / customdata chunks
+		// Manually write the level data because its source could be memory, or piped in from files
+		FSpudAdhocWrapperChunk LevelDataMapChunk(SPUDDATA_LEVELDATAMAP_MAGIC);
+		if (LevelDataMapChunk.ChunkStart(Ar))
+		{
+			for (auto&& KV : LevelDataMap)
+			{
+				// For level data that's not loaded, we pipe data directly from the serialized file into
+				FScopeLock StatusLock(&KV.Value.StatusMutex);
+				switch (KV.Value.Status)
+				{
+				default:
+				case LDS_Loaded:
+					// In memory, just write
+					KV.Value.WriteToArchive(Ar);
+					break;
+				case LDS_Unloaded:
+					// Pipe level data from file so it doesn't have to go through memory
+					// TODO
+					break;
+				}
+			}
+			// Finish the level container
+			LevelDataMapChunk.ChunkEnd(Ar);
+		}
+
+		// TODO: screenshot / customdata chunks
 
 		ChunkEnd(Ar);
 	}
+	
 }
 
-void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
+void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLevels, const FString& LevelPath)
 {
 	if (ChunkStart(Ar))
 	{
@@ -648,8 +679,40 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 				GlobalData.ReadFromArchive(Ar);
 			else if (Hdr.Magic == LevelDataMapID)
 			{
-				// Important: in this case we're reading from a combined save game, so all levels are present
-				LevelDataMap.ReadFromArchive(Ar);
+				// Read levels using adhoc wrapper so we can choose what to do for each
+				FSpudAdhocWrapperChunk LevelDataMapChunk(SPUDDATA_LEVELDATAMAP_MAGIC);
+				if (LevelDataMapChunk.ChunkStart(Ar))
+				{
+					LevelDataMap.Empty();
+
+					// Detect chunks & only load compatible
+					const uint32 LevelMagicID = FSpudChunkHeader::EncodeMagic(SPUDDATA_LEVELDATA_MAGIC);
+					FSpudLevelData LvlData;
+					while (IsStillInChunk(Ar))
+					{
+						if (Ar.NextChunkIs(LevelMagicID))
+						{
+							if (bLoadAllLevels)
+							{
+								LvlData.ReadFromArchive(Ar);								
+							}
+							else
+							{
+								// Pipe data for this level into its own file rather than load it
+								// TODO
+								LvlData.Status = LDS_Unloaded;
+							}
+							LevelDataMap.Add(LvlData.Key(), LvlData);						
+						}
+						else
+						{
+							Ar.SkipNextChunk();
+						}
+					}
+					
+					LevelDataMapChunk.ChunkEnd(Ar);
+				}
+				
 			}
 			else
 				Ar.SkipNextChunk();
@@ -659,6 +722,12 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 	}
 }
 
+void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
+{
+	ReadFromArchive(Ar, true, "");
+}
+
+
 void FSpudSaveData::Reset()
 {
 	GlobalData.Reset();
@@ -667,7 +736,7 @@ void FSpudSaveData::Reset()
 
 FSpudLevelData* FSpudSaveData::CreateLevelData(const FString& LevelName)
 {
-	auto Ret = &LevelDataMap.Contents.Add(LevelName);
+	auto Ret = &LevelDataMap.Add(LevelName);
 	Ret->Name = LevelName;
 	Ret->Status = LDS_Loaded; // assume loaded if we're creating
 	return Ret;
@@ -718,17 +787,9 @@ bool FSpudSaveData::ReadSaveInfoFromArchive(FSpudChunkedDataArchive& Ar, FSpudSa
 }
 
 
-void FSpudSaveData::ReadPagedFromArchive(FSpudChunkedDataArchive& Ar, const FString& LevelPath)
-{
-}
-
-void FSpudSaveData::WritePagedToArchive(FSpudChunkedDataArchive& Ar, const FString& LevelPath)
-{
-}
-
 FSpudLevelData* FSpudSaveData::GetLevelData(const FString& LevelName, bool bLoadIfNeeded, const FString& LevelPath)
 {
-	auto Ret = LevelDataMap.Contents.Find(LevelName);
+	auto Ret = LevelDataMap.Find(LevelName);
 	if (Ret && bLoadIfNeeded)
 	{
 		//FScopeLock StatusLock(&Ret->StatusMutex);
@@ -763,7 +824,7 @@ FSpudLevelData* FSpudSaveData::GetLevelData(const FString& LevelName, bool bLoad
 
 bool FSpudSaveData::WriteAndReleaseLevelData(const FString& LevelName, const FString& LevelPath)
 {
-	auto Ret = LevelDataMap.Contents.Find(LevelName);
+	auto Ret = LevelDataMap.Find(LevelName);
 	if (Ret)
 	{
 		//FScopeLock StatusLock(&Ret->StatusMutex);
@@ -799,7 +860,7 @@ bool FSpudSaveData::WriteAndReleaseLevelData(const FString& LevelName, const FSt
 
 void FSpudSaveData::DeleteLevelData(const FString& LevelName, const FString& LevelPath)
 {
-	LevelDataMap.Contents.Remove(LevelName);
+	LevelDataMap.Remove(LevelName);
 
 	IFileManager& FileMgr = IFileManager::Get();
 	const FString Filename = GetLevelDataPath(LevelPath, LevelName);

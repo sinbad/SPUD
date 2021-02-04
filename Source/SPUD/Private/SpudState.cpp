@@ -920,7 +920,7 @@ void USpudState::SaveToArchive(FArchive& Ar, const FText& Title)
 	FSpudChunkedDataArchive ChunkedAr(Ar);
 	SaveData.PrepareForWrite(Title);
 	// Use WritePaged in all cases; if all data is loaded it amounts to the same thing
-	SaveData.WritePagedToArchive(ChunkedAr, GetActiveGameLevelFolder());
+	SaveData.WriteToArchive(ChunkedAr, GetActiveGameLevelFolder());
 
 }
 
@@ -933,7 +933,7 @@ void USpudState::LoadFromArchive(FArchive& Ar, bool bFullyLoadAllLevelData)
 	if (bFullyLoadAllLevelData)
 		SaveData.ReadFromArchive(ChunkedAr);
 	else
-		SaveData.ReadPagedFromArchive(ChunkedAr, GetActiveGameLevelFolder());
+		SaveData.ReadFromArchive(ChunkedAr, false, GetActiveGameLevelFolder());
 }
 
 bool USpudState::LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInfo)
