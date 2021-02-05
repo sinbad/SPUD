@@ -956,7 +956,7 @@ bool USpudState::LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInf
 
 FString USpudState::GetActiveGameLevelFolder()
 {
-	return FString::Printf(TEXT("%sActiveGameCache/"), *FPaths::ProjectSavedDir());	
+	return FString::Printf(TEXT("%sSpudCache/"), *FPaths::ProjectSavedDir());	
 }
 
 void USpudState::RemoveAllActiveGameLevelFiles()
