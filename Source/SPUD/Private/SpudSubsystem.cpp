@@ -116,9 +116,8 @@ void USpudSubsystem::OnPreLoadMap(const FString& MapName)
 		if (IsValid(World))
 		{
 			UE_LOG(LogSpudSubsystem, Verbose, TEXT("OnPreLoadMap saving: %s"), *UGameplayStatics::GetCurrentLevelName(World));
-			// WIP: release level data after
-			//StoreWorld(World, true);
-			StoreWorld(World, false);
+			// Map and all streaming level data will be released
+			StoreWorld(World, true);
 		}
 	}
 }
@@ -190,6 +189,7 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 			State->StoreGlobalObject(Pair.Value.Get(), Pair.Key);
 	}
 
+	// Store any data that is currently active in the game world in the state object
 	StoreWorld(World, false);
 	
 	// UGameplayStatics::SaveGameToSlot prefixes our save with a lot of crap that we don't need
@@ -233,15 +233,10 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 
 void USpudSubsystem::StoreWorld(UWorld* World, bool bReleaseLevels)
 {
-	// TODO: what this should REALLY do is only write data for globals and the currently loaded levels
-	// Then it should combine this data with other level data which isn't loaded right now, into a single
-	// save file. Ideally without loading all the other stuff into memory.
-	auto State = GetActiveState();
 	for (auto && Level : World->GetLevels())
 	{
 		StoreLevel(Level, bReleaseLevels);
-	}
-	
+	}	
 }
 
 void USpudSubsystem::StoreLevel(ULevel* Level, bool bRelease)
@@ -249,7 +244,7 @@ void USpudSubsystem::StoreLevel(ULevel* Level, bool bRelease)
 	const FString LevelName = USpudState::GetLevelName(Level);
 	PreLevelStore.Broadcast(LevelName);
 	GetActiveState()->StoreLevel(Level, bRelease);
-	PostLevelStore.Broadcast(LevelName, true);	
+	PostLevelStore.Broadcast(LevelName, true);
 }
 void USpudSubsystem::SaveComplete(const FString& SlotName, bool bSuccess)
 {
@@ -283,9 +278,8 @@ bool USpudSubsystem::LoadGame(const FString& SlotName)
 
 	if(Archive)
 	{
-		// WIP: Load only global data and page in level data as needed
-		// State->LoadFromArchive(*Archive, false);
-		State->LoadFromArchive(*Archive, true);
+		// Load only global data and page in level data as needed
+		State->LoadFromArchive(*Archive, false);
 		Archive->Close();
 
 		if (Archive->IsError() || Archive->IsCriticalError())
@@ -393,7 +387,7 @@ void USpudSubsystem::WithdrawRequestForStreamingLevel(UObject* Requester, FName 
 		if (Requesters->Num() == 0)
 		{
 			// This level can be unloaded
-			// TODO: do it deferred in case only temporary
+			// TODO: add a delay to this so we don't thrash at boundaries
 			UnloadStreamLevel(LevelName);
 		}
 	}
@@ -511,9 +505,8 @@ void USpudSubsystem::UnloadStreamLevel(FName LevelName)
 		{
 			// save the state, if not loading game
 			// when loading game we will unload the current level and streaming and don't want to restore the active state from that
-			// WIP: we should release the level data here
-			//StoreLevel(Level, true);
-			StoreLevel(Level, false);
+			// After storing, the level data is released so doesn't take up memory any more
+			StoreLevel(Level, true);
 		}
 		
 		// Now unload

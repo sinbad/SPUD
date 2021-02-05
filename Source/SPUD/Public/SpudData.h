@@ -99,7 +99,7 @@ struct FSpudChunkHeader
 	uint32 Magic; // Identifier
 	uint32 Length; // Excluding header, including nested data
 
-	static constexpr int64 GetDataSize() { return sizeof(uint32) + sizeof(uint32); }
+	static constexpr int64 GetHeaderSize() { return sizeof(uint32) + sizeof(uint32); }
 
 	char MagicFriendly[4]; // not saved, for easier debugging
 
@@ -649,7 +649,13 @@ struct FSpudLevelData : public FSpudChunk
 
 	/// non-persistent status flag to support placeholder level data which is not currently loaded
 	ELevelDataStatus Status;
-	FCriticalSection StatusMutex;
+	/// Mutex for the data in this level. You should lock this before altering any contents because levels can
+	/// be loaded in multiple threads
+	FCriticalSection Mutex;
+	/// Thread-safe check if this level data is currently loaded
+	bool IsLoaded();
+	/// Release the memory associated with this level but keep basic data like Name
+	void ReleaseMemory();
 	
 	/// Key value for indexing this item; name is unique
 	FString Key() const { return Name; }
@@ -674,6 +680,9 @@ struct FSpudLevelData : public FSpudChunk
 
 	/// Empty the lists of actors ready to be re-populated
 	virtual void PreStoreWorld();
+
+	/// Read just enough of the next level chunk to retrieve the name, then optionally return the read pointer to where it was
+	static bool ReadLevelInfoFromArchive(FSpudChunkedDataArchive& Ar, bool bReturnToStart, FString& OutLevelName, int64& OutDataSize);
 
 	void Reset();
 };
@@ -714,7 +723,7 @@ struct FSpudSaveData : public FSpudChunk
 	void WriteToArchive(FSpudChunkedDataArchive& Ar, const FString& LevelPath);
 	/// Read the entire save file into memory
 	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
-	
+
 	/**
 	 * @brief Read a save file with extra options. Options to pipe all level data chunks
 	 * directly into their own separate named files in LevelPath, so their state is only loaded into memory when
@@ -770,3 +779,13 @@ struct FSpudSaveData : public FSpudChunk
 	/// Utility method to read an archive just up to the end of the FSpudSaveInfo, and output details
 	static bool ReadSaveInfoFromArchive(FSpudChunkedDataArchive& Ar, FSpudSaveInfo& OutInfo);
 };
+
+
+/**
+ * @brief Copy bytes from one archive to another (can't seem to find a built-in way to do this?)
+ * @param InArchive Archive to read from
+ * @param OutArchive Archive to write to
+ * @param Length Total length of data to copy
+ * @return The length of the data actually copied
+ */
+int64 SpudCopyArchiveData(FArchive& InArchive, FArchive& OutArchive, int64 Length);

@@ -1,4 +1,7 @@
 #include "SpudData.h"
+
+#include <algorithm>
+
 #include "SpudPropertyUtil.h"
 
 PRAGMA_DISABLE_OPTIMIZATION
@@ -16,7 +19,7 @@ bool FSpudChunkedDataArchive::PreviewNextChunk(FSpudChunkHeader& OutHeader, bool
 
 	const int64 CurrPos = Tell();
 
-	if ((CurrPos + FSpudChunkHeader::GetDataSize()) > TotalSize())
+	if ((CurrPos + FSpudChunkHeader::GetHeaderSize()) > TotalSize())
 		return false;
 
 	*this << OutHeader;
@@ -459,6 +462,14 @@ void FSpudClassMetadata::Reset()
 //------------------------------------------------------------------------------
 void FSpudLevelData::WriteToArchive(FSpudChunkedDataArchive& Ar)
 {
+	FScopeLock Lock(&Mutex);
+
+	if (Status != LDS_Loaded)
+	{
+		UE_LOG(LogSpudData, Error, TEXT("Attempted to write an unloaded LevelData struct for %s, skipping"), *Name);
+		return;
+	}
+
 	if (ChunkStart(Ar))
 	{
 		Ar << Name;
@@ -470,8 +481,42 @@ void FSpudLevelData::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	}
 }
 
+bool FSpudLevelData::ReadLevelInfoFromArchive(FSpudChunkedDataArchive& Ar, bool bReturnToStart, FString& OutLevelName, int64& OutDataSize)
+{
+	// No lock needed as we're not populating anything, this method can  be static
+	// Do part of ChunkStart required to read header
+	if (!Ar.IsLoading())
+	{
+		UE_LOG(LogSpudData, Error, TEXT("Cannot ReadLevelNameFromArchive, archive %s is not loading"), *Ar.GetArchiveName())
+		return false;
+	}
+
+	const int64 Start = Ar.Tell();
+	FSpudChunkHeader Hdr;
+	Ar << Hdr;
+
+	if (FSpudChunkHeader::EncodeMagic(SPUDDATA_LEVELDATA_MAGIC) != Hdr.Magic)
+	{
+		UE_LOG(LogSpudData, Error, TEXT("Cannot ReadLevelNameFromArchive from %s, next chunk is not a level"), *Ar.GetArchiveName())
+		if (bReturnToStart)
+			Ar.Seek(Start);
+		return false;
+	}
+
+	OutDataSize = Hdr.Length;
+	Ar << OutLevelName;
+
+	if (bReturnToStart)
+		Ar.Seek(Start);
+
+	return true;
+	
+}
+
 void FSpudLevelData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 {
+	FScopeLock Lock(&Mutex);
+	
 	// Separate loading process since it's easier to deal with chunk robustness and versions
 	if (ChunkStart(Ar))
 	{
@@ -505,6 +550,8 @@ void FSpudLevelData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 
 void FSpudLevelData::PreStoreWorld()
 {
+	FScopeLock Lock(&Mutex);
+
 	// We do NOT empty the destroyed actors list because those are populated as things are removed
 	// Hence why NOT calling Reset()
 	Metadata.Reset();
@@ -514,11 +561,30 @@ void FSpudLevelData::PreStoreWorld()
 
 void FSpudLevelData::Reset()
 {
+	FScopeLock Lock(&Mutex);
+	Name = "";
 	Metadata.Reset();
 	LevelActors.Reset();
 	SpawnedActors.Reset();
 	DestroyedActors.Reset();
+	Status = LDS_Unloaded;
 }
+bool FSpudLevelData::IsLoaded()
+{
+	FScopeLock Lock(&Mutex);
+	return Status == LDS_Loaded;
+}
+
+void FSpudLevelData::ReleaseMemory()
+{
+	FScopeLock Lock(&Mutex);
+	Metadata.Reset();
+	LevelActors.Reset();
+	SpawnedActors.Reset();
+	DestroyedActors.Reset();
+	Status = LDS_Unloaded;
+}
+
 
 //------------------------------------------------------------------------------
 
@@ -622,18 +688,27 @@ void FSpudSaveData::WriteToArchive(FSpudChunkedDataArchive& Ar, const FString& L
 		{
 			for (auto&& KV : LevelDataMap)
 			{
+				auto& LevelData = KV.Value;
+				// Lock outer so the status check write/copy are all locked together
+				// FCriticalSection is recursive (already locked by same thread is fine)
+				FScopeLock LevelLock(&LevelData.Mutex);
+				
 				// For level data that's not loaded, we pipe data directly from the serialized file into
-				FScopeLock StatusLock(&KV.Value.StatusMutex);
-				switch (KV.Value.Status)
+				switch (LevelData.Status)
 				{
 				default:
 				case LDS_Loaded:
 					// In memory, just write
-					KV.Value.WriteToArchive(Ar);
+					LevelData.WriteToArchive(Ar);
 					break;
 				case LDS_Unloaded:
-					// Pipe level data from file so it doesn't have to go through memory
-					// TODO
+					// This level data is not in memory. We want to pipe level data directly from the level file into
+					// the combined archive so it doesn't have to go through memory
+					IFileManager& FileMgr = IFileManager::Get();
+					auto InLevelArchive = TUniquePtr<FArchive>(FileMgr.CreateFileReader(*GetLevelDataPath(LevelPath, LevelData.Name)));
+
+					SpudCopyArchiveData(*InLevelArchive.Get(), Ar, InLevelArchive->TotalSize());
+					InLevelArchive->Close();
 					break;
 				}
 			}
@@ -687,22 +762,38 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLe
 
 					// Detect chunks & only load compatible
 					const uint32 LevelMagicID = FSpudChunkHeader::EncodeMagic(SPUDDATA_LEVELDATA_MAGIC);
-					FSpudLevelData LvlData;
 					while (IsStillInChunk(Ar))
 					{
 						if (Ar.NextChunkIs(LevelMagicID))
 						{
 							if (bLoadAllLevels)
 							{
+								FSpudLevelData LvlData;
 								LvlData.ReadFromArchive(Ar);								
+								LevelDataMap.Add(LvlData.Key(), LvlData);						
 							}
 							else
 							{
 								// Pipe data for this level into its own file rather than load it
-								// TODO
-								LvlData.Status = LDS_Unloaded;
+								// We need to know the level name though
+								FString LevelName;
+								int64 LevelDataSize;
+								if (FSpudLevelData::ReadLevelInfoFromArchive(Ar, true, LevelName, LevelDataSize))
+								{
+									IFileManager& FileMgr = IFileManager::Get();
+									auto OutLevelArchive = TUniquePtr<FArchive>(FileMgr.CreateFileWriter(*GetLevelDataPath(LevelPath, LevelName)));
+
+									int64 TotalSize = LevelDataSize + FSpudChunkHeader::GetHeaderSize();
+									SpudCopyArchiveData(Ar, *OutLevelArchive.Get(), TotalSize);
+									OutLevelArchive->Close();
+									
+                                    FSpudLevelData LvlData;
+									LvlData.Name = LevelName;
+									LvlData.Name = LevelName;
+									LvlData.Status = LDS_Unloaded;
+									LevelDataMap.Add(LvlData.Key(), LvlData);
+								}
 							}
-							LevelDataMap.Add(LvlData.Key(), LvlData);						
 						}
 						else
 						{
@@ -824,11 +915,13 @@ FSpudLevelData* FSpudSaveData::GetLevelData(const FString& LevelName, bool bLoad
 
 bool FSpudSaveData::WriteAndReleaseLevelData(const FString& LevelName, const FString& LevelPath)
 {
-	auto Ret = LevelDataMap.Find(LevelName);
-	if (Ret)
+	auto LevelData = LevelDataMap.Find(LevelName);
+	if (LevelData)
 	{
-		//FScopeLock StatusLock(&Ret->StatusMutex);
-		if (Ret->Status == LDS_Loaded)
+		// Lock outer so the check and write / release are all locked together
+		// FCriticalSection is recursive (already locked by same thread is fine)
+		FScopeLock LevelLock(&LevelData->Mutex);
+		if (LevelData->Status == LDS_Loaded)
 		{
 			// Write just this level state to disk
 			IFileManager& FileMgr = IFileManager::Get();
@@ -838,7 +931,7 @@ bool FSpudSaveData::WriteAndReleaseLevelData(const FString& LevelName, const FSt
 			if(Archive)
 			{
 				FSpudChunkedDataArchive ChunkedAr(*Archive);
-				Ret->WriteToArchive(ChunkedAr);
+				LevelData->WriteToArchive(ChunkedAr);
 				// Always explicitly close to catch errors from flush/close
 				ChunkedAr.Close();
 
@@ -847,6 +940,10 @@ bool FSpudSaveData::WriteAndReleaseLevelData(const FString& LevelName, const FSt
 					UE_LOG(LogSpudData, Error, TEXT("Error while writing level data to %s"), *Filename);
 					return false;
 				}
+
+				// Now release data, but keep the entry in memory so we know about it
+				LevelData->ReleaseMemory();
+				
 			}
 			else
 			{
@@ -866,6 +963,44 @@ void FSpudSaveData::DeleteLevelData(const FString& LevelName, const FString& Lev
 	const FString Filename = GetLevelDataPath(LevelPath, LevelName);
 	FileMgr.Delete(*Filename, false, true, true);
 	
+}
+
+//------------------------------------------------------------------------------
+int64 SpudCopyArchiveData(FArchive& InArchive, FArchive& OutArchive, int64 Length)
+{
+	// file read / write archives have their own buffers too but I can't assume
+	constexpr int BufferLen = 4096;
+	uint8 TempBuffer[BufferLen];
+
+	int64 BytesCopied = 0;
+	if (InArchive.IsLoading() && OutArchive.IsSaving())
+	{
+		while (BytesCopied < Length)
+		{
+			int64 BytesToRequest = std::min(Length - BytesCopied, static_cast<int64>(BufferLen));
+			InArchive.Serialize(TempBuffer, BytesToRequest);
+			if (InArchive.IsError())
+			{
+				UE_LOG(LogSpudData, Error, TEXT("Error during read while copying archive data from %s to %s"), *InArchive.GetArchiveName(), *OutArchive.GetArchiveName());
+				break; // actual error will have been reported
+			}
+
+			OutArchive.Serialize(TempBuffer, BytesToRequest);
+			if (OutArchive.IsError())
+			{
+				UE_LOG(LogSpudData, Error, TEXT("Error during write while copying archive data from %s to %s"), *InArchive.GetArchiveName(), *OutArchive.GetArchiveName());
+				break; // actual error will have been reported
+			}
+
+			BytesCopied += BytesToRequest;
+			
+		}
+	}
+	else
+	{
+		UE_LOG(LogSpudData, Error, TEXT("Cannot copy archive data from %s to %s, mismatched loading/saving status"), *InArchive.GetArchiveName(), *OutArchive.GetArchiveName());
+	}
+	return BytesCopied;
 }
 
 PRAGMA_ENABLE_OPTIMIZATION

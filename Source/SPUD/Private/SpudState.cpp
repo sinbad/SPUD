@@ -33,34 +33,28 @@ void USpudState::StoreWorldGlobals(UWorld* World)
 }
 
 
-void USpudState::StoreLevel(UWorld* World, const FString& LevelName, bool bRelease)
-{
-	for (auto && Level : World->GetLevels())
-	{
-		if (GetLevelName(Level) == LevelName)
-		{
-			StoreLevel(Level, bRelease);
-			break;
-		}
-	}
-}
-
 void USpudState::StoreLevel(ULevel* Level, bool bRelease)
 {
 	const FString LevelName = GetLevelName(Level);
 	auto LevelData = GetLevelData(LevelName, true);
 
-	// Clear any existing data for levels being updated from
-	// Which is either the specific level, or all loaded levels
 	if (LevelData)
-		LevelData->PreStoreWorld();
-
-	for (auto Actor : Level->Actors)
 	{
-		if (SpudPropertyUtil::IsPersistentObject(Actor))
+		// Mutex lock the level (load and unload events on streaming can be in loading threads)
+		FScopeLock LevelLock(&LevelData->Mutex);
+
+		// Clear any existing data for levels being updated from
+		// Which is either the specific level, or all loaded levels
+		if (LevelData)
+			LevelData->PreStoreWorld();
+
+		for (auto Actor : Level->Actors)
 		{
-			StoreActor(Actor, LevelData);
-		}					
+			if (SpudPropertyUtil::IsPersistentObject(Actor))
+			{
+				StoreActor(Actor, LevelData);
+			}					
+		}
 	}
 
 	if (bRelease)
@@ -373,6 +367,9 @@ void USpudState::RestoreLevel(ULevel* Level)
 		return;
 	}
 
+	// Mutex lock the level (load and unload events on streaming can be in loading threads)
+	FScopeLock LevelLock(&LevelData->Mutex);
+	
 	UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - Start"), *LevelName);
 	TMap<FGuid, UObject*> RuntimeObjectsByGuid;
 	// Respawn dynamic actors first; they need to exist in order for cross-references in level actors to work
@@ -930,6 +927,16 @@ void USpudState::LoadFromArchive(FArchive& Ar, bool bFullyLoadAllLevelData)
 		SaveData.ReadFromArchive(ChunkedAr);
 	else
 		SaveData.ReadFromArchive(ChunkedAr, false, GetActiveGameLevelFolder());
+}
+
+bool USpudState::IsLevelDataLoaded(const FString& LevelName)
+{
+	auto Lvldata = SaveData.GetLevelData(LevelName, false, GetActiveGameLevelFolder());
+
+	if (!Lvldata)
+		return false;
+
+	return Lvldata->IsLoaded();
 }
 
 bool USpudState::LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInfo)

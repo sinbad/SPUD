@@ -182,16 +182,6 @@ public:
 	/// Store the top-level information about the world, but none of the level contents
 	void StoreWorldGlobals(UWorld* World);
 
-
-	/**
-	* @brief Store the state of objects in the current world which are attached to a specific level.
-	* Only processes actors which implement ISpudObject.
-	* @param World The world pointer
-	* @param LevelName Name of the level
-	* @param bReleaseAfter If true, after storing the level data, it is removed from memory and stored on disk
-	*/
-	void StoreLevel(UWorld* World, const FString& LevelName, bool bReleaseAfter);
-
 	/**
 	 * @brief Store the state of objects in the current world which are attached to a specific level.
 	 * Only processes actors which implement ISpudObject.
@@ -269,6 +259,9 @@ public:
 
 	/// Get the name of the persistent level which the player is on in this state
 	FString GetPersistentLevel() const { return SaveData.GlobalData.CurrentLevel; }
+
+	/// Get whether the persistent data for a given level is in memory right now or not
+	bool IsLevelDataLoaded(const FString& LevelName);
 
 	/// Utility method to read *just* the information part of a save game from the start of an archive
 	/// This only reads the minimum needed to describe the save file and doesn't load any other data.
