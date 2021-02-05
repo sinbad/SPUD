@@ -9,6 +9,10 @@ also versioned in case breaking changes need to be included later.
 
 The full data format is laid out in `SpudData.h`.
 
+Save game files are self-contained and can be freely copied around; they have header
+information describing them so they can be enumerated by reading a minimal amount of
+data off the front of the file, including description and date.
+
 ## Property Data
 
 Property data is packed tightly for efficiency since it comprises
@@ -24,24 +28,38 @@ used to patch what properties still match into the runtime instance. This
 the "slow path" allows you to restore old saves, just a little slower. The next
 save will have the new class structure and will restore faster next time.
 
-## Level Data Granularity 
+## Level Data Partitioning
 
-The save game is divided into level segments, each one is relatively standalone.
-For example class data is kept per level, even if the same classes are used in
-lots of levels. 
+A save game, in addition to global data, is divided into level segments, each one 
+of which is standalone. When loading a save, not all level data is loaded into 
+memory ready to populate actors. Instead, the level segments in the save
+are split out into separate files, and placed in an "active game cache", a
+folder called SpudCache in the project save area. 
 
-This is necessary because a player may not have visited, say, Region 1 for ages
+
+When a level is loaded, the level cache file is loaded as well, so that actors 
+can be populated with state. When a level is unloaded, the actors write their 
+state to the level segment which is saved in this cache. This way, individual 
+level state can be loaded in and out of memory as needed, meaning the active memory
+footprint of the Spud system doesn't grow as you add more levels (streaming or main maps).
+
+Saving a game to a single file re-combines all this data; any levels in memory are
+written plus all the paged out level files are concatenated back into the file
+(not loaded, just piped).
+
+## Level Data Versioning
+
+It's entirely possible that level state can have been saved at wildly different
+versions of the game. A player may not have visited, say, Region 1 for ages
 in their game, but there's still state there that needs to be preserved. They
 might have been in Region 6 when they last saved, but the save game must still
-include all the data for Regions 1-5 as well. We don't want to have to load
-all those other maps in order to serialise them all into a single save.
+include all the data for Regions 1-5 as well. That data remains as it was written
+when the player was last there, though. We don't want to have to load
+all those other maps in order to re-serialise them all into a single save with 
+the current code.
 
-So instead, we operate on a level at a time, updating the data just for the levels
-we load as part of play, and re-using the other level data segments from when they
-were last visited. Because of this, it's entirely possible if you've done 
-patches to your game, that you added saved properties to a class that is used in many 
-regions. You *could* explicitly require every save game to be upgraded to include
-this data in every level (we may provide options for this later). But, a simpler
+You *could* explicitly require every save game to be upgraded to re-generate 
+all the data for previous levels (we may provide options for this later). But, a simpler
 approach is simply to allow those older levels to be old, and upgrade them when 
 you next visit. 
 
