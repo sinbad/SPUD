@@ -13,14 +13,17 @@
 
 DEFINE_LOG_CATEGORY(LogSpudState)
 
-//PRAGMA_DISABLE_OPTIMIZATION
+PRAGMA_DISABLE_OPTIMIZATION
 
 USpudState::USpudState()
 {
+	// In case game crashed etc, remove all garbage active level files at construction too
+	RemoveAllActiveGameLevelFiles();
 }
 
 void USpudState::ResetState()
 {
+	RemoveAllActiveGameLevelFiles();
 	SaveData.Reset();
 }
 
@@ -30,35 +33,32 @@ void USpudState::StoreWorldGlobals(UWorld* World)
 }
 
 
-void USpudState::StoreLevel(UWorld* World, const FString& LevelName)
-{
-	for (auto && Level : World->GetLevels())
-	{
-		if (GetLevelName(Level) == LevelName)
-		{
-			StoreLevel(Level);
-			break;
-		}
-	}
-}
-
-void USpudState::StoreLevel(ULevel* Level)
+void USpudState::StoreLevel(ULevel* Level, bool bRelease)
 {
 	const FString LevelName = GetLevelName(Level);
 	auto LevelData = GetLevelData(LevelName, true);
 
-	// Clear any existing data for levels being updated from
-	// Which is either the specific level, or all loaded levels
 	if (LevelData)
-		LevelData->PreStoreWorld();
-
-	for (auto Actor : Level->Actors)
 	{
-		if (SpudPropertyUtil::IsPersistentObject(Actor))
+		// Mutex lock the level (load and unload events on streaming can be in loading threads)
+		FScopeLock LevelLock(&LevelData->Mutex);
+
+		// Clear any existing data for levels being updated from
+		// Which is either the specific level, or all loaded levels
+		if (LevelData)
+			LevelData->PreStoreWorld();
+
+		for (auto Actor : Level->Actors)
 		{
-			StoreActor(Actor, LevelData);
-		}					
+			if (SpudPropertyUtil::IsPersistentObject(Actor))
+			{
+				StoreActor(Actor, LevelData);
+			}					
+		}
 	}
+
+	if (bRelease)
+		ReleaseLevelData(LevelName);
 }
 
 USpudState::StorePropertyVisitor::StorePropertyVisitor(
@@ -178,14 +178,20 @@ FString USpudState::GetLevelNameForObject(const UObject* Obj)
 
 FSpudLevelData* USpudState::GetLevelData(const FString& LevelName, bool AutoCreate)
 {
-	auto Ret = SaveData.LevelDataMap.Contents.Find(LevelName);
+	auto Ret = SaveData.GetLevelData(LevelName, true, GetActiveGameLevelFolder());
+	
 	if (!Ret && AutoCreate)
 	{
-		Ret = &SaveData.LevelDataMap.Contents.Add(LevelName);
-		Ret->Name = LevelName;
+		Ret = SaveData.CreateLevelData(LevelName);
 	}
 	
 	return Ret;
+}
+
+
+void USpudState::ReleaseLevelData(const FString& LevelName)
+{
+	SaveData.WriteAndReleaseLevelData(LevelName, GetActiveGameLevelFolder());
 }
 
 FSpudNamedObjectData* USpudState::GetLevelActorData(const AActor* Actor, FSpudLevelData* LevelData, bool AutoCreate)
@@ -233,10 +239,6 @@ FSpudSpawnedActorData* USpudState::GetSpawnedActorData(AActor* Actor, FSpudLevel
 		UE_LOG(LogSpudState, Error, TEXT("Ignoring runtime actor %s, missing or blank SpudGuid property"), *Actor->GetName())
 		UE_LOG(LogSpudState, Error, TEXT("  Runtime spawned actors should have a SpudGuid property to identify them, initialised to valid unique value."))
 		UE_LOG(LogSpudState, Error, TEXT("  NOTE: If this actor is part of a level and not runtime spawned, the cause of this false detection might be that you haven't SAVED the level before playing in the editor."))
-
-		// TODO: if a class is a level object but happens to have a SpudGuid property anyway (maybe because sometimes runtime)
-		// the lack of a level save making it look like a runtime object cannot be detected. Can we *maybe* call editor code somehow
-		// to determine this?
 		return nullptr;			
 	}
 	
@@ -365,6 +367,9 @@ void USpudState::RestoreLevel(ULevel* Level)
 		return;
 	}
 
+	// Mutex lock the level (load and unload events on streaming can be in loading threads)
+	FScopeLock LevelLock(&LevelData->Mutex);
+	
 	UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - Start"), *LevelName);
 	TMap<FGuid, UObject*> RuntimeObjectsByGuid;
 	// Respawn dynamic actors first; they need to exist in order for cross-references in level actors to work
@@ -395,6 +400,13 @@ void USpudState::RestoreLevel(ULevel* Level)
 	}
 	UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - Complete"), *LevelName);
 
+}
+
+bool USpudState::PreLoadLevelData(const FString& LevelName)
+{
+	// Don't auto-create, but do load if needed
+	auto Data = GetLevelData(LevelName, false);
+	return Data != nullptr;
 }
 
 void USpudState::RestoreActor(AActor* Actor)
@@ -907,14 +919,31 @@ void USpudState::SaveToArchive(FArchive& Ar, const FText& Title)
 	// with the backwards compatibility that comes with 
 	FSpudChunkedDataArchive ChunkedAr(Ar);
 	SaveData.PrepareForWrite(Title);
-	SaveData.WriteToArchive(ChunkedAr);
+	// Use WritePaged in all cases; if all data is loaded it amounts to the same thing
+	SaveData.WriteToArchive(ChunkedAr, GetActiveGameLevelFolder());
 
 }
 
-void USpudState::LoadFromArchive(FArchive& Ar)
+void USpudState::LoadFromArchive(FArchive& Ar, bool bFullyLoadAllLevelData)
 {
+	// Firstly, destroy any active game level files
+	RemoveAllActiveGameLevelFiles();
+	
 	FSpudChunkedDataArchive ChunkedAr(Ar);
-	SaveData.ReadFromArchive(ChunkedAr, 0);	
+	if (bFullyLoadAllLevelData)
+		SaveData.ReadFromArchive(ChunkedAr);
+	else
+		SaveData.ReadFromArchive(ChunkedAr, false, GetActiveGameLevelFolder());
+}
+
+bool USpudState::IsLevelDataLoaded(const FString& LevelName)
+{
+	auto Lvldata = SaveData.GetLevelData(LevelName, false, GetActiveGameLevelFolder());
+
+	if (!Lvldata)
+		return false;
+
+	return Lvldata->IsLoaded();
 }
 
 bool USpudState::LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInfo)
@@ -932,5 +961,15 @@ bool USpudState::LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInf
 }
 
 
-//PRAGMA_ENABLE_OPTIMIZATION
+FString USpudState::GetActiveGameLevelFolder()
+{
+	return FString::Printf(TEXT("%sSpudCache/"), *FPaths::ProjectSavedDir());	
+}
 
+void USpudState::RemoveAllActiveGameLevelFiles()
+{
+	FSpudSaveData::DeleteAllLevelDataFiles(GetActiveGameLevelFolder());
+}
+
+
+PRAGMA_ENABLE_OPTIMIZATION

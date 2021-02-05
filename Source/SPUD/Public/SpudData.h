@@ -36,9 +36,9 @@ DECLARE_LOG_CATEGORY_EXTERN(LogSpudData, Verbose, Verbose);
 
 // Serialized data format is binary chunk-based, inspired by IFF (like lots of things!)
 // For efficiency not everything is a separate chunk, the idea is that if anything breaking changes within a chunk
-// then the version number of the format will be incremented, and fallback load paths provided for older versions.
-// You can also deprecate chunks and replace them with newer versions with different "Magic" codes.
-// Parsing the format automatically knows how to skip over chunks it doesn't need / understand.
+// then the chunk ID can be changed, and fallback load paths provided for older deprecated chunks.
+// The top-level save file has a version number as well but this is mostly for info or very serious changes which require
+// explicit upgrading
 
 // The entire save file is a chunk of its own, just in case we ever need to embed this in something larger than a file:
 // Header:
@@ -99,7 +99,7 @@ struct FSpudChunkHeader
 	uint32 Magic; // Identifier
 	uint32 Length; // Excluding header, including nested data
 
-	static constexpr int64 GetDataSize() { return sizeof(uint32) + sizeof(uint32); }
+	static constexpr int64 GetHeaderSize() { return sizeof(uint32) + sizeof(uint32); }
 
 	char MagicFriendly[4]; // not saved, for easier debugging
 
@@ -181,11 +181,23 @@ struct FSpudChunk
 	virtual ~FSpudChunk() = default;
 	virtual const char* GetMagic() const = 0;
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) = 0;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 DataVersion) = 0;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) = 0;
 
 	bool ChunkStart(FArchive& Ar);
 	void ChunkEnd(FArchive& Ar);
 	bool IsStillInChunk(FArchive& Ar) const;
+};
+
+// An ad-hoc chunk used to wrap other chunks. 
+struct FSpudAdhocWrapperChunk : public FSpudChunk
+{
+	const char* Magic;
+	
+	FSpudAdhocWrapperChunk(const char* InMagic) : Magic(InMagic) {}
+	virtual const char* GetMagic() const override { return Magic; }
+	// You should not call read/write, this chunk is solely for wrapping others without owning them
+	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override { check(false);}
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override { check(false); }
 };
 
 /// Definition of a property on a class
@@ -222,7 +234,7 @@ struct FSpudClassDef : public FSpudChunk
 	virtual const char* GetMagic() const override{ return SPUDDATA_CLASSDEF_MAGIC; }
 	
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 DataVersion) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
 
 	/// Add a new property and return its index
 	int AddProperty(uint32 InPropNameID, uint32 InPrefixID, uint16 InDataType);
@@ -257,7 +269,7 @@ struct FSpudDataHolder : public FSpudChunk
 	TArray<uint8> Data;
 
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 DataVersion) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
 
 	virtual void Reset();
 
@@ -273,7 +285,7 @@ struct FSpudPropertyData : public FSpudDataHolder
 	
 	virtual const char* GetMagic() const override { return SPUDDATA_PROPERTYDATA_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 DataVersion) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
 
 	virtual void Reset() override;
 
@@ -312,7 +324,7 @@ struct FSpudNamedObjectData : public FSpudObjectData
 
 	virtual const char* GetMagic() const override { return SPUDDATA_NAMEDOBJECT_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 DataVersion) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
 };
 
 /// An actor which was spawned at runtime, not present in a level
@@ -326,7 +338,7 @@ struct FSpudSpawnedActorData : public FSpudObjectData
 
 	virtual const char* GetMagic() const override { return SPUDDATA_SPAWNEDACTOR_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 DataVersion) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
 };
 
 
@@ -342,7 +354,7 @@ struct FSpudDestroyedLevelActor : public FSpudChunk
 
 	virtual const char* GetMagic() const override { return SPUDDATA_DESTROYEDACTOR_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 DataVersion) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
 };
 
 /// A map of nested structs, which need to be written out in a more complex way and have their own Key() method
@@ -369,7 +381,7 @@ struct FSpudStructMapData : public FSpudChunk
 			
 	}
 
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 Version) override
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override
 	{
 		if (ChunkStart(Ar))
 		{
@@ -382,7 +394,7 @@ struct FSpudStructMapData : public FSpudChunk
 			{
 				if (Ar.NextChunkIs(ChildMagicID))
 				{
-					ChildData.ReadFromArchive(Ar, Version);
+					ChildData.ReadFromArchive(Ar);
 					Contents.Add(ChildData.Key(), ChildData);						
 				}
 				else
@@ -421,7 +433,7 @@ struct FSpudArray : public FSpudChunk
 		}
 	}
 
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 Version) override
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override
 	{
 		if (ChunkStart(Ar))
 		{
@@ -434,7 +446,7 @@ struct FSpudArray : public FSpudChunk
 			{
 				if (Ar.NextChunkIs(ChildMagicID))
 				{
-					ChildData.ReadFromArchive(Ar, Version);
+					ChildData.ReadFromArchive(Ar);
 					Values.Add(ChildData);						
 				}
 				else
@@ -536,7 +548,7 @@ struct FSpudIndex : public FSpudChunk
 		}
 	}
 
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 DataVersion) override
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override
 	{
 		if (ChunkStart(Ar))
 		{
@@ -579,7 +591,7 @@ struct FSpudClassMetadata : public FSpudChunk
 
 	virtual const char* GetMagic() const override { return SPUDDATA_METADATA_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 Version) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
 
 	
 	FSpudClassDef& FindOrAddClassDef(const FString& ClassName);
@@ -594,6 +606,26 @@ struct FSpudClassMetadata : public FSpudChunk
 	void Reset();
 };
 
+enum ELevelDataStatus
+{
+	LDS_Unloaded,
+	LDS_Loaded
+};
+
+struct FSpudGlobalData : public FSpudChunk
+{
+	/// The map name of the level the player was currently on, so we can load back to that point
+	FString CurrentLevel;
+	/// Class definitions etc for all objects in this global data set
+	FSpudClassMetadata Metadata;
+	/// Actual storage of object data
+	FSpudGlobalObjectMap Objects;
+
+	virtual const char* GetMagic() const override { return SPUDDATA_GLOBALDATA_MAGIC; }
+	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
+	void Reset();
+};
 
 struct FSpudLevelData : public FSpudChunk
 {
@@ -615,38 +647,44 @@ struct FSpudLevelData : public FSpudChunk
 	/// Actors which were present in the level at load time but have been subsequently destroyed
 	FSpudDestroyedActorArray DestroyedActors;
 
+	/// non-persistent status flag to support placeholder level data which is not currently loaded
+	ELevelDataStatus Status;
+	/// Mutex for the data in this level. You should lock this before altering any contents because levels can
+	/// be loaded in multiple threads
+	FCriticalSection Mutex;
+	/// Thread-safe check if this level data is currently loaded
+	bool IsLoaded();
+	/// Release the memory associated with this level but keep basic data like Name
+	void ReleaseMemory();
+	
 	/// Key value for indexing this item; name is unique
 	FString Key() const { return Name; }
 
+	FSpudLevelData() {}
+
+	// We need an explicit copy constructor in order to not try to copy the mutex
+	FSpudLevelData(const FSpudLevelData& Other)
+		: FSpudChunk(Other),
+		  Name(Other.Name),
+		  Metadata(Other.Metadata),
+		  LevelActors(Other.LevelActors),
+		  SpawnedActors(Other.SpawnedActors),
+		  DestroyedActors(Other.DestroyedActors),
+		  Status(Other.Status)
+	{
+	}
+
 	virtual const char* GetMagic() const override { return SPUDDATA_LEVELDATA_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 Version) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
 
 	/// Empty the lists of actors ready to be re-populated
 	virtual void PreStoreWorld();
 
+	/// Read just enough of the next level chunk to retrieve the name, then optionally return the read pointer to where it was
+	static bool ReadLevelInfoFromArchive(FSpudChunkedDataArchive& Ar, bool bReturnToStart, FString& OutLevelName, int64& OutDataSize);
+
 	void Reset();
-};
-
-struct FSpudGlobalData : public FSpudChunk
-{
-	/// The map name of the level the player was currently on, so we can load back to that point
-	FString CurrentLevel;
-	/// Class definitions etc for all objects in this global data set
-	FSpudClassMetadata Metadata;
-	/// Actual storage of object data
-	FSpudGlobalObjectMap Objects;
-
-	virtual const char* GetMagic() const override { return SPUDDATA_GLOBALDATA_MAGIC; }
-	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 Version) override;
-	void Reset();
-};
-
-struct FSpudLevelDataMap : public FSpudStructMapData<FString, FSpudLevelData>
-{
-	virtual const char* GetMagic() const override { return SPUDDATA_LEVELDATAMAP_MAGIC; }
-	virtual const char* GetChildMagic() const override { return SPUDDATA_LEVELDATA_MAGIC; }
 };
 
 /// Description of the save game, so we can just read this chunk to get info about it
@@ -665,7 +703,7 @@ struct FSpudSaveInfo : public FSpudChunk
 	
 	virtual const char* GetMagic() const override { return SPUDDATA_SAVEINFO_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 Version) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
 	
 };
 /// The top-level structure for the entire save file
@@ -673,15 +711,81 @@ struct FSpudSaveData : public FSpudChunk
 {
 	FSpudSaveInfo Info;
 	FSpudGlobalData GlobalData;
-	FSpudLevelDataMap LevelDataMap;
+
+	// Plain map for level data, because we can page this out so don't write it in bulk
+	TMap<FString, FSpudLevelData> LevelDataMap;
 
 	virtual const char* GetMagic() const override { return SPUDDATA_SAVEGAME_MAGIC; }
 	void PrepareForWrite(const FText& Title);
+	/// Write the entire in-memory contents to a singe archive, assumes all data is in memory
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint16 IGNOREDDataVersion) override;
+	/// Write contents to archive, with the option of loading back in level data that's been released (doesn't all have to be in memory)
+	void WriteToArchive(FSpudChunkedDataArchive& Ar, const FString& LevelPath);
+	/// Read the entire save file into memory
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
+
+	/**
+	 * @brief Read a save file with extra options. Options to pipe all level data chunks
+	 * directly into their own separate named files in LevelPath, so their state is only loaded into memory when
+	 * needed. Entries for these levels will still be present in LevelDataMap, but with an unloaded state
+	 * @param Ar Source archive for the entire save file
+	 * @param bLoadAllLevels If true, all levels will be loaded into memory. If false, none will be & data will be split for later loading
+	 * @param LevelPath The parent directory where level chunks should be written as separate files
+	 */
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLevels, const FString& LevelPath);
 	
+	/**
+	 * @brief Retrieve data for a single level, loading it if necessary
+	 * @param LevelName The name of the level
+	 * @param bLoadIfNeeded Load (synchronously) if the level is present but unloaded
+	 * @param LevelPath The parent directory where level chunks can be found as separate files
+	 * @return The level data or null if not available
+	 */
+	virtual FSpudLevelData* GetLevelData(const FString& LevelName, bool bLoadIfNeeded, const FString& LevelPath);
+
+	
+	/**
+	 * @brief Create level data for a new level
+	 * @param LevelName The name of the level
+	 * @return Pointer to the new level data
+	 */
+	virtual FSpudLevelData* CreateLevelData(const FString& LevelName);
+
+
+	/**
+	* @brief Write any loaded data for a single level to disk, and unload it from memory . It becomes part of the
+	* on-disk state for the active game which can later be re-combined with others into a single save game.
+	* @param LevelName The name of the level
+    * @param LevelPath The path in which to write the level data
+	*/
+	virtual bool WriteAndReleaseLevelData(const FString& LevelName, const FString& LevelPath);
+	
+	/**
+	 * @brief Delete any state associated with a given level, forgetting any saved state for it.
+	 * @param LevelName The name of the level
+	 * @param LevelPath The path in which paged out level data may have been written
+	 */
+	virtual void DeleteLevelData(const FString& LevelName, const FString& LevelPath);
+
 	virtual void Reset();
+
+	/// Remove all the level data files in a given path
+	static void DeleteAllLevelDataFiles(const FString& LevelPath);
+
+	/// Get the path of the file to use to store state for a specific level
+	static FString GetLevelDataPath(const FString& LevelPath, const FString& LevelName);
+
 
 	/// Utility method to read an archive just up to the end of the FSpudSaveInfo, and output details
 	static bool ReadSaveInfoFromArchive(FSpudChunkedDataArchive& Ar, FSpudSaveInfo& OutInfo);
 };
+
+
+/**
+ * @brief Copy bytes from one archive to another (can't seem to find a built-in way to do this?)
+ * @param InArchive Archive to read from
+ * @param OutArchive Archive to write to
+ * @param Length Total length of data to copy
+ * @return The length of the data actually copied
+ */
+int64 SpudCopyArchiveData(FArchive& InArchive, FArchive& OutArchive, int64 Length);

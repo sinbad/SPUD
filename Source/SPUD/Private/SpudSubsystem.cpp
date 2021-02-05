@@ -4,6 +4,8 @@
 #include "Engine/LevelStreaming.h"
 #include "Kismet/GameplayStatics.h"
 
+PRAGMA_DISABLE_OPTIMIZATION
+
 DEFINE_LOG_CATEGORY(LogSpudSubsystem)
 
 
@@ -67,6 +69,9 @@ void USpudSubsystem::EndGame()
 	if (!ServerCheck(true))
 		return;
 
+	if (ActiveState)
+		ActiveState->ResetState();
+	
 	// Allow GC to collect
 	ActiveState = nullptr;
 
@@ -111,7 +116,8 @@ void USpudSubsystem::OnPreLoadMap(const FString& MapName)
 		if (IsValid(World))
 		{
 			UE_LOG(LogSpudSubsystem, Verbose, TEXT("OnPreLoadMap saving: %s"), *UGameplayStatics::GetCurrentLevelName(World));
-			StoreWorld(World);
+			// Map and all streaming level data will be released
+			StoreWorld(World, true);
 		}
 	}
 }
@@ -183,7 +189,8 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 			State->StoreGlobalObject(Pair.Value.Get(), Pair.Key);
 	}
 
-	StoreWorld(World);
+	// Store any data that is currently active in the game world in the state object
+	StoreWorld(World, false);
 	
 	// UGameplayStatics::SaveGameToSlot prefixes our save with a lot of crap that we don't need
 	// And also wraps it with FObjectAndNameAsStringProxyArchive, which again we don't need
@@ -224,25 +231,20 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 }
 
 
-void USpudSubsystem::StoreWorld(UWorld* World)
+void USpudSubsystem::StoreWorld(UWorld* World, bool bReleaseLevels)
 {
-	// TODO: what this should REALLY do is only write data for globals and the currently loaded levels
-	// Then it should combine this data with other level data which isn't loaded right now, into a single
-	// save file. Ideally without loading all the other stuff into memory.
-	auto State = GetActiveState();
 	for (auto && Level : World->GetLevels())
 	{
-		StoreLevel(Level);
-	}
-	
+		StoreLevel(Level, bReleaseLevels);
+	}	
 }
 
-void USpudSubsystem::StoreLevel(ULevel* Level)
+void USpudSubsystem::StoreLevel(ULevel* Level, bool bRelease)
 {
 	const FString LevelName = USpudState::GetLevelName(Level);
 	PreLevelStore.Broadcast(LevelName);
-	GetActiveState()->StoreLevel(Level);
-	PostLevelStore.Broadcast(LevelName, true);	
+	GetActiveState()->StoreLevel(Level, bRelease);
+	PostLevelStore.Broadcast(LevelName, true);
 }
 void USpudSubsystem::SaveComplete(const FString& SlotName, bool bSuccess)
 {
@@ -270,14 +272,14 @@ bool USpudSubsystem::LoadGame(const FString& SlotName)
 	State->ResetState();
 
 	// TODO: async load
-	// TODO: split file and load only the data we need
 
 	IFileManager& FileMgr = IFileManager::Get();
 	auto Archive = TUniquePtr<FArchive>(FileMgr.CreateFileReader(*GetSaveGameFilePath(SlotName)));
 
 	if(Archive)
 	{
-		State->LoadFromArchive(*Archive);
+		// Load only global data and page in level data as needed
+		State->LoadFromArchive(*Archive, false);
 		Archive->Close();
 
 		if (Archive->IsError() || Archive->IsCriticalError())
@@ -385,7 +387,7 @@ void USpudSubsystem::WithdrawRequestForStreamingLevel(UObject* Requester, FName 
 		if (Requesters->Num() == 0)
 		{
 			// This level can be unloaded
-			// TODO: do it deferred in case only temporary
+			// TODO: add a delay to this so we don't thrash at boundaries
 			UnloadStreamLevel(LevelName);
 		}
 	}
@@ -443,6 +445,10 @@ void USpudSubsystem::PostLoadStreamLevel(int32 LinkID)
 		}		
 
 		// Defer the restore to the game thread, streaming calls happen in loading thread?
+		// However, quickly ping the state to force it to pre-load the leveldata
+		// that way the loading occurs in this thread, less latency
+		GetActiveState()->PreLoadLevelData(LevelName.ToString());			
+
 		AsyncTask(ENamedThreads::GameThread, [this, LevelName]()
         {
 			// But also add a slight delay so we get a tick in between so physics works
@@ -477,7 +483,13 @@ void USpudSubsystem::PostLoadStreamLevelGameThread(FName LevelName)
 		// It's important to note that this streaming level won't be added to UWorld::Levels yet
 		// This is usually where things like the TActorIterator get actors from, ULevel::Actors
 		// we have the ULevel here right now, so restore it directly
-		GetActiveState()->RestoreLevel(Level);			
+		GetActiveState()->RestoreLevel(Level);
+
+		// NB: after restoring the level, we could release MOST of the memory for this level
+		// However, we don't for 2 reasons:
+		// 1. Destroyed actors for this level are logged continuously while running, so that still needs to be active
+		// 2. We can assume that we'll need to write data back to save when this level is unloaded. It's actually less
+		//    memory thrashing to re-use the same memory we have until unload, since it'll likely be almost identical in structure
 		StreamLevel->SetShouldBeVisible(true);
 		SubscribeLevelObjectEvents(Level);
 		PostLevelRestore.Broadcast(LevelName.ToString(), true);
@@ -503,7 +515,8 @@ void USpudSubsystem::UnloadStreamLevel(FName LevelName)
 		{
 			// save the state, if not loading game
 			// when loading game we will unload the current level and streaming and don't want to restore the active state from that
-			StoreLevel(Level);
+			// After storing, the level data is released so doesn't take up memory any more
+			StoreLevel(Level, true);
 		}
 		
 		// Now unload
@@ -684,3 +697,5 @@ FString USpudSubsystem::GetActiveGameFilePath(const FString& Name)
 {
 	return FString::Printf(TEXT("%sSaveGames/%s.sav"), *GetActiveGameFolder(), *Name);
 }
+
+PRAGMA_ENABLE_OPTIMIZATION
