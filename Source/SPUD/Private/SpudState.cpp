@@ -245,10 +245,6 @@ FSpudSpawnedActorData* USpudState::GetSpawnedActorData(AActor* Actor, FSpudLevel
 		UE_LOG(LogSpudState, Error, TEXT("Ignoring runtime actor %s, missing or blank SpudGuid property"), *Actor->GetName())
 		UE_LOG(LogSpudState, Error, TEXT("  Runtime spawned actors should have a SpudGuid property to identify them, initialised to valid unique value."))
 		UE_LOG(LogSpudState, Error, TEXT("  NOTE: If this actor is part of a level and not runtime spawned, the cause of this false detection might be that you haven't SAVED the level before playing in the editor."))
-
-		// TODO: if a class is a level object but happens to have a SpudGuid property anyway (maybe because sometimes runtime)
-		// the lack of a level save making it look like a runtime object cannot be detected. Can we *maybe* call editor code somehow
-		// to determine this?
 		return nullptr;			
 	}
 	
