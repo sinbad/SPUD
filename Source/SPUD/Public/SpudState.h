@@ -221,6 +221,10 @@ public:
 	/// Specialised function for restoring a specific level by reference
 	void RestoreLevel(ULevel* Level);
 
+	/// Request that data for a level is loaded in the calling thread
+	/// Useful for pre-caching before RestoreLevel
+	bool PreLoadLevelData(const FString& LevelName);
+
 	// Restores the world and all levels currently in it, on the assumption that it's already loaded into the correct map
 	void RestoreLoadedWorld(UWorld* World);
 

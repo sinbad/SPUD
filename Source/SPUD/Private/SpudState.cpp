@@ -402,6 +402,13 @@ void USpudState::RestoreLevel(ULevel* Level)
 
 }
 
+bool USpudState::PreLoadLevelData(const FString& LevelName)
+{
+	// Don't auto-create, but do load if needed
+	auto Data = GetLevelData(LevelName, false);
+	return Data != nullptr;
+}
+
 void USpudState::RestoreActor(AActor* Actor)
 {
 	if (Actor->HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject|RF_BeginDestroyed))

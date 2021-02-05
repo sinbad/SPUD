@@ -445,6 +445,10 @@ void USpudSubsystem::PostLoadStreamLevel(int32 LinkID)
 		}		
 
 		// Defer the restore to the game thread, streaming calls happen in loading thread?
+		// However, quickly ping the state to force it to pre-load the leveldata
+		// that way the loading occurs in this thread, less latency
+		GetActiveState()->PreLoadLevelData(LevelName.ToString());			
+
 		AsyncTask(ENamedThreads::GameThread, [this, LevelName]()
         {
 			// But also add a slight delay so we get a tick in between so physics works
