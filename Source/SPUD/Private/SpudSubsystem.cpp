@@ -119,8 +119,9 @@ void USpudSubsystem::OnPreLoadMap(const FString& MapName)
 		if (IsValid(World))
 		{
 			UE_LOG(LogSpudSubsystem, Verbose, TEXT("OnPreLoadMap saving: %s"), *UGameplayStatics::GetCurrentLevelName(World));
-			// Map and all streaming level data will be released
-			StoreWorld(World, true);
+			// Map and all streaming level data will be released.
+			// Block while doing it so they all get written predictably
+			StoreWorld(World, true, true);
 		}
 	}
 }
@@ -193,7 +194,7 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 	}
 
 	// Store any data that is currently active in the game world in the state object
-	StoreWorld(World, false);
+	StoreWorld(World, false, true);
 	
 	// UGameplayStatics::SaveGameToSlot prefixes our save with a lot of crap that we don't need
 	// And also wraps it with FObjectAndNameAsStringProxyArchive, which again we don't need
@@ -234,19 +235,19 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 }
 
 
-void USpudSubsystem::StoreWorld(UWorld* World, bool bReleaseLevels)
+void USpudSubsystem::StoreWorld(UWorld* World, bool bReleaseLevels, bool bBlocking)
 {
 	for (auto && Level : World->GetLevels())
 	{
-		StoreLevel(Level, bReleaseLevels);
+		StoreLevel(Level, bReleaseLevels, bBlocking);
 	}	
 }
 
-void USpudSubsystem::StoreLevel(ULevel* Level, bool bRelease)
+void USpudSubsystem::StoreLevel(ULevel* Level, bool bRelease, bool bBlocking)
 {
 	const FString LevelName = USpudState::GetLevelName(Level);
 	PreLevelStore.Broadcast(LevelName);
-	GetActiveState()->StoreLevel(Level, bRelease);
+	GetActiveState()->StoreLevel(Level, bRelease, bBlocking);
 	PostLevelStore.Broadcast(LevelName, true);
 }
 void USpudSubsystem::SaveComplete(const FString& SlotName, bool bSuccess)
@@ -582,7 +583,7 @@ void USpudSubsystem::UnloadStreamLevel(FName LevelName)
 			// save the state, if not loading game
 			// when loading game we will unload the current level and streaming and don't want to restore the active state from that
 			// After storing, the level data is released so doesn't take up memory any more
-			StoreLevel(Level, true);
+			StoreLevel(Level, true, false);
 		}
 		
 		// Now unload

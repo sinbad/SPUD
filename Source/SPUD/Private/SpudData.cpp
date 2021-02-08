@@ -464,7 +464,7 @@ void FSpudLevelData::WriteToArchive(FSpudChunkedDataArchive& Ar)
 {
 	FScopeLock Lock(&Mutex);
 
-	if (Status != LDS_Loaded)
+	if (Status == LDS_Unloaded)
 	{
 		UE_LOG(LogSpudData, Error, TEXT("Attempted to write an unloaded LevelData struct for %s, skipping"), *Name);
 		return;
@@ -697,6 +697,7 @@ void FSpudSaveData::WriteToArchive(FSpudChunkedDataArchive& Ar, const FString& L
 				switch (LevelData.Status)
 				{
 				default:
+				case LDS_BackgroundWriteAndUnload: // while awauting background write, data is still in memory so same as loaded (locked by mutex)
 				case LDS_Loaded:
 					// In memory, just write
 					LevelData.WriteToArchive(Ar);
@@ -758,6 +759,7 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLe
 				FSpudAdhocWrapperChunk LevelDataMapChunk(SPUDDATA_LEVELDATAMAP_MAGIC);
 				if (LevelDataMapChunk.ChunkStart(Ar))
 				{
+					FScopeLock MapMutex(&LevelDataMapMutex);					
 					LevelDataMap.Empty();
 
 					// Detect chunks & only load compatible
@@ -769,7 +771,7 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLe
 							if (bLoadAllLevels)
 							{
 								FSpudLevelData LvlData;
-								LvlData.ReadFromArchive(Ar);								
+								LvlData.ReadFromArchive(Ar);
 								LevelDataMap.Add(LvlData.Key(), LvlData);						
 							}
 							else
@@ -822,11 +824,13 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 void FSpudSaveData::Reset()
 {
 	GlobalData.Reset();
+	FScopeLock MapMutex(&LevelDataMapMutex);
 	LevelDataMap.Empty();
 }
 
 FSpudLevelData* FSpudSaveData::CreateLevelData(const FString& LevelName)
 {
+	FScopeLock MapMutex(&LevelDataMapMutex);
 	auto Ret = &LevelDataMap.Add(LevelName);
 	Ret->Name = LevelName;
 	Ret->Status = LDS_Loaded; // assume loaded if we're creating
@@ -852,6 +856,31 @@ void FSpudSaveData::DeleteAllLevelDataFiles(const FString& LevelPath)
 FString FSpudSaveData::GetLevelDataPath(const FString& LevelPath, const FString& LevelName)
 {
 	return FString::Printf(TEXT("%s%s.lvl"), *LevelPath, *LevelName);		
+}
+
+void FSpudSaveData::WriteLevelData(FSpudLevelData& LevelData, const FString& LevelName, const FString& LevelPath)
+{
+	IFileManager& FileMgr = IFileManager::Get();
+	const FString Filename = GetLevelDataPath(LevelPath, LevelName);
+	const auto Archive = TUniquePtr<FArchive>(FileMgr.CreateFileWriter(*Filename));
+
+	if (Archive)
+	{
+		FSpudChunkedDataArchive ChunkedAr(*Archive);
+		LevelData.WriteToArchive(ChunkedAr);
+		// Always explicitly close to catch errors from flush/close
+		ChunkedAr.Close();
+
+		if (ChunkedAr.IsError() || ChunkedAr.IsCriticalError())
+		{
+			UE_LOG(LogSpudData, Error, TEXT("Error while writing level data to %s"), *Filename);
+		}
+	}
+	else
+	{
+		UE_LOG(LogSpudData, Error, TEXT("Error opening level data file for writing: %s"), *Filename);
+	}
+	
 }
 
 bool FSpudSaveData::ReadSaveInfoFromArchive(FSpudChunkedDataArchive& Ar, FSpudSaveInfo& OutInfo)
@@ -880,75 +909,91 @@ bool FSpudSaveData::ReadSaveInfoFromArchive(FSpudChunkedDataArchive& Ar, FSpudSa
 
 FSpudLevelData* FSpudSaveData::GetLevelData(const FString& LevelName, bool bLoadIfNeeded, const FString& LevelPath)
 {
+	FScopeLock MapMutex(&LevelDataMapMutex);
 	auto Ret = LevelDataMap.Find(LevelName);
 	if (Ret && bLoadIfNeeded)
 	{
-		//FScopeLock StatusLock(&Ret->StatusMutex);
-		if (Ret->Status == LDS_Unloaded)
+		FScopeLock LevelLock(&Ret->Mutex);
+		switch (Ret->Status)
 		{
-			// Load individual level file back into memory
-			IFileManager& FileMgr = IFileManager::Get();
-			const auto Filename = GetLevelDataPath(LevelPath, LevelName);
-			const auto Archive = TUniquePtr<FArchive>(FileMgr.CreateFileReader(*Filename));
-
-			if(Archive)
+		case LDS_Unloaded:
 			{
-				FSpudChunkedDataArchive ChunkedAr(*Archive);
-				
-				Ret->ReadFromArchive(ChunkedAr);
-				ChunkedAr.Close();
+				// Load individual level file back into memory
+				IFileManager& FileMgr = IFileManager::Get();
+				const auto Filename = GetLevelDataPath(LevelPath, LevelName);
+				const auto Archive = TUniquePtr<FArchive>(FileMgr.CreateFileReader(*Filename));
 
-				if (ChunkedAr.IsError() || ChunkedAr.IsCriticalError())
+				if (Archive)
 				{
-					UE_LOG(LogSpudData, Error, TEXT("Error while loading active game level file from %s"), *Filename);
+					FSpudChunkedDataArchive ChunkedAr(*Archive);
+
+					Ret->ReadFromArchive(ChunkedAr);
+					ChunkedAr.Close();
+
+					if (ChunkedAr.IsError() || ChunkedAr.IsCriticalError())
+					{
+						UE_LOG(LogSpudData, Error, TEXT("Error while loading active game level file from %s"), *Filename);
+					}
 				}
+				else
+				{
+					UE_LOG(LogSpudData, Error, TEXT("Error opening active game level state file %s"), *Filename);
+				}
+				break;
 			}
-			else
-			{
-				UE_LOG(LogSpudData, Error, TEXT("Error opening active game level state file %s"), *Filename);		
-			}
+		case LDS_BackgroundWriteAndUnload:
+			// Loading in this state is just flipping back to loaded, because all the state is still in memory
+			// We're just waiting for it to be written out and released
+			// By changing the status back to loaded, the background unload task will skip the unload
+			Ret->Status = LDS_Loaded;
+			break;
+		default:
+		case LDS_Loaded:
+			break;
 		}
 	}
 
 	return Ret;
 }
 
-bool FSpudSaveData::WriteAndReleaseLevelData(const FString& LevelName, const FString& LevelPath)
+bool FSpudSaveData::WriteAndReleaseLevelData(const FString& LevelName, const FString& LevelPath, bool bBlocking)
 {
+	FScopeLock MapMutex(&LevelDataMapMutex);
 	auto LevelData = LevelDataMap.Find(LevelName);
 	if (LevelData)
 	{
-		// Lock outer so the check and write / release are all locked together
-		// FCriticalSection is recursive (already locked by same thread is fine)
 		FScopeLock LevelLock(&LevelData->Mutex);
-		if (LevelData->Status == LDS_Loaded)
+		if (LevelData->Status == LDS_Loaded ||
+			// If we've queued a background write & unload but this is now requesting a blocking write, we
+			// should upgrade it and do it NOW. When the status is changed to LDS_Unloaded the background worker will ignore it
+			LevelData->Status == LDS_BackgroundWriteAndUnload && bBlocking)
 		{
-			// Write just this level state to disk
-			IFileManager& FileMgr = IFileManager::Get();
-			const FString Filename = GetLevelDataPath(LevelPath, LevelName);
-			const auto Archive = TUniquePtr<FArchive>(FileMgr.CreateFileWriter(*Filename));
-
-			if(Archive)
+			if (bBlocking)
 			{
-				FSpudChunkedDataArchive ChunkedAr(*Archive);
-				LevelData->WriteToArchive(ChunkedAr);
-				// Always explicitly close to catch errors from flush/close
-				ChunkedAr.Close();
-
-				if (ChunkedAr.IsError() || ChunkedAr.IsCriticalError())
-				{
-					UE_LOG(LogSpudData, Error, TEXT("Error while writing level data to %s"), *Filename);
-					return false;
-				}
-
-				// Now release data, but keep the entry in memory so we know about it
+				WriteLevelData(*LevelData, LevelName, LevelPath);
 				LevelData->ReleaseMemory();
-				
 			}
 			else
 			{
-				UE_LOG(LogSpudData, Error, TEXT("Error opening level data file for writing: %s"), *Filename);
-					return false;
+				LevelData->Status = LDS_BackgroundWriteAndUnload;
+
+				// Write this level data to disk in a background thread
+				// Only pass the level name and not the pointer, this is then safe from the list being cleared
+				AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, LevelName, LevelPath]()
+                {
+					FScopeLock LevelMapLock(&LevelDataMapMutex);
+					auto LevelData = LevelDataMap.Find(LevelName);
+                    if (LevelData)
+                    {
+	                    // Re-acquire lock and check still unloading
+                        FScopeLock LevelLock(&LevelData->Mutex);
+                        if (LevelData->Status == LDS_BackgroundWriteAndUnload)
+                        {
+                            WriteLevelData(*LevelData, LevelName, LevelPath);
+                            LevelData->ReleaseMemory();
+                        }
+                    }
+                });
 			}
 		}
 	}
@@ -957,6 +1002,7 @@ bool FSpudSaveData::WriteAndReleaseLevelData(const FString& LevelName, const FSt
 
 void FSpudSaveData::DeleteLevelData(const FString& LevelName, const FString& LevelPath)
 {
+	FScopeLock MapMutex(&LevelDataMapMutex);
 	LevelDataMap.Remove(LevelName);
 
 	IFileManager& FileMgr = IFileManager::Get();

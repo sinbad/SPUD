@@ -187,8 +187,9 @@ public:
 	 * Only processes actors which implement ISpudObject.
 	 * @param Level The level to store
 	 * @param bReleaseAfter If true, after storing the level data, it is removed from memory and stored on disk
+	 * @param bBlocking If true, do not perform the write in a background thread and write before returning
 	 */
-	void StoreLevel(ULevel* Level, bool bReleaseAfter);
+	void StoreLevel(ULevel* Level, bool bReleaseAfter, bool bBlocking);
 
 	/// Store the state of an actor. Does not require the object to implement ISpudObject
 	/// This object will be associated with its level, and so will only be restored when its level is loaded.
@@ -200,7 +201,7 @@ public:
 	void StoreLevelActorDestroyed(AActor* Actor);
 
 	/// Stores any data for a level to disk and releases the memory its using to store persistent state
-	void ReleaseLevelData(const FString& LevelName);
+	void ReleaseLevelData(const FString& LevelName, bool bBlocking);
 
 	/// Store the state of a global object, such as a GameInstance. Does not require the object to implement ISpudObject
 	/// This object will have the same state across all levels.

@@ -33,7 +33,7 @@ void USpudState::StoreWorldGlobals(UWorld* World)
 }
 
 
-void USpudState::StoreLevel(ULevel* Level, bool bRelease)
+void USpudState::StoreLevel(ULevel* Level, bool bRelease, bool bBlocking)
 {
 	const FString LevelName = GetLevelName(Level);
 	auto LevelData = GetLevelData(LevelName, true);
@@ -58,7 +58,7 @@ void USpudState::StoreLevel(ULevel* Level, bool bRelease)
 	}
 
 	if (bRelease)
-		ReleaseLevelData(LevelName);
+		ReleaseLevelData(LevelName, bBlocking);
 }
 
 USpudState::StorePropertyVisitor::StorePropertyVisitor(
@@ -189,9 +189,9 @@ FSpudLevelData* USpudState::GetLevelData(const FString& LevelName, bool AutoCrea
 }
 
 
-void USpudState::ReleaseLevelData(const FString& LevelName)
+void USpudState::ReleaseLevelData(const FString& LevelName, bool bBlocking)
 {
-	SaveData.WriteAndReleaseLevelData(LevelName, GetActiveGameLevelFolder());
+	SaveData.WriteAndReleaseLevelData(LevelName, GetActiveGameLevelFolder(), bBlocking);
 }
 
 FSpudNamedObjectData* USpudState::GetLevelActorData(const AActor* Actor, FSpudLevelData* LevelData, bool AutoCreate)

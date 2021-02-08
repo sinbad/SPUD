@@ -609,6 +609,7 @@ struct FSpudClassMetadata : public FSpudChunk
 enum ELevelDataStatus
 {
 	LDS_Unloaded,
+	LDS_BackgroundWriteAndUnload,
 	LDS_Loaded
 };
 
@@ -714,6 +715,8 @@ struct FSpudSaveData : public FSpudChunk
 
 	// Plain map for level data, because we can page this out so don't write it in bulk
 	TMap<FString, FSpudLevelData> LevelDataMap;
+	// Mutex for altering the level data map
+	FCriticalSection LevelDataMapMutex;
 
 	virtual const char* GetMagic() const override { return SPUDDATA_SAVEGAME_MAGIC; }
 	void PrepareForWrite(const FText& Title);
@@ -758,7 +761,7 @@ struct FSpudSaveData : public FSpudChunk
 	* @param LevelName The name of the level
     * @param LevelPath The path in which to write the level data
 	*/
-	virtual bool WriteAndReleaseLevelData(const FString& LevelName, const FString& LevelPath);
+	virtual bool WriteAndReleaseLevelData(const FString& LevelName, const FString& LevelPath, bool bBlocking);
 	
 	/**
 	 * @brief Delete any state associated with a given level, forgetting any saved state for it.
@@ -775,6 +778,8 @@ struct FSpudSaveData : public FSpudChunk
 	/// Get the path of the file to use to store state for a specific level
 	static FString GetLevelDataPath(const FString& LevelPath, const FString& LevelName);
 
+	/// Write Level Data to disk
+	static void WriteLevelData(FSpudLevelData& LevelData, const FString& LevelName, const FString& LevelPath);
 
 	/// Utility method to read an archive just up to the end of the FSpudSaveInfo, and output details
 	static bool ReadSaveInfoFromArchive(FSpudChunkedDataArchive& Ar, FSpudSaveInfo& OutInfo);

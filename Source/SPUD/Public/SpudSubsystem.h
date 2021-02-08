@@ -171,8 +171,8 @@ protected:
 	UFUNCTION(BlueprintCallable)
     void PostUnloadStreamLevelGameThread(FName LevelName);
 
-	void StoreWorld(UWorld* World, bool bReleaseLevels);
-	void StoreLevel(ULevel* Level, bool bRelease);
+	void StoreWorld(UWorld* World, bool bReleaseLevels, bool bBlocking);
+	void StoreLevel(ULevel* Level, bool bRelease, bool bBlocking);
 
 	void LoadComplete(const FString& SlotName, bool bSuccess);
 	void SaveComplete(const FString& SlotName, bool bSuccess);
