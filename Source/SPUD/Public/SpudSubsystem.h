@@ -90,7 +90,11 @@ public:
 	/// Event fired just after a streaming level has unloaded
 	UPROPERTY(BlueprintAssignable)
 	FSpudPostUnloadStreamingLevel PostUnloadStreamingLevel;
-	
+
+	/// The time delay after the last request for a streaming level is withdrawn, that the level will be unloaded
+	/// This is used to reduce load/unload thrashing at boundaries
+	UPROPERTY(BlueprintReadWrite)
+	float StreamLevelUnloadDelay = 3;
 	
 	
 protected:
@@ -102,6 +106,7 @@ protected:
 	TMap<int32, FName> LevelsPendingUnload;
 	FCriticalSection LevelsPendingLoadMutex;
 	FCriticalSection LevelsPendingUnloadMutex;
+	FTimerHandle StreamLevelUnloadTimerHandle;
 	
 	FString SlotNameInProgress;
 
@@ -127,10 +132,20 @@ protected:
 
 		return ActiveState;
 	}
+
+	struct FStreamLevelRequests
+	{
+		TArray<TWeakObjectPtr<>> Requesters;
+		bool bPendingUnload;
+		float LastRequestExpiredTime;
+
+		FStreamLevelRequests(): bPendingUnload(false), LastRequestExpiredTime(0)
+		{
+		}
+	};
 	
-	// Map of level names to the list of objects which requested them, making it easier to unload once all
-	// requesters have withdrawn
-	TMap<FName, TArray<TWeakObjectPtr<>>> LevelRequesters;
+	// Map of streaming level names to the requests to load them 
+	TMap<FName, FStreamLevelRequests> LevelRequests;
 
 	bool ServerCheck(bool LogWarning) const;
 
@@ -161,7 +176,13 @@ protected:
 
 	void LoadComplete(const FString& SlotName, bool bSuccess);
 	void SaveComplete(const FString& SlotName, bool bSuccess);
-	
+
+	void LoadStreamLevel(FName LevelName, bool Blocking);
+	void StartUnloadTimer();
+	void StopUnloadTimer();
+	void CheckStreamUnload();
+	void UnloadStreamLevel(FName LevelName);
+
 public:
 
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -278,11 +299,6 @@ public:
 	/// new requests regardless. This is a last resort that you should never need, but it's here as a safety valve in case of errors.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void ForceReset();
-
-	/// Load a streaming level by name, correctly handling state restoration
-	void LoadStreamLevel(FName LevelName, bool Blocking);
-	/// Unload a streaming level by name, saving state beforehand
-	void UnloadStreamLevel(FName LevelName);
 
 	static FString GetSaveGameDirectory();
 	static FString GetSaveGameFilePath(const FString& SlotName);

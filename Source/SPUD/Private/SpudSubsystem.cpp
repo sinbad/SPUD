@@ -104,7 +104,10 @@ void USpudSubsystem::LoadLatestSaveGame()
 void USpudSubsystem::OnPreLoadMap(const FString& MapName)
 {
 	PreTravelToNewMap.Broadcast(MapName);
-	LevelRequesters.Empty();
+	// All streaming maps will be unloaded by travelling, so remove all
+	LevelRequests.Empty();
+	StopUnloadTimer();
+	
 	FirstStreamRequestSinceMapLoad = true;
 
 	// When we transition out of a map while enabled, save contents
@@ -378,11 +381,18 @@ void USpudSubsystem::AddRequestForStreamingLevel(UObject* Requester, FName Level
 	if (!ServerCheck(false))
 		return;
 
-	auto && Requesters = LevelRequesters.FindOrAdd(LevelName);
-	Requesters.AddUnique(Requester);
-	// Load on the first request only
-	if (Requesters.Num() == 1)
-		LoadStreamLevel(LevelName, BlockingLoad);
+	auto && Request = LevelRequests.FindOrAdd(LevelName);
+	Request.Requesters.AddUnique(Requester);
+	if (Request.bPendingUnload)
+	{
+		Request.bPendingUnload = false; // no load required, just flip the unload flag
+		Request.LastRequestExpiredTime = 0;
+	}
+	else if (Request.Requesters.Num() == 1)
+	{
+		// Load on the first request only		
+		LoadStreamLevel(LevelName, BlockingLoad);		
+	}
 }
 
 void USpudSubsystem::WithdrawRequestForStreamingLevel(UObject* Requester, FName LevelName)
@@ -390,17 +400,64 @@ void USpudSubsystem::WithdrawRequestForStreamingLevel(UObject* Requester, FName 
 	if (!ServerCheck(false))
 		return;
 
-	if (auto Requesters = LevelRequesters.Find(LevelName))
+	if (auto Request = LevelRequests.Find(LevelName))
 	{
-		Requesters->Remove(Requester);
-		if (Requesters->Num() == 0)
+		Request->Requesters.Remove(Requester);
+		if (Request->Requesters.Num() == 0)
 		{
-			// This level can be unloaded
-			// TODO: add a delay to this so we don't thrash at boundaries
-			UnloadStreamLevel(LevelName);
+			// This level can be unloaded after time delay
+			Request->bPendingUnload = true;
+			Request->LastRequestExpiredTime = UGameplayStatics::GetTimeSeconds(GetWorld());
+			StartUnloadTimer();
 		}
 	}
 }
+
+void USpudSubsystem::StartUnloadTimer()
+{
+	if (!StreamLevelUnloadTimerHandle.IsValid())
+	{
+		// Set up a timer which repeatedly checks for actual unload
+		// This doesn't need to be every tick, just every 0.5s
+		GetWorld()->GetTimerManager().SetTimer(StreamLevelUnloadTimerHandle, this, &USpudSubsystem::CheckStreamUnload, 0.5, true);
+	}	
+}
+
+
+void USpudSubsystem::StopUnloadTimer()
+{
+	if (StreamLevelUnloadTimerHandle.IsValid())
+	{
+		GetWorld()->GetTimerManager().ClearTimer(StreamLevelUnloadTimerHandle);
+	}	
+}
+
+void USpudSubsystem::CheckStreamUnload()
+{
+	const float UnloadBeforeTime = UGameplayStatics::GetTimeSeconds(GetWorld()) - StreamLevelUnloadDelay;
+	bool bAnyStillWaiting = false;
+	for (auto && Pair : LevelRequests)
+	{
+		const FName& LevelName = Pair.Key;
+		FStreamLevelRequests& Request = Pair.Value;
+		if (Request.bPendingUnload)
+		{
+			if (Request.Requesters.Num() == 0 &&
+				Request.LastRequestExpiredTime <= UnloadBeforeTime)
+			{
+				Request.bPendingUnload = false;
+				UnloadStreamLevel(LevelName);
+			}
+			else
+				bAnyStillWaiting = true;
+		}
+	}
+
+	// Only run the timer while we have something to do
+	if (!bAnyStillWaiting)
+		StopUnloadTimer();
+}
+
 
 
 
