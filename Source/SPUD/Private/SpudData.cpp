@@ -975,6 +975,19 @@ bool FSpudSaveData::WriteAndReleaseLevelData(const FString& LevelName, const FSt
 			}
 			else
 			{
+				// My first thought here was to Swap() the loaded memory and fire that off into the background thread
+				// thus disconnecting it and not having to worry about locking afterwards
+				// But the problem was if the write was queued and then another request for the level data came in
+				// before it was written to disk, the state could be entirely lost, since the only record of it was
+				// in a disconnected background thread. So instead, I've chosen to keep the data in the struct and
+				// just mark it as pending write and unload. That way if another request comes in before the write happens,
+				// the data can just be resurrected in-place.
+				// The downside is that this requires some locking so although primary I/O stalling is removed, overlapping
+				// write and a request for another level can potentially have locking contention which could cause its
+				// own stalls. However this is still much less likely. If it becomes an issue then we may need to use
+				// a more granular approach to locking (separating status and still copying data perhaps) but that's more
+				// complex & prone to slip-ups, so keeping it simpler for now.
+				
 				LevelData->Status = LDS_BackgroundWriteAndUnload;
 
 				// Write this level data to disk in a background thread
