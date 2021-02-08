@@ -364,6 +364,15 @@ void USpudSubsystem::RemovePersistentGlobalObject(UObject* Obj)
 	}
 }
 
+void USpudSubsystem::ClearLevelState(const FString& LevelName)
+{
+	if (!ServerCheck(false))
+		return;
+
+	GetActiveState()->ClearLevel(LevelName);
+	
+}
+
 void USpudSubsystem::AddRequestForStreamingLevel(UObject* Requester, FName LevelName, bool BlockingLoad)
 {
 	if (!ServerCheck(false))

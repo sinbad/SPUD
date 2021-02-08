@@ -245,6 +245,17 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void RemovePersistentGlobalObject(UObject* Obj);
 
+	/**
+	 * @brief Clears / forgets all state associated with a named level in the active game. Use this to reset a level back
+	 * to its original state. The level should not be loaded when you call this, because it does NOT reset any actors,
+	 * it just clears the state so that next time the level is loaded, there is no saved state to restore. So call this
+	 * before loading the level / travelling to the map.
+	 * @param LevelName The name of the level to remove state for. This should be the name of the map file with no
+	 * prefix or extension.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+	void ClearLevelState(const FString& LevelName);
+
 	/// Make a request that a streaming level is loaded. Won't load if already loaded, but will
 	/// record the request count so that unloading is done when all requests are withdrawn.
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)

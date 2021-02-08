@@ -946,6 +946,11 @@ bool USpudState::IsLevelDataLoaded(const FString& LevelName)
 	return Lvldata->IsLoaded();
 }
 
+void USpudState::ClearLevel(const FString& LevelName)
+{
+	SaveData.DeleteLevelData(LevelName, GetActiveGameLevelFolder());
+}
+
 bool USpudState::LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInfo)
 {
 	FSpudChunkedDataArchive ChunkedAr(Ar);
