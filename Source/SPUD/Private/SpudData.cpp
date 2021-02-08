@@ -637,7 +637,7 @@ void FSpudSaveInfo::WriteToArchive(FSpudChunkedDataArchive& Ar)
 {
 	if (ChunkStart(Ar))
 	{
-		Ar << Version;
+		Ar << SystemVersion;
 		Ar << Title;
 		FString TimestampStr = Timestamp.ToIso8601(); 
 		Ar << TimestampStr;
@@ -651,7 +651,7 @@ void FSpudSaveInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 {
 	if (ChunkStart(Ar))
 	{
-		Ar << Version;
+		Ar << SystemVersion;
 		Ar << Title;
 		FString TimestampStr; 
 		Ar << TimestampStr;
@@ -666,7 +666,7 @@ void FSpudSaveInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 void FSpudSaveData::PrepareForWrite(const FText& Title)
 {
 	Info.Title = Title;
-	Info.Version = SPUD_SAVEGAME_CURRENT_VERSION;
+	Info.SystemVersion = SPUD_SAVEGAME_CURRENT_VERSION;
 	Info.Timestamp = FDateTime::Now();
 }
 
@@ -742,7 +742,7 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLe
 
 		Info.ReadFromArchive(Ar);
 
-		if (Ar.IsLoading() && Info.Version != SPUD_SAVEGAME_CURRENT_VERSION)
+		if (Ar.IsLoading() && Info.SystemVersion != SPUD_SAVEGAME_CURRENT_VERSION)
 		{
 			// TODO: Deal with any version incompatibilities here
 		}

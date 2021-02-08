@@ -693,8 +693,10 @@ struct FSpudLevelData : public FSpudChunk
 /// because it means saves can just be copied as single standalone files
 struct FSpudSaveInfo : public FSpudChunk
 {
-	/// The version of the save file, allows us to detect breaking changes which aren't encapsulated as chunks
-	uint16 Version;
+	/// The SYSTEM version this save file belongs to. This number will only change when breaking changes are made to the
+	/// SPUD system itself which need to be reflected at the top level. Most changes will be contained in extra chunks
+	/// to avoid this and SPUD is responsible for upgrading saves when this changes.
+	uint16 SystemVersion;
 	/// Title of the save game. Might include things like player region, quest names etc
 	FText Title;
 	/// Timestamp of the save. Used for display and also to find the latest save for "Continue" behaviour
@@ -707,6 +709,7 @@ struct FSpudSaveInfo : public FSpudChunk
 	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
 	
 };
+
 /// The top-level structure for the entire save file
 struct FSpudSaveData : public FSpudChunk
 {
