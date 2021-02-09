@@ -605,6 +605,17 @@ void USpudSubsystem::ForceReset()
 	CurrentState = ESpudSystemState::RunningIdle;
 }
 
+void USpudSubsystem::SetUserDataModelVersion(int32 Version)
+{
+	GCurrentUserDataModelVersion = Version;
+}
+
+
+int32 USpudSubsystem::GetUserDataModelVersion() const
+{
+	return GCurrentUserDataModelVersion;
+}
+
 void USpudSubsystem::PostUnloadStreamLevel(int32 LinkID)
 {
 	FScopeLock PendingUnloadLock(&LevelsPendingUnloadMutex);

@@ -8,8 +8,10 @@ PRAGMA_DISABLE_OPTIMIZATION
 
 DEFINE_LOG_CATEGORY(LogSpudData)
 
-#define SPUD_SAVEGAME_CURRENT_VERSION 1
+#define SPUD_CURRENT_SYSTEM_VERSION 1
 
+// int32 so that Blueprint-compatible. 2 billion should be enough anyway and you can always use the negatives
+int32 GCurrentUserDataModelVersion = 0;
 //------------------------------------------------------------------------------
 
 bool FSpudChunkedDataArchive::PreviewNextChunk(FSpudChunkHeader& OutHeader, bool SeekBackToHeader)
@@ -126,6 +128,25 @@ bool FSpudChunk::IsStillInChunk(FArchive& Ar) const
 }
 //------------------------------------------------------------------------------
 
+void FSpudVersionInfo::WriteToArchive(FSpudChunkedDataArchive& Ar)
+{
+	// Separate chunk for version info is a bit indulgent but it means we can tack it on to anything if we want
+	if (ChunkStart(Ar))
+	{
+		Ar << Version;
+		ChunkEnd(Ar);
+	}
+}
+void FSpudVersionInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar)
+{
+	if (ChunkStart(Ar))
+	{
+		Ar << Version;		
+		ChunkEnd(Ar);
+	}
+}
+
+//------------------------------------------------------------------------------
 void FSpudClassDef::WriteToArchive(FSpudChunkedDataArchive& Ar)
 {
 	if (ChunkStart(Ar))
@@ -366,9 +387,13 @@ void FSpudClassMetadata::WriteToArchive(FSpudChunkedDataArchive& Ar)
 {
 	if (ChunkStart(Ar))
 	{
+		UserDataModelVersion.Version = GCurrentUserDataModelVersion;
+		UserDataModelVersion.WriteToArchive(Ar);
+		
 		ClassNameIndex.WriteToArchive(Ar);
 		ClassDefinitions.WriteToArchive(Ar);
 		PropertyNameIndex.WriteToArchive(Ar);
+
 		ChunkEnd(Ar);
 	}
 }
@@ -377,6 +402,7 @@ void FSpudClassMetadata::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 {
 	if (ChunkStart(Ar))
 	{
+		const uint32 VersionID = FSpudChunkHeader::EncodeMagic(SPUDDATA_VERSIONINFO_MAGIC);
 		const uint32 ClassNameIndexID = FSpudChunkHeader::EncodeMagic(SPUDDATA_CLASSNAMEINDEX_MAGIC);
 		const uint32 ClassDefListID = FSpudChunkHeader::EncodeMagic(SPUDDATA_CLASSDEFINITIONLIST_MAGIC);
 		const uint32 PropertyNameIndexID = FSpudChunkHeader::EncodeMagic(SPUDDATA_PROPERTYNAMEINDEX_MAGIC);
@@ -384,7 +410,9 @@ void FSpudClassMetadata::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 		while (IsStillInChunk(Ar))
 		{
 			Ar.PreviewNextChunk(Hdr, true);
-			if (Hdr.Magic == ClassNameIndexID)
+			if (Hdr.Magic == VersionID)
+				UserDataModelVersion.ReadFromArchive(Ar);
+			else if (Hdr.Magic == ClassNameIndexID)
 				ClassNameIndex.ReadFromArchive(Ar);
 			else if (Hdr.Magic == ClassDefListID)
 				ClassDefinitions.ReadFromArchive(Ar);
@@ -666,7 +694,7 @@ void FSpudSaveInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 void FSpudSaveData::PrepareForWrite(const FText& Title)
 {
 	Info.Title = Title;
-	Info.SystemVersion = SPUD_SAVEGAME_CURRENT_VERSION;
+	Info.SystemVersion = SPUD_CURRENT_SYSTEM_VERSION;
 	Info.Timestamp = FDateTime::Now();
 }
 
@@ -743,7 +771,7 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLe
 
 		Info.ReadFromArchive(Ar);
 
-		if (Ar.IsLoading() && Info.SystemVersion != SPUD_SAVEGAME_CURRENT_VERSION)
+		if (Ar.IsLoading() && Info.SystemVersion != SPUD_CURRENT_SYSTEM_VERSION)
 		{
 			// TODO: Deal with any version incompatibilities here
 		}

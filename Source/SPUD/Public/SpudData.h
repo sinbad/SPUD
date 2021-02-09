@@ -4,6 +4,8 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSpudData, Verbose, Verbose);
 
+extern int32 GCurrentUserDataModelVersion;
+
 // Chunk IDs
 #define SPUDDATA_SAVEGAME_MAGIC "SAVE"
 #define SPUDDATA_SAVEINFO_MAGIC "INFO"
@@ -12,6 +14,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogSpudData, Verbose, Verbose);
 #define SPUDDATA_CLASSDEF_MAGIC "CDEF"
 #define SPUDDATA_CLASSNAMEINDEX_MAGIC "CNIX"
 #define SPUDDATA_PROPERTYNAMEINDEX_MAGIC "PNIX"
+#define SPUDDATA_VERSIONINFO_MAGIC "VERS"
 #define SPUDDATA_NAMEDOBJECT_MAGIC "NOBJ"
 #define SPUDDATA_SPAWNEDACTOR_MAGIC "SPWN"
 #define SPUDDATA_DESTROYEDACTOR_MAGIC "KILL"
@@ -217,6 +220,17 @@ struct FSpudPropertyDef
         : PropertyID(SPUDDATA_PROPERTYID_NONE), PrefixID(SPUDDATA_PREFIXID_NONE), DataType(ESST_Unknown){}
 	FSpudPropertyDef(uint32 InPropNameID, uint32 InPrefixID, uint16 InDataType)
 		: PropertyID(InPropNameID), PrefixID(InPrefixID), DataType(InDataType) {}
+};
+
+struct FSpudVersionInfo : public FSpudChunk
+{
+	// Signed for blueprint compat (user version might be set from BP)
+	int32 Version;
+
+
+	virtual const char* GetMagic() const override { return SPUDDATA_VERSIONINFO_MAGIC; }
+	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
 };
 
 
@@ -583,12 +597,14 @@ struct FSpudClassMetadata : public FSpudChunk
 	/// in persistent data per class in this saved data, and whether they match the current class def.
 	FSpudClassDefinitions ClassDefinitions;
 	/// Class Name string -> number index
-	/// Again per-level to allow these to get out of sync with each other
 	FSpudClassNameIndex ClassNameIndex;
 	/// Property Name string -> number index
-	/// Again per-level to allow these to get out of sync with each other
 	FSpudPropertyNameIndex PropertyNameIndex;
 
+	/// The user data model version number when this metadata was generated
+	/// @see USpudSubsystem::SetUserDataModelVersion
+	FSpudVersionInfo UserDataModelVersion;
+	
 	virtual const char* GetMagic() const override { return SPUDDATA_METADATA_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
 	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
