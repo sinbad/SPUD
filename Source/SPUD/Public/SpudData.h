@@ -717,7 +717,10 @@ struct FSpudSaveData : public FSpudChunk
 	FSpudGlobalData GlobalData;
 
 	// Plain map for level data, because we can page this out so don't write it in bulk
-	TMap<FString, FSpudLevelData> LevelDataMap;
+	// Also we want threadsafe shared ptr for data holder so that we can write it in the background without holding the
+	// lock on the entire map while we do so
+	typedef TSharedPtr<FSpudLevelData, ESPMode::ThreadSafe> TLevelDataPtr;
+	TMap<FString, TLevelDataPtr> LevelDataMap;
 	// Mutex for altering the level data map
 	FCriticalSection LevelDataMapMutex;
 
@@ -741,13 +744,13 @@ struct FSpudSaveData : public FSpudChunk
 	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLevels, const FString& LevelPath);
 	
 	/**
-	 * @brief Retrieve data for a single level, loading it if necessary
+	 * @brief Retrieve data for a single level, loading it if necessary. Thread-safe.
 	 * @param LevelName The name of the level
 	 * @param bLoadIfNeeded Load (synchronously) if the level is present but unloaded
 	 * @param LevelPath The parent directory where level chunks can be found as separate files
 	 * @return The level data or null if not available
 	 */
-	virtual FSpudLevelData* GetLevelData(const FString& LevelName, bool bLoadIfNeeded, const FString& LevelPath);
+	virtual TLevelDataPtr GetLevelData(const FString& LevelName, bool bLoadIfNeeded, const FString& LevelPath);
 
 	
 	/**
@@ -755,7 +758,7 @@ struct FSpudSaveData : public FSpudChunk
 	 * @param LevelName The name of the level
 	 * @return Pointer to the new level data
 	 */
-	virtual FSpudLevelData* CreateLevelData(const FString& LevelName);
+	virtual TLevelDataPtr CreateLevelData(const FString& LevelName);
 
 
 	/**

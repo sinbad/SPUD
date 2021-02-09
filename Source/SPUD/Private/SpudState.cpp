@@ -38,7 +38,7 @@ void USpudState::StoreLevel(ULevel* Level, bool bRelease, bool bBlocking)
 	const FString LevelName = GetLevelName(Level);
 	auto LevelData = GetLevelData(LevelName, true);
 
-	if (LevelData)
+	if (LevelData.IsValid())
 	{
 		// Mutex lock the level (load and unload events on streaming can be in loading threads)
 		FScopeLock LevelLock(&LevelData->Mutex);
@@ -176,11 +176,11 @@ FString USpudState::GetLevelNameForObject(const UObject* Obj)
 	}	
 }
 
-FSpudLevelData* USpudState::GetLevelData(const FString& LevelName, bool AutoCreate)
+FSpudSaveData::TLevelDataPtr USpudState::GetLevelData(const FString& LevelName, bool AutoCreate)
 {
 	auto Ret = SaveData.GetLevelData(LevelName, true, GetActiveGameLevelFolder());
 	
-	if (!Ret && AutoCreate)
+	if (!Ret.IsValid() && AutoCreate)
 	{
 		Ret = SaveData.CreateLevelData(LevelName);
 	}
@@ -194,7 +194,7 @@ void USpudState::ReleaseLevelData(const FString& LevelName, bool bBlocking)
 	SaveData.WriteAndReleaseLevelData(LevelName, GetActiveGameLevelFolder(), bBlocking);
 }
 
-FSpudNamedObjectData* USpudState::GetLevelActorData(const AActor* Actor, FSpudLevelData* LevelData, bool AutoCreate)
+FSpudNamedObjectData* USpudState::GetLevelActorData(const AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData, bool AutoCreate)
 {
 	// FNames are constant within a level
 	const auto Name = SpudPropertyUtil::GetLevelActorName(Actor);
@@ -216,7 +216,7 @@ FString USpudState::GetClassName(const UObject* Obj)
 	return Obj->GetClass()->GetPathName();
 }
 
-FSpudSpawnedActorData* USpudState::GetSpawnedActorData(AActor* Actor, FSpudLevelData* LevelData, bool AutoCreate)
+FSpudSpawnedActorData* USpudState::GetSpawnedActorData(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData, bool AutoCreate)
 {
 	// For automatically spawned singleton objects such as GameModes, Pawns you should create a SpudGuid
 	// property which you generate statically (not at construction), e.g. in the BP default value.
@@ -262,7 +262,7 @@ void USpudState::StoreActor(AActor* Obj)
 
 	const FString LevelName = GetLevelNameForObject(Obj);
 
-	FSpudLevelData* LevelData = GetLevelData(LevelName, true);
+	auto LevelData = GetLevelData(LevelName, true);
 	StoreActor(Obj, LevelData);
 		
 }
@@ -271,7 +271,7 @@ void USpudState::StoreLevelActorDestroyed(AActor* Actor)
 {
 	const FString LevelName = GetLevelNameForObject(Actor);
 
-	FSpudLevelData* LevelData = GetLevelData(LevelName, true);
+	auto LevelData = GetLevelData(LevelName, true);
 	StoreLevelActorDestroyed(Actor, LevelData);
 }
 
@@ -359,9 +359,9 @@ void USpudState::RestoreLevel(ULevel* Level)
 		return;
 	
 	FString LevelName = GetLevelName(Level);
-	FSpudLevelData* LevelData = GetLevelData(LevelName, false);
+	auto LevelData = GetLevelData(LevelName, false);
 
-	if (!LevelData)
+	if (!LevelData.IsValid())
 	{
 		UE_LOG(LogSpudState, Warning, TEXT("Skipping restore level %s, no data (this may be fine)"), *LevelName);
 		return;
@@ -416,8 +416,8 @@ void USpudState::RestoreActor(AActor* Actor)
 
 	const FString LevelName = GetLevelNameForObject(Actor);
 
-	FSpudLevelData* LevelData = GetLevelData(LevelName, false);
-	if (!LevelData)
+	auto LevelData = GetLevelData(LevelName, false);
+	if (!LevelData.IsValid())
 	{
 		UE_LOG(LogSpudState, Error, TEXT("Unable to restore Actor %s, missing level data"), *Actor->GetName());
 		return;
@@ -506,7 +506,7 @@ bool USpudState::ShouldActorBeRespawnedOnRestore(AActor* Actor) const
 }
 
 
-void USpudState::RestoreActor(AActor* Actor, FSpudLevelData* LevelData, const TMap<FGuid, UObject*>* RuntimeObjects)
+void USpudState::RestoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData, const TMap<FGuid, UObject*>* RuntimeObjects)
 {
 	if (Actor->HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject|RF_BeginDestroyed))
 		return;
@@ -813,7 +813,7 @@ void USpudState::RestoreGlobalObject(UObject* Obj, const FSpudNamedObjectData* D
 	}
 	
 }
-void USpudState::StoreActor(AActor* Actor, FSpudLevelData* LevelData)
+void USpudState::StoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData)
 {
 	if (Actor->HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject|RF_BeginDestroyed))
 		return;
@@ -907,7 +907,7 @@ void USpudState::StoreActor(AActor* Actor, FSpudLevelData* LevelData)
 }
 
 
-void USpudState::StoreLevelActorDestroyed(AActor* Actor, FSpudLevelData* LevelData)
+void USpudState::StoreLevelActorDestroyed(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData)
 {
 	// We don't check for duplicates, because it should only be possible to destroy a uniquely named level actor once
 	LevelData->DestroyedActors.Add(SpudPropertyUtil::GetLevelActorName(Actor));
@@ -940,7 +940,7 @@ bool USpudState::IsLevelDataLoaded(const FString& LevelName)
 {
 	auto Lvldata = SaveData.GetLevelData(LevelName, false, GetActiveGameLevelFolder());
 
-	if (!Lvldata)
+	if (!Lvldata.IsValid())
 		return false;
 
 	return Lvldata->IsLoaded();

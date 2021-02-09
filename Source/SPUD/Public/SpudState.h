@@ -84,16 +84,16 @@ protected:
 		virtual uint32 GetNestedPrefix(FStructProperty* SProp, uint32 CurrentPrefixID) override;
 	};
 
-	FSpudLevelData* GetLevelData(const FString& LevelName, bool AutoCreate);
-	FSpudNamedObjectData* GetLevelActorData(const AActor* Actor, FSpudLevelData* LevelData, bool AutoCreate);
+	FSpudSaveData::TLevelDataPtr GetLevelData(const FString& LevelName, bool AutoCreate);
+	FSpudNamedObjectData* GetLevelActorData(const AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData, bool AutoCreate);
 	static FString GetClassName(const UObject* Obj);
-	FSpudSpawnedActorData* GetSpawnedActorData(AActor* Actor, FSpudLevelData* LevelData, bool AutoCreate);
+	FSpudSpawnedActorData* GetSpawnedActorData(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData, bool AutoCreate);
 	FSpudNamedObjectData* GetGlobalObjectData(const UObject* Obj, bool AutoCreate);
 	FSpudNamedObjectData* GetGlobalObjectData(const FString& ID, bool AutoCreate);
 
 	bool ShouldActorBeRespawnedOnRestore(AActor* Actor) const;
-	void StoreActor(AActor* Actor, FSpudLevelData* LevelData);
-	void StoreLevelActorDestroyed(AActor* Actor, FSpudLevelData* LevelData);
+	void StoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData);
+	void StoreLevelActorDestroyed(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData);
 	void StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data);
 
 	// Actually restores the world, on the assumption that it's already loaded into the correct map
@@ -103,7 +103,7 @@ protected:
 	bool ShouldRespawnRuntimeActor(const AActor* Actor) const;
 	void PreRestoreObject(UObject* Obj);
 	void PostRestoreObject(UObject* Obj, const FSpudCustomData& FromCustomData);
-	void RestoreActor(AActor* Actor, FSpudLevelData* LevelData, const TMap<FGuid, UObject*>* RuntimeObjects);
+	void RestoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData, const TMap<FGuid, UObject*>* RuntimeObjects);
 	void RestoreGlobalObject(UObject* Obj, const FSpudNamedObjectData* Data);
 	AActor* RespawnActor(const FSpudSpawnedActorData& SpawnedActor, const FSpudClassMetadata& Meta, ULevel* Level);
 	void DestroyActor(const FSpudDestroyedLevelActor& DestroyedActor, ULevel* Level);

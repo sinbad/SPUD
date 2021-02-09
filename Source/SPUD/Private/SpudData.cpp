@@ -686,27 +686,28 @@ void FSpudSaveData::WriteToArchive(FSpudChunkedDataArchive& Ar, const FString& L
 		FSpudAdhocWrapperChunk LevelDataMapChunk(SPUDDATA_LEVELDATAMAP_MAGIC);
 		if (LevelDataMapChunk.ChunkStart(Ar))
 		{
+			FScopeLock MapLock(&LevelDataMapMutex);
 			for (auto&& KV : LevelDataMap)
 			{
 				auto& LevelData = KV.Value;
 				// Lock outer so the status check write/copy are all locked together
 				// FCriticalSection is recursive (already locked by same thread is fine)
-				FScopeLock LevelLock(&LevelData.Mutex);
+				FScopeLock LevelLock(&LevelData->Mutex);
 				
 				// For level data that's not loaded, we pipe data directly from the serialized file into
-				switch (LevelData.Status)
+				switch (LevelData->Status)
 				{
 				default:
 				case LDS_BackgroundWriteAndUnload: // while awauting background write, data is still in memory so same as loaded (locked by mutex)
 				case LDS_Loaded:
 					// In memory, just write
-					LevelData.WriteToArchive(Ar);
+					LevelData->WriteToArchive(Ar);
 					break;
 				case LDS_Unloaded:
 					// This level data is not in memory. We want to pipe level data directly from the level file into
 					// the combined archive so it doesn't have to go through memory
 					IFileManager& FileMgr = IFileManager::Get();
-					auto InLevelArchive = TUniquePtr<FArchive>(FileMgr.CreateFileReader(*GetLevelDataPath(LevelPath, LevelData.Name)));
+					auto InLevelArchive = TUniquePtr<FArchive>(FileMgr.CreateFileReader(*GetLevelDataPath(LevelPath, LevelData->Name)));
 
 					SpudCopyArchiveData(*InLevelArchive.Get(), Ar, InLevelArchive->TotalSize());
 					InLevelArchive->Close();
@@ -759,8 +760,10 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLe
 				FSpudAdhocWrapperChunk LevelDataMapChunk(SPUDDATA_LEVELDATAMAP_MAGIC);
 				if (LevelDataMapChunk.ChunkStart(Ar))
 				{
-					FScopeLock MapMutex(&LevelDataMapMutex);					
-					LevelDataMap.Empty();
+					{
+						FScopeLock MapMutex(&LevelDataMapMutex);					
+						LevelDataMap.Empty();
+					}
 
 					// Detect chunks & only load compatible
 					const uint32 LevelMagicID = FSpudChunkHeader::EncodeMagic(SPUDDATA_LEVELDATA_MAGIC);
@@ -770,9 +773,12 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLe
 						{
 							if (bLoadAllLevels)
 							{
-								FSpudLevelData LvlData;
-								LvlData.ReadFromArchive(Ar);
-								LevelDataMap.Add(LvlData.Key(), LvlData);						
+								TLevelDataPtr LvlData(new FSpudLevelData());
+								LvlData->ReadFromArchive(Ar);
+								{
+									FScopeLock MapMutex(&LevelDataMapMutex);					
+									LevelDataMap.Add(LvlData->Key(), LvlData);
+								}
 							}
 							else
 							{
@@ -789,11 +795,13 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLe
 									SpudCopyArchiveData(Ar, *OutLevelArchive.Get(), TotalSize);
 									OutLevelArchive->Close();
 									
-                                    FSpudLevelData LvlData;
-									LvlData.Name = LevelName;
-									LvlData.Name = LevelName;
-									LvlData.Status = LDS_Unloaded;
-									LevelDataMap.Add(LvlData.Key(), LvlData);
+                                    TLevelDataPtr LvlData(new FSpudLevelData());
+									LvlData->Name = LevelName;
+									LvlData->Status = LDS_Unloaded;
+									{
+										FScopeLock MapMutex(&LevelDataMapMutex);					
+										LevelDataMap.Add(LvlData->Key(), LvlData);
+									}
 								}
 							}
 						}
@@ -824,17 +832,24 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 void FSpudSaveData::Reset()
 {
 	GlobalData.Reset();
-	FScopeLock MapMutex(&LevelDataMapMutex);
-	LevelDataMap.Empty();
+	{
+		FScopeLock MapMutex(&LevelDataMapMutex);
+		LevelDataMap.Empty();
+	}
 }
 
-FSpudLevelData* FSpudSaveData::CreateLevelData(const FString& LevelName)
+FSpudSaveData::TLevelDataPtr FSpudSaveData::CreateLevelData(const FString& LevelName)
 {
-	FScopeLock MapMutex(&LevelDataMapMutex);
-	auto Ret = &LevelDataMap.Add(LevelName);
-	Ret->Name = LevelName;
-	Ret->Status = LDS_Loaded; // assume loaded if we're creating
-	return Ret;
+	TLevelDataPtr NewLevelData(new FSpudLevelData());
+	NewLevelData->Name = LevelName;
+	NewLevelData->Status = LDS_Loaded; // assume loaded if we're creating
+
+	{
+		FScopeLock MapMutex(&LevelDataMapMutex);
+		LevelDataMap.Add(LevelName, NewLevelData);
+	}
+	
+	return NewLevelData;
 }
 
 void FSpudSaveData::DeleteAllLevelDataFiles(const FString& LevelPath)
@@ -907,11 +922,18 @@ bool FSpudSaveData::ReadSaveInfoFromArchive(FSpudChunkedDataArchive& Ar, FSpudSa
 }
 
 
-FSpudLevelData* FSpudSaveData::GetLevelData(const FString& LevelName, bool bLoadIfNeeded, const FString& LevelPath)
+FSpudSaveData::TLevelDataPtr FSpudSaveData::GetLevelData(const FString& LevelName, bool bLoadIfNeeded, const FString& LevelPath)
 {
-	FScopeLock MapMutex(&LevelDataMapMutex);
-	auto Ret = LevelDataMap.Find(LevelName);
-	if (Ret && bLoadIfNeeded)
+	TLevelDataPtr Ret;
+	{
+		// Only lock the map while looking up
+		// We get a shared pointer back (threadsafe) and lock its own mutex before changing the instance state
+		FScopeLock MapMutex(&LevelDataMapMutex);
+		const auto Found = LevelDataMap.Find(LevelName);
+		if (Found)
+			Ret = *Found;
+	}
+	if (Ret.IsValid() && bLoadIfNeeded)
 	{
 		FScopeLock LevelLock(&Ret->Mutex);
 		switch (Ret->Status)
@@ -958,9 +980,8 @@ FSpudLevelData* FSpudSaveData::GetLevelData(const FString& LevelName, bool bLoad
 
 bool FSpudSaveData::WriteAndReleaseLevelData(const FString& LevelName, const FString& LevelPath, bool bBlocking)
 {
-	FScopeLock MapMutex(&LevelDataMapMutex);
-	auto LevelData = LevelDataMap.Find(LevelName);
-	if (LevelData)
+	auto LevelData = GetLevelData(LevelName, false, "");
+	if (LevelData.IsValid())
 	{
 		FScopeLock LevelLock(&LevelData->Mutex);
 		if (LevelData->Status == LDS_Loaded ||
@@ -994,9 +1015,8 @@ bool FSpudSaveData::WriteAndReleaseLevelData(const FString& LevelName, const FSt
 				// Only pass the level name and not the pointer, this is then safe from the list being cleared
 				AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, LevelName, LevelPath]()
                 {
-					FScopeLock LevelMapLock(&LevelDataMapMutex);
-					auto LevelData = LevelDataMap.Find(LevelName);
-                    if (LevelData)
+					auto LevelData = GetLevelData(LevelName, false, "");
+                    if (LevelData.IsValid())
                     {
 	                    // Re-acquire lock and check still unloading
                         FScopeLock LevelLock(&LevelData->Mutex);
@@ -1015,8 +1035,10 @@ bool FSpudSaveData::WriteAndReleaseLevelData(const FString& LevelName, const FSt
 
 void FSpudSaveData::DeleteLevelData(const FString& LevelName, const FString& LevelPath)
 {
-	FScopeLock MapMutex(&LevelDataMapMutex);
-	LevelDataMap.Remove(LevelName);
+	{
+		FScopeLock MapMutex(&LevelDataMapMutex);
+		LevelDataMap.Remove(LevelName);
+	}
 
 	IFileManager& FileMgr = IFileManager::Get();
 	const FString Filename = GetLevelDataPath(LevelPath, LevelName);
