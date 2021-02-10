@@ -711,7 +711,7 @@ void USpudSubsystem::RefreshSaveGameList()
 	IFileManager& FM = IFileManager::Get();
 
 	TArray<FString> SaveFiles;
-	FM.FindFiles(SaveFiles, *GetSaveGameDirectory(), TEXT(".sav"));
+	ListSaveGameFiles(SaveFiles);
 
 	SaveGameList.Empty();
 	for (auto && File : SaveFiles)
@@ -766,6 +766,13 @@ FString USpudSubsystem::GetSaveGameFilePath(const FString& SlotName)
 	return FString::Printf(TEXT("%s%s.sav"), *GetSaveGameDirectory(), *SlotName);
 }
 
+void USpudSubsystem::ListSaveGameFiles(TArray<FString>& OutSaveFileList)
+{
+	IFileManager& FM = IFileManager::Get();
+
+	FM.FindFiles(OutSaveFileList, *GetSaveGameDirectory(), TEXT(".sav"));	
+}
+
 FString USpudSubsystem::GetActiveGameFolder()
 {
 	return FString::Printf(TEXT("%sCurrentGame/"), *FPaths::ProjectSavedDir());
@@ -775,5 +782,101 @@ FString USpudSubsystem::GetActiveGameFilePath(const FString& Name)
 {
 	return FString::Printf(TEXT("%sSaveGames/%s.sav"), *GetActiveGameFolder(), *Name);
 }
+
+
+class FUpgradeAllSavesAction : public FPendingLatentAction
+{
+public:
+	FName ExecutionFunction;
+	int32 OutputLink;
+	FWeakObjectPtr CallbackTarget;
+
+	struct FUpgradeTask : public FNonAbandonableTask
+	{
+		FSpudUpgradeSaveDelegate UpgradeCallback;
+		
+		FUpgradeTask(FSpudUpgradeSaveDelegate InCallback) : UpgradeCallback(InCallback) {}
+		
+		void DoWork()
+		{
+			IFileManager& FileMgr = IFileManager::Get();
+			TArray<FString> SaveFiles;
+			USpudSubsystem::ListSaveGameFiles(SaveFiles);
+
+			for (auto && SaveFile : SaveFiles)
+			{
+				FString AbsoluteFilename = FPaths::Combine(USpudSubsystem::GetSaveGameDirectory(), SaveFile);
+				auto Archive = TUniquePtr<FArchive>(FileMgr.CreateFileReader(*AbsoluteFilename));
+
+				if(Archive)
+				{
+					auto State = NewObject<USpudState>();
+					// Load only global data and page in level data as needed
+					State->LoadFromArchive(*Archive, false);
+					Archive->Close();
+
+					if (Archive->IsError() || Archive->IsCriticalError())
+					{
+						UE_LOG(LogSpudSubsystem, Error, TEXT("Error while loading game to check for upgrades: %s"), *SaveFile);
+						continue;
+					}
+
+					UpgradeCallback.ExecuteIfBound(State);
+
+					// TODO: save again, but should delegate indicate whether this is needed?
+				}
+			}
+
+		}
+
+		FORCEINLINE TStatId GetStatId() const
+		{
+			RETURN_QUICK_DECLARE_CYCLE_STAT(FUpgradeTask, STATGROUP_ThreadPoolAsyncTasks);
+		}
+	
+	};
+
+	FAsyncTask<FUpgradeTask> UpgradeTask;
+
+	FUpgradeAllSavesAction(FSpudUpgradeSaveDelegate InUpgradeCallback, const FLatentActionInfo& LatentInfo)
+        : ExecutionFunction(LatentInfo.ExecutionFunction)
+        , OutputLink(LatentInfo.Linkage)
+        , CallbackTarget(LatentInfo.CallbackTarget)
+        , UpgradeTask(InUpgradeCallback)
+	{
+		// We do the actual upgrade work in a background task, this action is just to monitor when it's done
+		UpgradeTask.StartBackgroundTask();
+	}
+
+	virtual void UpdateOperation(FLatentResponse& Response) override
+	{
+		// This is essentially a game thread tick. Finish the latent action when the background task is done
+		Response.FinishAndTriggerIf(UpgradeTask.IsDone(), ExecutionFunction, OutputLink, CallbackTarget);
+	}
+
+#if WITH_EDITOR
+	virtual FString GetDescription() const override
+	{
+		return "Upgrade All Saves";
+	}
+#endif
+};
+
+
+
+
+void USpudSubsystem::UpgradeAllSaveGames(const UObject* WorldContextObject, FSpudUpgradeSaveDelegate SaveNeedsUpgradingCallback, FLatentActionInfo LatentInfo)
+{
+	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
+	{
+		FLatentActionManager& LatentActionManager = World->GetLatentActionManager();
+		if (LatentActionManager.FindExistingAction<FUpgradeAllSavesAction>(LatentInfo.CallbackTarget, LatentInfo.UUID) == nullptr)
+		{
+			LatentActionManager.AddNewAction(LatentInfo.CallbackTarget, LatentInfo.UUID, new FUpgradeAllSavesAction(SaveNeedsUpgradingCallback, LatentInfo));
+		}
+	}
+}
+
+
 
 PRAGMA_ENABLE_OPTIMIZATION

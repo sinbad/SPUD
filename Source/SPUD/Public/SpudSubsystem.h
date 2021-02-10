@@ -26,6 +26,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPostLoadStreamingLevel, const F
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPreUnloadStreamingLevel, const FName&, LevelName);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPostUnloadStreamingLevel, const FName&, LevelName);
 
+// Callbacks passed to functions
+DECLARE_DYNAMIC_DELEGATE_OneParam(FSpudUpgradeSaveDelegate, class USpudState*, SaveState);
+
 UENUM(BlueprintType)
 enum class ESpudSystemState : uint8
 {
@@ -327,9 +330,24 @@ public:
 	/// Gets the current version number of your game's data model (@see SetUserDataModelVersion for more details)
 	UFUNCTION(BlueprintCallable)
     int32 GetUserDataModelVersion() const;
+
+	/// Triggers the upgrade process for all save games (asynchronously)
+	/// Each save game present will be fully loaded, and for each where the user data model version of any part differs from latest,
+	/// the SaveNeedsUpgrading callback will be triggered (in a background thread). That callback should perform any
+	/// changes it needs to the USpudState. When the callback completes the save will be written back to
+	/// disk.
+	/// Note that at no point will any actors or levels be loaded. All changes made to the save are done manually so
+	/// that next time they need to be applied to real game objects, the state is as you need it to be.
+	/// If for some reason you need to have the actors loaded to perform the upgrade, then you should instead
+	/// implement ISpudObjectCallback on those objects and perform the upgrades there instead (this cannot be done in
+	/// bulk though, only on demand as each object is loaded).
+	UFUNCTION(BlueprintCallable, meta=(Latent, WorldContext="WorldContextObject", LatentInfo = "LatentInfo"), Category="SPUD")
+	static void UpgradeAllSaveGames(const UObject* WorldContextObject, FSpudUpgradeSaveDelegate SaveNeedsUpgradingCallback, FLatentActionInfo LatentInfo);
 	
 	static FString GetSaveGameDirectory();
 	static FString GetSaveGameFilePath(const FString& SlotName);
+	// Lists saves: note that this is only the filenames, not the directory
+	static void ListSaveGameFiles(TArray<FString>& OutSaveFileList);
 	static FString GetActiveGameFolder();
 	static FString GetActiveGameFilePath(const FString& Name);
 	
