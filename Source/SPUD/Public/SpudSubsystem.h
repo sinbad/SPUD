@@ -331,18 +331,27 @@ public:
 	UFUNCTION(BlueprintCallable)
     int32 GetUserDataModelVersion() const;
 
-	/// Triggers the upgrade process for all save games (asynchronously)
-	/// Each save game present will be fully loaded, and for each where the user data model version of any part differs from latest,
-	/// the SaveNeedsUpgrading callback will be triggered (in a background thread). That callback should perform any
-	/// changes it needs to the USpudState. When the callback completes the save will be written back to
-	/// disk.
-	/// Note that at no point will any actors or levels be loaded. All changes made to the save are done manually so
-	/// that next time they need to be applied to real game objects, the state is as you need it to be.
-	/// If for some reason you need to have the actors loaded to perform the upgrade, then you should instead
-	/// implement ISpudObjectCallback on those objects and perform the upgrades there instead (this cannot be done in
-	/// bulk though, only on demand as each object is loaded).
+	/**
+	 * @brief Triggers the upgrade process for all save games (asynchronously)
+	 * @details Each save game present will be fully loaded, and for each where the user data model version of any part differs from latest,
+     * the SaveNeedsUpgrading callback will be triggered (in a background thread). That callback should perform any
+     * changes it needs to the USpudState. When the callback completes the save will be written back to
+     * disk if the callback returned true.
+     * Note that at no point will any actors or levels be loaded. All changes made to the save are done manually so
+     * that next time they need to be applied to real game objects, the state is as you need it to be.
+     * If for some reason you need to have the actors loaded to perform the upgrade, then you should instead
+     * implement ISpudObjectCallback on those objects and perform the upgrades there instead (this cannot be done in
+     * bulk though, only on demand as each object is loaded).
+	 * @param WorldContextObject World context object
+	 * @param bUpgradeEvenIfNoUserDataModelVersionDifferences The default behaviour is to only upgrade save games where
+	 * the UserDataModelVersion in the save differs from the current user model version. You can therefore control which
+	 * saves need manual upgrading by incrementing SetUserDataModelVersion when you have a breaking change. Set this
+	 * argument to true to process all saves instead.
+	 * @param SaveNeedsUpgradingCallback The delegate which will be called for each save which needs upgrading 
+	 * @param LatentInfo Completion callback
+	 */
 	UFUNCTION(BlueprintCallable, meta=(Latent, WorldContext="WorldContextObject", LatentInfo = "LatentInfo"), Category="SPUD")
-	static void UpgradeAllSaveGames(const UObject* WorldContextObject, FSpudUpgradeSaveDelegate SaveNeedsUpgradingCallback, FLatentActionInfo LatentInfo);
+	static void UpgradeAllSaveGames(const UObject* WorldContextObject, bool bUpgradeEvenIfNoUserDataModelVersionDifferences, FSpudUpgradeSaveDelegate SaveNeedsUpgradingCallback, FLatentActionInfo LatentInfo);
 	
 	static FString GetSaveGameDirectory();
 	static FString GetSaveGameFilePath(const FString& SlotName);

@@ -637,6 +637,8 @@ struct SPUD_API FSpudClassMetadata : public FSpudChunk
 	
 	bool RenameClass(const FString& OldClassName, const FString& NewClassName);
 	bool RenameProperty(const FString& ClassName, const FString& OldName, const FString& NewName, const FString& OldPrefix = "", const FString& NewPrefix = "");
+	
+	bool IsUserDataModelOutdated() const { return UserDataModelVersion.Version != GCurrentUserDataModelVersion; }
 };
 
 enum SPUD_API ELevelDataStatus
@@ -660,6 +662,8 @@ struct SPUD_API FSpudGlobalData : public FSpudChunk
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
 	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
 	void Reset();
+	
+	bool IsUserDataModelOutdated() const { return Metadata.IsUserDataModelOutdated(); }
 };
 
 struct SPUD_API FSpudLevelData : public FSpudChunk
@@ -720,6 +724,8 @@ struct SPUD_API FSpudLevelData : public FSpudChunk
 	static bool ReadLevelInfoFromArchive(FSpudChunkedDataArchive& Ar, bool bReturnToStart, FString& OutLevelName, int64& OutDataSize);
 
 	void Reset();
+
+	bool IsUserDataModelOutdated() const { return Metadata.IsUserDataModelOutdated(); }
 };
 
 /// Description of the save game, so we can just read this chunk to get info about it

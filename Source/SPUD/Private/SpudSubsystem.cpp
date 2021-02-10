@@ -796,12 +796,30 @@ public:
 
 	struct FUpgradeTask : public FNonAbandonableTask
 	{
+		bool bUpgradeAlways;
 		FSpudUpgradeSaveDelegate UpgradeCallback;
 		
-		FUpgradeTask(FSpudUpgradeSaveDelegate InCallback) : UpgradeCallback(InCallback) {}
-		
+		FUpgradeTask(bool InUpgradeAlways, FSpudUpgradeSaveDelegate InCallback) : bUpgradeAlways(InUpgradeAlways), UpgradeCallback(InCallback) {}
+
+		bool SaveNeedsUpgrading(const USpudState* State)
+		{
+			if (State->SaveData.GlobalData.IsUserDataModelOutdated())
+				return true;
+
+			for (auto& Pair : State->SaveData.LevelDataMap)
+			{
+				if (Pair.Value->IsUserDataModelOutdated())
+					return true;				
+			}
+
+			return false;
+		}
+
 		void DoWork()
 		{
+			if (!UpgradeCallback.IsBound())
+				return;
+			
 			IFileManager& FileMgr = IFileManager::Get();
 			TArray<FString> SaveFiles;
 			USpudSubsystem::ListSaveGameFiles(SaveFiles);
@@ -824,7 +842,7 @@ public:
 						continue;
 					}
 
-					if (UpgradeCallback.IsBound())
+					if (bUpgradeAlways || SaveNeedsUpgrading(State))
 					{
 						if (UpgradeCallback.Execute(State))
 						{
@@ -853,11 +871,11 @@ public:
 
 	FAsyncTask<FUpgradeTask> UpgradeTask;
 
-	FUpgradeAllSavesAction(FSpudUpgradeSaveDelegate InUpgradeCallback, const FLatentActionInfo& LatentInfo)
+	FUpgradeAllSavesAction(bool UpgradeAlways, FSpudUpgradeSaveDelegate InUpgradeCallback, const FLatentActionInfo& LatentInfo)
         : ExecutionFunction(LatentInfo.ExecutionFunction)
         , OutputLink(LatentInfo.Linkage)
         , CallbackTarget(LatentInfo.CallbackTarget)
-        , UpgradeTask(InUpgradeCallback)
+        , UpgradeTask(UpgradeAlways, InUpgradeCallback)
 	{
 		// We do the actual upgrade work in a background task, this action is just to monitor when it's done
 		UpgradeTask.StartBackgroundTask();
@@ -878,16 +896,19 @@ public:
 };
 
 
-
-
-void USpudSubsystem::UpgradeAllSaveGames(const UObject* WorldContextObject, FSpudUpgradeSaveDelegate SaveNeedsUpgradingCallback, FLatentActionInfo LatentInfo)
+void USpudSubsystem::UpgradeAllSaveGames(const UObject* WorldContextObject,
+                                         bool bUpgradeEvenIfNoUserDataModelVersionDifferences,
+                                         FSpudUpgradeSaveDelegate SaveNeedsUpgradingCallback,
+                                         FLatentActionInfo LatentInfo)
 {
 	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
 	{
 		FLatentActionManager& LatentActionManager = World->GetLatentActionManager();
 		if (LatentActionManager.FindExistingAction<FUpgradeAllSavesAction>(LatentInfo.CallbackTarget, LatentInfo.UUID) == nullptr)
 		{
-			LatentActionManager.AddNewAction(LatentInfo.CallbackTarget, LatentInfo.UUID, new FUpgradeAllSavesAction(SaveNeedsUpgradingCallback, LatentInfo));
+			LatentActionManager.AddNewAction(LatentInfo.CallbackTarget, LatentInfo.UUID,
+			                                 new FUpgradeAllSavesAction(bUpgradeEvenIfNoUserDataModelVersionDifferences,
+			                                                            SaveNeedsUpgradingCallback, LatentInfo));
 		}
 	}
 }
