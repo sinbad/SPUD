@@ -34,8 +34,8 @@ extern int32 GCurrentUserDataModelVersion;
 #define SPUDDATA_PROPERTYID_NONE 0xFFFFFFFF
 #define SPUDDATA_PREFIXID_NONE 0xFFFFFFFF
 
-// None of the structs in this file are exposed to Blueprints, they're all internal.
-// Blueprints and external code should just use the API on USpudSubsystem
+// None of the structs in this file are exposed to Blueprints. They are theoretically available to external code
+// via C++ but honestly external code should just use the API on USpudSubsystem, or USpudState at a push (save upgrading)
 
 // Serialized data format is binary chunk-based, inspired by IFF (like lots of things!)
 // For efficiency not everything is a separate chunk, the idea is that if anything breaking changes within a chunk
@@ -59,7 +59,7 @@ extern int32 GCurrentUserDataModelVersion;
 
 #define SPUDDATA_GUID_KEY_FORMAT EGuidFormats::DigitsWithHyphens
 
-enum ESpudStorageType // (stored as uint16 but not using enum class to make bitwise ops easier)
+enum SPUD_API ESpudStorageType // (stored as uint16 but not using enum class to make bitwise ops easier)
 {
 	// All of these are serilized as per their underlying types
 	ESST_UInt8 = 0,
@@ -96,7 +96,7 @@ enum ESpudStorageType // (stored as uint16 but not using enum class to make bitw
 };
 
 /// Common header for all data types
-struct FSpudChunkHeader
+struct SPUD_API FSpudChunkHeader
 {
 
 	uint32 Magic; // Identifier
@@ -155,7 +155,7 @@ struct FSpudChunkHeader
 	}
 };
 
-struct FSpudChunkedDataArchive : public FArchiveProxy
+struct SPUD_API FSpudChunkedDataArchive : public FArchiveProxy
 {
 	FSpudChunkedDataArchive(FArchive& InInnerArchive)
         : FArchiveProxy(InInnerArchive)
@@ -171,10 +171,8 @@ struct FSpudChunkedDataArchive : public FArchiveProxy
 	void SkipNextChunk();
 };
 
-
-struct FSpudChunk
+struct SPUD_API FSpudChunk
 {
-
 	FSpudChunkHeader ChunkHeader;
 	int64 ChunkHeaderStart;
 	int64 ChunkDataStart;
@@ -192,7 +190,7 @@ struct FSpudChunk
 };
 
 // An ad-hoc chunk used to wrap other chunks. 
-struct FSpudAdhocWrapperChunk : public FSpudChunk
+struct SPUD_API FSpudAdhocWrapperChunk : public FSpudChunk
 {
 	const char* Magic;
 	
@@ -207,7 +205,7 @@ struct FSpudAdhocWrapperChunk : public FSpudChunk
 /// We store a list of these for each known leaf class
 /// Each instance will store related offsets within its data buffer (those can be variable because
 /// of variable-size properties, like strings and arrays)
-struct FSpudPropertyDef
+struct SPUD_API FSpudPropertyDef
 {
 	/// ID referencing the name of the property in the name index. Only the last part of the name
 	uint32 PropertyID;
@@ -222,7 +220,7 @@ struct FSpudPropertyDef
 		: PropertyID(InPropNameID), PrefixID(InPrefixID), DataType(InDataType) {}
 };
 
-struct FSpudVersionInfo : public FSpudChunk
+struct SPUD_API FSpudVersionInfo : public FSpudChunk
 {
 	// Signed for blueprint compat (user version might be set from BP)
 	int32 Version;
@@ -235,7 +233,7 @@ struct FSpudVersionInfo : public FSpudChunk
 
 
 /// Definition of a class, to share property definitions
-struct FSpudClassDef : public FSpudChunk
+struct SPUD_API FSpudClassDef : public FSpudChunk
 {
 	FString ClassName;
 	
@@ -258,6 +256,7 @@ struct FSpudClassDef : public FSpudChunk
 	int FindPropertyIndex(uint32 PropNameID, uint32 PrefixID);
 	/// Find a property index or add it if missing. IDs are from PropertyNameIndex
 	int FindOrAddPropertyIndex(uint32 PropNameID, uint32 PrefixID, uint16 DataType);
+	bool RenameProperty(uint32 OldPropID, uint32 OldPrefixID, uint32 NewPropID, uint32 NewPrefixID);
 
 	/// Whether this Class definition matches the current runtime class properties exactly
 	/// I.e. iterating properties on current objects leads to the same sequence as Properties array in this class
@@ -278,7 +277,7 @@ struct FSpudClassDef : public FSpudChunk
 
 /// A chunk which just holds an array of bytes
 /// This is mostly for property data and core/custom data (which can be anything)
-struct FSpudDataHolder : public FSpudChunk
+struct SPUD_API FSpudDataHolder : public FSpudChunk
 {
 	TArray<uint8> Data;
 
@@ -289,7 +288,7 @@ struct FSpudDataHolder : public FSpudChunk
 
 };
 /// Holder for property data that we automatically populate
-struct FSpudPropertyData : public FSpudDataHolder
+struct SPUD_API FSpudPropertyData : public FSpudDataHolder
 {
 	/// List of byte offsets into the data buffer where each property can be found
 	/// Properties are ordered as per the relevant FSpudClassDef
@@ -305,18 +304,18 @@ struct FSpudPropertyData : public FSpudDataHolder
 
 };
 /// Holder for actor core data; not properties e.g. transform
-struct FSpudCoreActorData : public FSpudDataHolder
+struct SPUD_API FSpudCoreActorData : public FSpudDataHolder
 {
 	virtual const char* GetMagic() const override { return SPUDDATA_COREACTORDATA_MAGIC; }
 };
 /// Holder for any custom data you want to store on top of SaveGame properties
-struct FSpudCustomData : public FSpudDataHolder
+struct SPUD_API FSpudCustomData : public FSpudDataHolder
 {
 	virtual const char* GetMagic() const override { return SPUDDATA_CUSTOMDATA_MAGIC; }
 };
 
 // Abstract general def of object data
-struct FSpudObjectData : public FSpudChunk
+struct SPUD_API FSpudObjectData : public FSpudChunk
 {
 	// Properties derived from core data like transform rather than UE properties. Chunk copied from stream
 	FSpudCoreActorData CoreData;
@@ -329,7 +328,7 @@ struct FSpudObjectData : public FSpudChunk
 
 /// Objects which can be identified just by a name
 /// Includes actors in a level, global objects
-struct FSpudNamedObjectData : public FSpudObjectData
+struct SPUD_API FSpudNamedObjectData : public FSpudObjectData
 {
 	FString Name;
 
@@ -342,7 +341,7 @@ struct FSpudNamedObjectData : public FSpudObjectData
 };
 
 /// An actor which was spawned at runtime, not present in a level
-struct FSpudSpawnedActorData : public FSpudObjectData
+struct SPUD_API FSpudSpawnedActorData : public FSpudObjectData
 {
 	uint32 ClassID; // ID for the ClassName (see FSpudClassNameIndex) 
 	FGuid Guid;
@@ -356,7 +355,7 @@ struct FSpudSpawnedActorData : public FSpudObjectData
 };
 
 
-struct FSpudDestroyedLevelActor : public FSpudChunk
+struct SPUD_API FSpudDestroyedLevelActor : public FSpudChunk
 {
 	FString Name;
 
@@ -539,6 +538,18 @@ struct FSpudIndex : public FSpudChunk
 		return NewIndex;
 	}
 
+	uint32 Rename(const T& Old, const T& New)
+	{
+		uint32 Index;
+		if (Lookup.RemoveAndCopyValue(Old, Index))
+		{
+			Lookup.Add(New, Index);
+			return Index;
+		}
+
+		return SPUDDATA_INDEX_NONE;
+	}
+
 	const T& GetValue(uint32 Index) const
 	{
 		check(Index < static_cast<uint32>(UniqueValues.Num()));
@@ -591,14 +602,14 @@ struct FSpudPropertyNameIndex : public FSpudIndex<FString>
 	virtual const char* GetMagic() const override { return SPUDDATA_PROPERTYNAMEINDEX_MAGIC; }
 };
 
-struct FSpudClassMetadata : public FSpudChunk
+struct SPUD_API FSpudClassMetadata : public FSpudChunk
 {
 	/// Description of classes. This allows us to quickly find out what properties are available
 	/// in persistent data per class in this saved data, and whether they match the current class def.
 	FSpudClassDefinitions ClassDefinitions;
 	/// Class Name string -> number index
 	FSpudClassNameIndex ClassNameIndex;
-	/// Property Name string -> number index
+	/// Property Name string -> number index (also used for prefixes, but prefix and property name are separate to help name re-use)
 	FSpudPropertyNameIndex PropertyNameIndex;
 
 	/// The user data model version number when this metadata was generated
@@ -616,21 +627,28 @@ struct FSpudClassMetadata : public FSpudChunk
 	uint32 FindOrAddPropertyIDFromName(const FString& Name);
 	uint32 GetPropertyIDFromName(const FString& Name) const;
 	uint32 FindOrAddPropertyIDFromProperty(const FProperty* Prop);
+	uint32 FindOrAddPrefixID(const FString& Prefix);
+	uint32 GetPrefixID(const FString& Prefix);
 	const FString& GetClassNameFromID(uint32 ID) const;
 	uint32 FindOrAddClassIDFromName(const FString& Name);
 	uint32 GetClassIDFromName(const FString& Name) const;
 	void Reset();
+
+	
+	bool RenameClass(const FString& OldClassName, const FString& NewClassName);
+	bool RenameProperty(const FString& ClassName, const FString& OldName, const FString& NewName, const FString& OldPrefix = "", const FString& NewPrefix = "");
 };
 
-enum ELevelDataStatus
+enum SPUD_API ELevelDataStatus
 {
 	LDS_Unloaded,
 	LDS_BackgroundWriteAndUnload,
 	LDS_Loaded
 };
 
-struct FSpudGlobalData : public FSpudChunk
+struct SPUD_API FSpudGlobalData : public FSpudChunk
 {
+
 	/// The map name of the level the player was currently on, so we can load back to that point
 	FString CurrentLevel;
 	/// Class definitions etc for all objects in this global data set
@@ -644,7 +662,7 @@ struct FSpudGlobalData : public FSpudChunk
 	void Reset();
 };
 
-struct FSpudLevelData : public FSpudChunk
+struct SPUD_API FSpudLevelData : public FSpudChunk
 {
 	/// Level Name
 	FString Name;
@@ -707,8 +725,9 @@ struct FSpudLevelData : public FSpudChunk
 /// Description of the save game, so we can just read this chunk to get info about it
 /// This is better than having a separate metadata file describing the save in order to get description, date/time etc
 /// because it means saves can just be copied as single standalone files
-struct FSpudSaveInfo : public FSpudChunk
+struct SPUD_API FSpudSaveInfo : public FSpudChunk
 {
+	
 	/// The SYSTEM version this save file belongs to. This number will only change when breaking changes are made to the
 	/// SPUD system itself which need to be reflected at the top level. Most changes will be contained in extra chunks
 	/// to avoid this and SPUD is responsible for upgrading saves when this changes.
@@ -727,8 +746,9 @@ struct FSpudSaveInfo : public FSpudChunk
 };
 
 /// The top-level structure for the entire save file
-struct FSpudSaveData : public FSpudChunk
+struct SPUD_API FSpudSaveData : public FSpudChunk
 {
+
 	FSpudSaveInfo Info;
 	FSpudGlobalData GlobalData;
 
@@ -741,7 +761,7 @@ struct FSpudSaveData : public FSpudChunk
 	FCriticalSection LevelDataMapMutex;
 
 	virtual const char* GetMagic() const override { return SPUDDATA_SAVEGAME_MAGIC; }
-	void PrepareForWrite(const FText& Title);
+	void PrepareForWrite();
 	/// Write the entire in-memory contents to a singe archive, assumes all data is in memory
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
 	/// Write contents to archive, with the option of loading back in level data that's been released (doesn't all have to be in memory)

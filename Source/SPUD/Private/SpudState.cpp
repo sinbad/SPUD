@@ -979,4 +979,47 @@ void USpudState::RemoveAllActiveGameLevelFiles()
 }
 
 
+bool USpudState::RenameClass(const FString& OldClassName, const FString& NewClassName)
+{
+	// We only have to fix the metadata. All instances refer to the class by ID, so we just rename the
+	// class in-place. In practice this doesn't *really* matter except for spawned objects, which need
+	// to have the correct class name. Everything else doesn't really, the class ID is just used to find
+	// the property def in the save file which will still work even if the runtime class isn't called that any more
+	bool Changed = SaveData.GlobalData.Metadata.RenameClass(OldClassName, NewClassName);
+	for (auto && Pair : SaveData.LevelDataMap)
+	{
+		Changed = Pair.Value->Metadata.RenameClass(OldClassName, NewClassName) || Changed;
+	}
+	return Changed;
+}
+
+bool USpudState::RenameProperty(const FString& ClassName, const FString& OldPropertyName,
+                                const FString& NewPropertyName, const FString& OldPrefix, const FString& NewPrefix)
+{
+	// It's a little more complex than renaming a class because property names can be shared
+	// between classes (so "Status" property on ClassA has the same ID as "Status" property on ClassB), so you can't
+	// just replace in situ. For safety we'll always leave the existing property entry where it is, create or re-use
+	// another property name entry.
+	// But still only affects metadata; instances just have a list of data offsets corresponding with the class def,
+	// which is what looks after the naming
+	bool Changed = SaveData.GlobalData.Metadata.RenameProperty(ClassName, OldPropertyName, NewPropertyName, OldPrefix, NewPrefix);
+	for (auto && Pair : SaveData.LevelDataMap)
+	{
+		Changed = Pair.Value->Metadata.RenameProperty(ClassName, OldPropertyName, NewPropertyName, OldPrefix, NewPrefix) || Changed;
+	}
+	return Changed;
+}
+
+bool USpudState::RenameGlobalObject(const FString& OldName, const FString& NewName)
+{
+	// TODO
+	return false;
+}
+
+bool USpudState::RenameLevelObject(const FString& LevelName, const FString& OldName, const FString& NewName)
+{
+	// TODO
+	return false;
+}
+
 PRAGMA_ENABLE_OPTIMIZATION

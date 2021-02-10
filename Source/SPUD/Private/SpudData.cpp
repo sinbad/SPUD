@@ -236,6 +236,29 @@ int FSpudClassDef::FindOrAddPropertyIndex(uint32 PropNameID, uint32 PrefixID, ui
 	return AddProperty(PropNameID, PrefixID, DataType);
 }
 
+bool FSpudClassDef::RenameProperty(uint32 OldPropID, uint32 OldPrefixID, uint32 NewPropID, uint32 NewPrefixID)
+{
+	const int Index = FindPropertyIndex(OldPropID, OldPrefixID);
+	if (Index >= 0)
+	{
+		auto& Propdef = Properties[Index];
+		Propdef.PrefixID = NewPrefixID;
+		Propdef.PropertyID = NewPropID;
+
+		// We can't just rename the outer lookup because it may just be one of many properties that have moved
+		auto& OldInnerMap = PropertyLookup.FindChecked(OldPrefixID);
+		OldInnerMap.Remove(OldPropID);
+
+		auto& NewInnerMap = PropertyLookup.FindOrAdd(NewPrefixID);
+		NewInnerMap.Add(NewPropID, Index);
+
+		return true;
+		
+	}
+
+	return false;
+}
+
 bool FSpudClassDef::MatchesRuntimeClass(const FSpudClassMetadata& Meta) const
 {
 	if (RuntimeMatchState == NotChecked)
@@ -466,6 +489,24 @@ uint32 FSpudClassMetadata::FindOrAddPropertyIDFromProperty(const FProperty* Prop
 {
 	return FindOrAddPropertyIDFromName(Prop->GetNameCPP());
 }
+uint32 FSpudClassMetadata::FindOrAddPrefixID(const FString& Prefix)
+{
+	// Special case blank
+	if (Prefix.IsEmpty())
+		return SPUDDATA_PREFIXID_NONE;
+
+	// Otherwise same as property (helps share names when scope & prop names are their own entries)
+	return FindOrAddPropertyIDFromName(Prefix);	
+}
+uint32 FSpudClassMetadata::GetPrefixID(const FString& Prefix)
+{
+	// Special case blank
+	if (Prefix.IsEmpty())
+		return SPUDDATA_PREFIXID_NONE;
+	
+	// Prefixes share the property name lookup
+	return GetPropertyIDFromName(Prefix);	
+}
 
 const FString& FSpudClassMetadata::GetClassNameFromID(uint32 ID) const
 {
@@ -485,6 +526,42 @@ void FSpudClassMetadata::Reset()
 	ClassDefinitions.Reset();
 	PropertyNameIndex.Empty();
 	ClassNameIndex.Empty();	
+}
+
+bool FSpudClassMetadata::RenameClass(const FString& OldClassName, const FString& NewClassName)
+{
+	uint32 Index = ClassNameIndex.Rename(OldClassName, NewClassName);
+	if (Index != SPUDDATA_INDEX_NONE)
+	{
+		auto& ClassDef = ClassDefinitions.Values[Index];
+		ClassDef.ClassName = NewClassName;
+		return true;
+	}
+	return false;
+}
+
+bool FSpudClassMetadata::RenameProperty(const FString& ClassName, const FString& OldName, const FString& NewName, const FString& OldPrefix, const FString& NewPrefix)
+{
+	uint32* pClassID = ClassNameIndex.Lookup.Find(ClassName);
+	uint32* pPropertyNameID = PropertyNameIndex.Lookup.Find(OldName);
+	if (pClassID && pPropertyNameID)
+	{
+		// Need to find or add a new name IDs since prop names can be used across many classes
+		// This may orphan the old name ID but that doesn't hurt anyone except consuming a few bytes
+
+		// Now point our property for that class at new name. Everything else remains the same
+		auto& Def = ClassDefinitions.Values[*pClassID];
+	
+		uint32 OldNameID = GetPropertyIDFromName(OldName);
+		uint32 NewNameID = FindOrAddPropertyIDFromName(NewName);
+		uint32 OldPrefixID = GetPrefixID(OldPrefix);
+		uint32 NewPrefixID = FindOrAddPrefixID(NewPrefix);
+
+		return Def.RenameProperty(OldNameID, OldPrefixID, NewNameID, NewPrefixID);
+	}
+
+	return false;
+	
 }
 
 //------------------------------------------------------------------------------
