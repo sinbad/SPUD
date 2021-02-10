@@ -928,6 +928,8 @@ void USpudState::LoadFromArchive(FArchive& Ar, bool bFullyLoadAllLevelData)
 {
 	// Firstly, destroy any active game level files
 	RemoveAllActiveGameLevelFiles();
+
+	Source = Ar.GetArchiveName();
 	
 	FSpudChunkedDataArchive ChunkedAr(Ar);
 	if (bFullyLoadAllLevelData)

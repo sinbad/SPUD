@@ -62,6 +62,7 @@ class SPUD_API USpudState : public UObject
 
 protected:
 
+	FString Source;
 	FSpudSaveData SaveData;
 
 	void WriteCoreActorData(AActor* Actor, FArchive& Out) const;
@@ -270,6 +271,12 @@ public:
 
 	/// Clear the state for a given level (does not reset a loaded level, just deletes saved state)
 	void ClearLevel(const FString& LevelName);
+
+	/// Get the source of this state (e.g. save file), if any;
+	UFUNCTION(BlueprintCallable)
+	const FString& GetSource() const { return Source; }
+
+    void SetSource(const FString& NewSrc) { Source = NewSrc; }
 
 	/// Utility method to read *just* the information part of a save game from the start of an archive
 	/// This only reads the minimum needed to describe the save file and doesn't load any other data.
