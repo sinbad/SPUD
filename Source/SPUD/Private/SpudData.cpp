@@ -691,11 +691,9 @@ void FSpudSaveInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 }
 
 //------------------------------------------------------------------------------
-void FSpudSaveData::PrepareForWrite(const FText& Title)
+void FSpudSaveData::PrepareForWrite()
 {
-	Info.Title = Title;
 	Info.SystemVersion = SPUD_CURRENT_SYSTEM_VERSION;
-	Info.Timestamp = FDateTime::Now();
 }
 
 void FSpudSaveData::WriteToArchive(FSpudChunkedDataArchive& Ar)

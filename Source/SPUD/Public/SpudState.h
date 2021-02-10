@@ -253,7 +253,7 @@ public:
 
 	/// Save all contents to an archive
 	/// This includes all paged out level data, which will be recombined
-	virtual void SaveToArchive(FArchive& Ar, const FText& Title);
+	virtual void SaveToArchive(FArchive& Ar);
 
 	/**
 	 * @brief 

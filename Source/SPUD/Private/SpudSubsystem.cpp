@@ -195,6 +195,9 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 
 	// Store any data that is currently active in the game world in the state object
 	StoreWorld(World, false, true);
+
+	State->SetTitle(Title);
+	State->SetTimestamp(FDateTime::Now());
 	
 	// UGameplayStatics::SaveGameToSlot prefixes our save with a lot of crap that we don't need
 	// And also wraps it with FObjectAndNameAsStringProxyArchive, which again we don't need
@@ -207,7 +210,7 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 	bool SaveOK;
 	if(Archive)
 	{
-		State->SaveToArchive(*Archive, Title);
+		State->SaveToArchive(*Archive);
 		// Always explicitly close to catch errors from flush/close
 		Archive->Close();
 
@@ -811,8 +814,8 @@ public:
 				if(Archive)
 				{
 					auto State = NewObject<USpudState>();
-					// Load only global data and page in level data as needed
-					State->LoadFromArchive(*Archive, false);
+					// Load all data because we want to upgrade
+					State->LoadFromArchive(*Archive, true);
 					Archive->Close();
 
 					if (Archive->IsError() || Archive->IsCriticalError())
@@ -821,9 +824,21 @@ public:
 						continue;
 					}
 
-					UpgradeCallback.ExecuteIfBound(State);
-
-					// TODO: save again, but should delegate indicate whether this is needed?
+					if (UpgradeCallback.IsBound())
+					{
+						if (UpgradeCallback.Execute(State))
+						{
+							// Move aside old save
+							FString BackupFilename = AbsoluteFilename + ".bak"; 
+							FileMgr.Move(*BackupFilename, *AbsoluteFilename, true, true);
+							// Now save
+							auto OutArchive = TUniquePtr<FArchive>(FileMgr.CreateFileWriter(*AbsoluteFilename));
+							if (OutArchive)
+							{
+								State->SaveToArchive(*OutArchive);
+							}
+						}
+					}
 				}
 			}
 

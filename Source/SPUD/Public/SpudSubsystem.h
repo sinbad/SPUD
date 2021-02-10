@@ -27,7 +27,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPreUnloadStreamingLevel, const 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPostUnloadStreamingLevel, const FName&, LevelName);
 
 // Callbacks passed to functions
-DECLARE_DYNAMIC_DELEGATE_OneParam(FSpudUpgradeSaveDelegate, class USpudState*, SaveState);
+DECLARE_DYNAMIC_DELEGATE_RetVal_OneParam(bool, FSpudUpgradeSaveDelegate, class USpudState*, SaveState);
 
 UENUM(BlueprintType)
 enum class ESpudSystemState : uint8
