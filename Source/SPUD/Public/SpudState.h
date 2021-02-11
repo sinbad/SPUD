@@ -294,6 +294,11 @@ public:
 	UFUNCTION(BlueprintCallable)
     void SetTimestamp(const FDateTime& Timestamp) {SaveData.Info.Timestamp = Timestamp; }
 
+	/// Set the screenshot data for this save		
+	UFUNCTION(BlueprintCallable)
+	void SetScreenshot(int32 Width, int32 Height, TArray<FColor> ColourData);
+
+
 	/// Rename a class in this save data
 	/// This is for performing upgrades on save games that would otherwise be broken
 	/// Returns whether any changes were made

@@ -979,6 +979,14 @@ void USpudState::RemoveAllActiveGameLevelFiles()
 }
 
 
+void USpudState::SetScreenshot(int32 Width, int32 Height, TArray<FColor> ColourData)
+{
+	auto& Scr = SaveData.Info.Screenshot;
+	Scr.Width = Width;
+	Scr.Height = Height;
+	Scr.ColourData = ColourData;
+}
+
 bool USpudState::RenameClass(const FString& OldClassName, const FString& NewClassName)
 {
 	// We only have to fix the metadata. All instances refer to the class by ID, so we just rename the

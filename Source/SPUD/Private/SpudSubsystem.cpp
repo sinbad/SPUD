@@ -232,6 +232,8 @@ void USpudSubsystem::FinishSaveGame(const FString& SlotName, const FText& Title,
 
 	State->SetTitle(Title);
 	State->SetTimestamp(FDateTime::Now());
+	if (Screenshot)
+		State->SetScreenshot(Screenshot->Width, Screenshot->Height, Screenshot->ColourData);
 	
 	// UGameplayStatics::SaveGameToSlot prefixes our save with a lot of crap that we don't need
 	// And also wraps it with FObjectAndNameAsStringProxyArchive, which again we don't need
