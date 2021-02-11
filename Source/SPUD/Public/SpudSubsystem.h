@@ -101,10 +101,10 @@ public:
 
 	/// The desired width of screenshots taken for save games
 	UPROPERTY(BlueprintReadWrite)
-	int32 ScreenshotWidth;
+	int32 ScreenshotWidth = 240;
 	/// The desired height of screenshots taken for save games
 	UPROPERTY(BlueprintReadWrite)
-	int32 ScreenshotHeight;
+	int32 ScreenshotHeight = 135;
 	
 	
 protected:
