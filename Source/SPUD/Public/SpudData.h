@@ -478,12 +478,17 @@ struct FSpudArray : public FSpudChunk
 	
 };
 
-struct FSpudGlobalObjectMap : public FSpudStructMapData<FString /* FName or Guid String */, FSpudNamedObjectData>
+struct FSpudNamedObjectMap : public FSpudStructMapData<FString /* FName or Guid String */, FSpudNamedObjectData>
+{
+	virtual bool RenameObject(const FString& OldName, const FString& NewName);
+};
+
+struct FSpudGlobalObjectMap : public FSpudNamedObjectMap
 {
 	virtual const char* GetMagic() const override { return SPUDDATA_GLOBALOBJECTLIST_MAGIC; }
 	virtual const char* GetChildMagic() const override { return SPUDDATA_NAMEDOBJECT_MAGIC; }
 };
-struct FSpudLevelActorMap : public FSpudStructMapData<FString /* FName String */, FSpudNamedObjectData>
+struct FSpudLevelActorMap : public FSpudNamedObjectMap
 {
 	virtual const char* GetMagic() const override { return SPUDDATA_LEVELACTORLIST_MAGIC; }
 	virtual const char* GetChildMagic() const override { return SPUDDATA_NAMEDOBJECT_MAGIC; }

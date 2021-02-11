@@ -347,7 +347,8 @@ public:
 	 * the UserDataModelVersion in the save differs from the current user model version. You can therefore control which
 	 * saves need manual upgrading by incrementing SetUserDataModelVersion when you have a breaking change. Set this
 	 * argument to true to process all saves instead.
-	 * @param SaveNeedsUpgradingCallback The delegate which will be called for each save which needs upgrading 
+	 * @param SaveNeedsUpgradingCallback The delegate which will be called for each save which needs upgrading. Important:
+	 * the save game will only be re-written to disk if you return true from this callback. A backup will be made of the previous save.
 	 * @param LatentInfo Completion callback
 	 */
 	UFUNCTION(BlueprintCallable, meta=(Latent, WorldContext="WorldContextObject", LatentInfo = "LatentInfo"), Category="SPUD")

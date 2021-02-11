@@ -398,6 +398,20 @@ void FSpudSpawnedActorData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 
 //------------------------------------------------------------------------------
 
+bool FSpudNamedObjectMap::RenameObject(const FString& OldName, const FString& NewName)
+{
+	FSpudNamedObjectData ObjData;
+	if(Contents.RemoveAndCopyValue(OldName, ObjData))
+	{
+		ObjData.Name = NewName;
+		Contents.Add(NewName, ObjData);
+		return true;
+	}
+	return false;
+}
+
+//------------------------------------------------------------------------------
+
 void FSpudDestroyedActorArray::Add(const FString& Name)
 {
 
@@ -812,8 +826,16 @@ void FSpudSaveData::WriteToArchive(FSpudChunkedDataArchive& Ar, const FString& L
 					IFileManager& FileMgr = IFileManager::Get();
 					auto InLevelArchive = TUniquePtr<FArchive>(FileMgr.CreateFileReader(*GetLevelDataPath(LevelPath, LevelData->Name)));
 
-					SpudCopyArchiveData(*InLevelArchive.Get(), Ar, InLevelArchive->TotalSize());
-					InLevelArchive->Close();
+					if (!InLevelArchive)
+					{
+						UE_LOG(LogSpudData, Error, TEXT("Level %s is recorded as being present but unloaded, but level data is not in file cache. "
+						"This level will be missing from the save"), *LevelData->Name);
+					}
+					else
+					{
+						SpudCopyArchiveData(*InLevelArchive.Get(), Ar, InLevelArchive->TotalSize());
+						InLevelArchive->Close();
+					}
 					break;
 				}
 			}

@@ -1012,13 +1012,18 @@ bool USpudState::RenameProperty(const FString& ClassName, const FString& OldProp
 
 bool USpudState::RenameGlobalObject(const FString& OldName, const FString& NewName)
 {
-	// TODO
-	return false;
+	return SaveData.GlobalData.Objects.RenameObject(OldName, NewName);
 }
 
 bool USpudState::RenameLevelObject(const FString& LevelName, const FString& OldName, const FString& NewName)
 {
-	// TODO
+	auto LevelData = GetLevelData(LevelName, false);
+	if (LevelData.IsValid())
+	{
+		FScopeLock LevelLock(&LevelData->Mutex);
+
+		return LevelData->LevelActors.RenameObject(OldName, NewName);
+	}
 	return false;
 }
 
