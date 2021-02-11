@@ -98,6 +98,13 @@ public:
 	/// This is used to reduce load/unload thrashing at boundaries
 	UPROPERTY(BlueprintReadWrite)
 	float StreamLevelUnloadDelay = 3;
+
+	/// The desired width of screenshots taken for save games
+	UPROPERTY(BlueprintReadWrite)
+	int32 ScreenshotWidth;
+	/// The desired height of screenshots taken for save games
+	UPROPERTY(BlueprintReadWrite)
+	int32 ScreenshotHeight;
 	
 	
 protected:
@@ -112,6 +119,7 @@ protected:
 	FTimerHandle StreamLevelUnloadTimerHandle;
 	
 	FString SlotNameInProgress;
+	FText TitleInProgress;
 
 	UPROPERTY()
 	TArray<TWeakObjectPtr<UObject>> GlobalObjects;
@@ -177,6 +185,15 @@ protected:
 	void StoreWorld(UWorld* World, bool bReleaseLevels, bool bBlocking);
 	void StoreLevel(ULevel* Level, bool bRelease, bool bBlocking);
 
+	UFUNCTION()
+    void OnScreenshotCaptured(int32 Width, int32 Height, const TArray<FColor>& Colours);
+
+	struct FScreenshotData
+	{
+		int32 Width, Height;
+		TArray<FColor> ColourData;
+	};
+	void FinishSaveGame(const FString& SlotName, const FText& Title, FScreenshotData* Screenshot);
 	void LoadComplete(const FString& SlotName, bool bSuccess);
 	void SaveComplete(const FString& SlotName, bool bSuccess);
 
@@ -224,12 +241,18 @@ public:
     void LoadLatestSaveGame();
 
 
-	/// Save the game in a given slot name, with an optional descriptive title
+	/**
+	 * @brief Save a game. Asynchronous, use the PostSaveGame event to determine when the save is finished.
+	 * @param SlotName The name of the slot for this save
+	 * @param Title A descriptive title to go with the save
+	 * @param bTakeScreenshot If true, the save will include a screenshot, the dimensions of which are
+	 * set by the ScreenshotWidth/ScreenshotHeight properties.
+	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
-    bool SaveGame(const FString& SlotName, const FText& Title = FText());
-	/// Load the game in a given slot name
+    void SaveGame(const FString& SlotName, const FText& Title = FText(), bool bTakeScreenshot = true);
+	/// Load the game in a given slot name. Asynchronous, use the PostLoadGame event to determine when load is complete (and success)
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
-    bool LoadGame(const FString& SlotName);
+    void LoadGame(const FString& SlotName);
 
 	/// Delete the save game in a given slot
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)

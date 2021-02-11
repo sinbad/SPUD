@@ -3,6 +3,7 @@
 #include "SpudState.h"
 #include "Engine/LevelStreaming.h"
 #include "Kismet/GameplayStatics.h"
+#include "ImageUtils.h"
 
 PRAGMA_DISABLE_OPTIMIZATION
 
@@ -157,23 +158,56 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 	PostTravelToNewMap.Broadcast();
 }
 
-bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "" */)
+void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "" */, bool bTakeScreenshot /* = true */)
 {
 	if (!ServerCheck(true))
-		return false;
+	{
+		SaveComplete(SlotName, false);
+        return;
+	}
 
 	if (CurrentState != ESpudSystemState::RunningIdle)
 	{
 		// TODO: ignore or queue?
 		UE_LOG(LogSpudSubsystem, Fatal, TEXT("TODO: Overlapping calls to save/load, resolve this"));
-		return false;
+		SaveComplete(SlotName, false);
+		return;
 	}
 
 	CurrentState = ESpudSystemState::SavingGame;
 	PreSaveGame.Broadcast(SlotName);
-	
-	auto State = GetActiveState();
 
+	if (bTakeScreenshot)
+	{
+		// Memory-based screenshot request
+		SlotNameInProgress = SlotName;
+		TitleInProgress = Title;
+		UGameViewportClient* GameViewportClient = GEngine->GameViewport;
+		GameViewportClient->OnScreenshotCaptured().AddUObject(this, &USpudSubsystem::OnScreenshotCaptured);
+		FScreenshotRequest::RequestScreenshot(false);
+
+		// OnScreenShotCaptured will finish
+	}
+	else
+	{
+		FinishSaveGame(SlotName, Title, nullptr);
+	}
+}
+
+void USpudSubsystem::OnScreenshotCaptured(int32 Width, int32 Height, const TArray<FColor>& Colours)
+{
+	// Downscale the screenshot, pass to finish
+	FScreenshotData Screenshot;
+	Screenshot.Width = ScreenshotWidth;
+	Screenshot.Height = ScreenshotHeight;
+	FImageUtils::CropAndScaleImage(Width, Height, Screenshot.Width, Screenshot.Height, Colours, Screenshot.ColourData);
+	
+	FinishSaveGame(SlotNameInProgress, TitleInProgress, &Screenshot);
+	
+}
+void USpudSubsystem::FinishSaveGame(const FString& SlotName, const FText& Title, FScreenshotData* Screenshot)
+{
+	auto State = GetActiveState();
 	auto World = GetWorld();
 
 	// We do NOT reset
@@ -231,11 +265,18 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 		SaveOK = false;
 	}
 
-	CurrentState = ESpudSystemState::RunningIdle;
-	PostSaveGame.Broadcast(SlotName, SaveOK);
+	SaveComplete(SlotName, SaveOK);
 
-	return SaveOK;
 }
+
+void USpudSubsystem::SaveComplete(const FString& SlotName, bool bSuccess)
+{
+	SlotNameInProgress = "";
+	TitleInProgress = FText();
+	CurrentState = ESpudSystemState::RunningIdle;
+	PostSaveGame.Broadcast(SlotName, bSuccess);
+}
+
 
 
 void USpudSubsystem::StoreWorld(UWorld* World, bool bReleaseLevels, bool bBlocking)
@@ -253,20 +294,21 @@ void USpudSubsystem::StoreLevel(ULevel* Level, bool bRelease, bool bBlocking)
 	GetActiveState()->StoreLevel(Level, bRelease, bBlocking);
 	PostLevelStore.Broadcast(LevelName, true);
 }
-void USpudSubsystem::SaveComplete(const FString& SlotName, bool bSuccess)
-{
-}
 
-bool USpudSubsystem::LoadGame(const FString& SlotName)
+void USpudSubsystem::LoadGame(const FString& SlotName)
 {
 	if (!ServerCheck(true))
-		return false;
+	{
+		LoadComplete(SlotName, false);
+		return;
+	}
 
 	if (CurrentState != ESpudSystemState::RunningIdle)
 	{
 		// TODO: ignore or queue?
 		UE_LOG(LogSpudSubsystem, Fatal, TEXT("TODO: Overlapping calls to save/load, resolve this"));
-		return false;
+		LoadComplete(SlotName, false);
+		return;
 	}
 
 	CurrentState = ESpudSystemState::LoadingGame;
@@ -293,14 +335,14 @@ bool USpudSubsystem::LoadGame(const FString& SlotName)
 		{
 			UE_LOG(LogSpudSubsystem, Error, TEXT("Error while loading game from %s"), *SlotName);
 			LoadComplete(SlotName, false);
-			return false;
+			return;
 		}
 	}
 	else
 	{
 		UE_LOG(LogSpudSubsystem, Error, TEXT("Error while opening save game for slot %s"), *SlotName);		
 		LoadComplete(SlotName, false);
-		return false;
+		return;
 	}
 
 	// Just do the reverse of what we did
@@ -320,8 +362,6 @@ bool USpudSubsystem::LoadGame(const FString& SlotName)
 	SlotNameInProgress = SlotName;
 	UE_LOG(LogSpudSubsystem, Verbose, TEXT("(Re)loading map: %s"), *State->GetPersistentLevel());		
 	UGameplayStatics::OpenLevel(GetWorld(), FName(State->GetPersistentLevel()));
-
-	return true;
 }
 
 
