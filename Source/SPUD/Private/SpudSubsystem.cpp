@@ -195,6 +195,9 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 
 	// Store any data that is currently active in the game world in the state object
 	StoreWorld(World, false, true);
+
+	State->SetTitle(Title);
+	State->SetTimestamp(FDateTime::Now());
 	
 	// UGameplayStatics::SaveGameToSlot prefixes our save with a lot of crap that we don't need
 	// And also wraps it with FObjectAndNameAsStringProxyArchive, which again we don't need
@@ -207,7 +210,7 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 	bool SaveOK;
 	if(Archive)
 	{
-		State->SaveToArchive(*Archive, Title);
+		State->SaveToArchive(*Archive);
 		// Always explicitly close to catch errors from flush/close
 		Archive->Close();
 
@@ -605,6 +608,17 @@ void USpudSubsystem::ForceReset()
 	CurrentState = ESpudSystemState::RunningIdle;
 }
 
+void USpudSubsystem::SetUserDataModelVersion(int32 Version)
+{
+	GCurrentUserDataModelVersion = Version;
+}
+
+
+int32 USpudSubsystem::GetUserDataModelVersion() const
+{
+	return GCurrentUserDataModelVersion;
+}
+
 void USpudSubsystem::PostUnloadStreamLevel(int32 LinkID)
 {
 	FScopeLock PendingUnloadLock(&LevelsPendingUnloadMutex);
@@ -700,7 +714,7 @@ void USpudSubsystem::RefreshSaveGameList()
 	IFileManager& FM = IFileManager::Get();
 
 	TArray<FString> SaveFiles;
-	FM.FindFiles(SaveFiles, *GetSaveGameDirectory(), TEXT(".sav"));
+	ListSaveGameFiles(SaveFiles);
 
 	SaveGameList.Empty();
 	for (auto && File : SaveFiles)
@@ -755,6 +769,13 @@ FString USpudSubsystem::GetSaveGameFilePath(const FString& SlotName)
 	return FString::Printf(TEXT("%s%s.sav"), *GetSaveGameDirectory(), *SlotName);
 }
 
+void USpudSubsystem::ListSaveGameFiles(TArray<FString>& OutSaveFileList)
+{
+	IFileManager& FM = IFileManager::Get();
+
+	FM.FindFiles(OutSaveFileList, *GetSaveGameDirectory(), TEXT(".sav"));	
+}
+
 FString USpudSubsystem::GetActiveGameFolder()
 {
 	return FString::Printf(TEXT("%sCurrentGame/"), *FPaths::ProjectSavedDir());
@@ -764,5 +785,134 @@ FString USpudSubsystem::GetActiveGameFilePath(const FString& Name)
 {
 	return FString::Printf(TEXT("%sSaveGames/%s.sav"), *GetActiveGameFolder(), *Name);
 }
+
+
+class FUpgradeAllSavesAction : public FPendingLatentAction
+{
+public:
+	FName ExecutionFunction;
+	int32 OutputLink;
+	FWeakObjectPtr CallbackTarget;
+
+	struct FUpgradeTask : public FNonAbandonableTask
+	{
+		bool bUpgradeAlways;
+		FSpudUpgradeSaveDelegate UpgradeCallback;
+		
+		FUpgradeTask(bool InUpgradeAlways, FSpudUpgradeSaveDelegate InCallback) : bUpgradeAlways(InUpgradeAlways), UpgradeCallback(InCallback) {}
+
+		bool SaveNeedsUpgrading(const USpudState* State)
+		{
+			if (State->SaveData.GlobalData.IsUserDataModelOutdated())
+				return true;
+
+			for (auto& Pair : State->SaveData.LevelDataMap)
+			{
+				if (Pair.Value->IsUserDataModelOutdated())
+					return true;				
+			}
+
+			return false;
+		}
+
+		void DoWork()
+		{
+			if (!UpgradeCallback.IsBound())
+				return;
+			
+			IFileManager& FileMgr = IFileManager::Get();
+			TArray<FString> SaveFiles;
+			USpudSubsystem::ListSaveGameFiles(SaveFiles);
+
+			for (auto && SaveFile : SaveFiles)
+			{
+				FString AbsoluteFilename = FPaths::Combine(USpudSubsystem::GetSaveGameDirectory(), SaveFile);
+				auto Archive = TUniquePtr<FArchive>(FileMgr.CreateFileReader(*AbsoluteFilename));
+
+				if(Archive)
+				{
+					auto State = NewObject<USpudState>();
+					// Load all data because we want to upgrade
+					State->LoadFromArchive(*Archive, true);
+					Archive->Close();
+
+					if (Archive->IsError() || Archive->IsCriticalError())
+					{
+						UE_LOG(LogSpudSubsystem, Error, TEXT("Error while loading game to check for upgrades: %s"), *SaveFile);
+						continue;
+					}
+
+					if (bUpgradeAlways || SaveNeedsUpgrading(State))
+					{
+						if (UpgradeCallback.Execute(State))
+						{
+							// Move aside old save
+							FString BackupFilename = AbsoluteFilename + ".bak"; 
+							FileMgr.Move(*BackupFilename, *AbsoluteFilename, true, true);
+							// Now save
+							auto OutArchive = TUniquePtr<FArchive>(FileMgr.CreateFileWriter(*AbsoluteFilename));
+							if (OutArchive)
+							{
+								State->SaveToArchive(*OutArchive);
+							}
+						}
+					}
+				}
+			}
+
+		}
+
+		FORCEINLINE TStatId GetStatId() const
+		{
+			RETURN_QUICK_DECLARE_CYCLE_STAT(FUpgradeTask, STATGROUP_ThreadPoolAsyncTasks);
+		}
+	
+	};
+
+	FAsyncTask<FUpgradeTask> UpgradeTask;
+
+	FUpgradeAllSavesAction(bool UpgradeAlways, FSpudUpgradeSaveDelegate InUpgradeCallback, const FLatentActionInfo& LatentInfo)
+        : ExecutionFunction(LatentInfo.ExecutionFunction)
+        , OutputLink(LatentInfo.Linkage)
+        , CallbackTarget(LatentInfo.CallbackTarget)
+        , UpgradeTask(UpgradeAlways, InUpgradeCallback)
+	{
+		// We do the actual upgrade work in a background task, this action is just to monitor when it's done
+		UpgradeTask.StartBackgroundTask();
+	}
+
+	virtual void UpdateOperation(FLatentResponse& Response) override
+	{
+		// This is essentially a game thread tick. Finish the latent action when the background task is done
+		Response.FinishAndTriggerIf(UpgradeTask.IsDone(), ExecutionFunction, OutputLink, CallbackTarget);
+	}
+
+#if WITH_EDITOR
+	virtual FString GetDescription() const override
+	{
+		return "Upgrade All Saves";
+	}
+#endif
+};
+
+
+void USpudSubsystem::UpgradeAllSaveGames(const UObject* WorldContextObject,
+                                         bool bUpgradeEvenIfNoUserDataModelVersionDifferences,
+                                         FSpudUpgradeSaveDelegate SaveNeedsUpgradingCallback,
+                                         FLatentActionInfo LatentInfo)
+{
+	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
+	{
+		FLatentActionManager& LatentActionManager = World->GetLatentActionManager();
+		if (LatentActionManager.FindExistingAction<FUpgradeAllSavesAction>(LatentInfo.CallbackTarget, LatentInfo.UUID) == nullptr)
+		{
+			LatentActionManager.AddNewAction(LatentInfo.CallbackTarget, LatentInfo.UUID,
+			                                 new FUpgradeAllSavesAction(bUpgradeEvenIfNoUserDataModelVersionDifferences,
+			                                                            SaveNeedsUpgradingCallback, LatentInfo));
+		}
+	}
+}
+
+
 
 PRAGMA_ENABLE_OPTIMIZATION

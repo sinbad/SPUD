@@ -60,9 +60,13 @@ class SPUD_API USpudState : public UObject
 
 	friend class USpudStateCustomData;
 
+public:
+	/// Direct access to save data - not recommended but if you really need it...
+	FSpudSaveData SaveData;
+
 protected:
 
-	FSpudSaveData SaveData;
+	FString Source;
 
 	void WriteCoreActorData(AActor* Actor, FArchive& Out) const;
 
@@ -252,7 +256,7 @@ public:
 
 	/// Save all contents to an archive
 	/// This includes all paged out level data, which will be recombined
-	virtual void SaveToArchive(FArchive& Ar, const FText& Title);
+	virtual void SaveToArchive(FArchive& Ar);
 
 	/**
 	 * @brief 
@@ -269,7 +273,53 @@ public:
 	bool IsLevelDataLoaded(const FString& LevelName);
 
 	/// Clear the state for a given level (does not reset a loaded level, just deletes saved state)
+	UFUNCTION(BlueprintCallable)
 	void ClearLevel(const FString& LevelName);
+
+	/// Get the source of this state (e.g. save file), if any;
+	UFUNCTION(BlueprintCallable)
+	const FString& GetSource() const { return Source; }
+
+	/// Get the title associated with this save state 
+	UFUNCTION(BlueprintCallable)
+	const FText& GetTitle() const { return SaveData.Info.Title; }
+	/// Set the title associated with this save state 
+	UFUNCTION(BlueprintCallable)
+	void SetTitle(const FText& Title) {SaveData.Info.Title = Title; }
+
+	/// Get the timestamp for when this save state was created
+	UFUNCTION(BlueprintCallable)
+    const FDateTime& GetTimestamp() const { return SaveData.Info.Timestamp; }
+	/// Set the timestamp for when this save state was created
+	UFUNCTION(BlueprintCallable)
+    void SetTimestamp(const FDateTime& Timestamp) {SaveData.Info.Timestamp = Timestamp; }
+
+	/// Rename a class in this save data
+	/// This is for performing upgrades on save games that would otherwise be broken
+	/// Returns whether any changes were made
+	UFUNCTION(BlueprintCallable)
+	bool RenameClass(const FString& OldClassName, const FString& NewClassName);
+	
+	/// Rename a property on a class in this save data
+	/// This is for performing upgrades on save games that would otherwise be broken
+	/// OldPrefix & NewPrefix are for handling nested structs, format is "StructVarName1/StructVarName2" ofr
+	/// a property which is inside variable named StructVarName1 on the class, and then inside StructVarName2 inside that
+	/// Returns whether any changes were made
+	UFUNCTION(BlueprintCallable)
+    bool RenameProperty(const FString& ClassName, const FString& OldPropertyName, const FString& NewPropertyName, const FString& OldPrefix, const
+                        FString& NewPrefix);
+
+	/// Rename a global object so that it can be correctly found on load
+	/// This is for performing upgrades on save games that would otherwise be broken
+	/// Returns whether any changes were made
+	UFUNCTION(BlueprintCallable)
+    bool RenameGlobalObject(const FString& OldName, const FString& NewName);
+
+	/// Rename a level object so that it can be correctly found on load
+	/// This is for performing upgrades on save games that would otherwise be broken
+	/// Returns whether any changes were made
+	UFUNCTION(BlueprintCallable)
+    bool RenameLevelObject(const FString& LevelName, const FString& OldName, const FString& NewName);
 
 	/// Utility method to read *just* the information part of a save game from the start of an archive
 	/// This only reads the minimum needed to describe the save file and doesn't load any other data.

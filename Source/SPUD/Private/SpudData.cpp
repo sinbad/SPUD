@@ -8,8 +8,10 @@ PRAGMA_DISABLE_OPTIMIZATION
 
 DEFINE_LOG_CATEGORY(LogSpudData)
 
-#define SPUD_SAVEGAME_CURRENT_VERSION 1
+#define SPUD_CURRENT_SYSTEM_VERSION 1
 
+// int32 so that Blueprint-compatible. 2 billion should be enough anyway and you can always use the negatives
+int32 GCurrentUserDataModelVersion = 0;
 //------------------------------------------------------------------------------
 
 bool FSpudChunkedDataArchive::PreviewNextChunk(FSpudChunkHeader& OutHeader, bool SeekBackToHeader)
@@ -126,6 +128,25 @@ bool FSpudChunk::IsStillInChunk(FArchive& Ar) const
 }
 //------------------------------------------------------------------------------
 
+void FSpudVersionInfo::WriteToArchive(FSpudChunkedDataArchive& Ar)
+{
+	// Separate chunk for version info is a bit indulgent but it means we can tack it on to anything if we want
+	if (ChunkStart(Ar))
+	{
+		Ar << Version;
+		ChunkEnd(Ar);
+	}
+}
+void FSpudVersionInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar)
+{
+	if (ChunkStart(Ar))
+	{
+		Ar << Version;		
+		ChunkEnd(Ar);
+	}
+}
+
+//------------------------------------------------------------------------------
 void FSpudClassDef::WriteToArchive(FSpudChunkedDataArchive& Ar)
 {
 	if (ChunkStart(Ar))
@@ -213,6 +234,29 @@ int FSpudClassDef::FindOrAddPropertyIndex(uint32 PropNameID, uint32 PrefixID, ui
 		return Index;
 
 	return AddProperty(PropNameID, PrefixID, DataType);
+}
+
+bool FSpudClassDef::RenameProperty(uint32 OldPropID, uint32 OldPrefixID, uint32 NewPropID, uint32 NewPrefixID)
+{
+	const int Index = FindPropertyIndex(OldPropID, OldPrefixID);
+	if (Index >= 0)
+	{
+		auto& Propdef = Properties[Index];
+		Propdef.PrefixID = NewPrefixID;
+		Propdef.PropertyID = NewPropID;
+
+		// We can't just rename the outer lookup because it may just be one of many properties that have moved
+		auto& OldInnerMap = PropertyLookup.FindChecked(OldPrefixID);
+		OldInnerMap.Remove(OldPropID);
+
+		auto& NewInnerMap = PropertyLookup.FindOrAdd(NewPrefixID);
+		NewInnerMap.Add(NewPropID, Index);
+
+		return true;
+		
+	}
+
+	return false;
 }
 
 bool FSpudClassDef::MatchesRuntimeClass(const FSpudClassMetadata& Meta) const
@@ -354,6 +398,20 @@ void FSpudSpawnedActorData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 
 //------------------------------------------------------------------------------
 
+bool FSpudNamedObjectMap::RenameObject(const FString& OldName, const FString& NewName)
+{
+	FSpudNamedObjectData ObjData;
+	if(Contents.RemoveAndCopyValue(OldName, ObjData))
+	{
+		ObjData.Name = NewName;
+		Contents.Add(NewName, ObjData);
+		return true;
+	}
+	return false;
+}
+
+//------------------------------------------------------------------------------
+
 void FSpudDestroyedActorArray::Add(const FString& Name)
 {
 
@@ -366,9 +424,13 @@ void FSpudClassMetadata::WriteToArchive(FSpudChunkedDataArchive& Ar)
 {
 	if (ChunkStart(Ar))
 	{
+		UserDataModelVersion.Version = GCurrentUserDataModelVersion;
+		UserDataModelVersion.WriteToArchive(Ar);
+		
 		ClassNameIndex.WriteToArchive(Ar);
 		ClassDefinitions.WriteToArchive(Ar);
 		PropertyNameIndex.WriteToArchive(Ar);
+
 		ChunkEnd(Ar);
 	}
 }
@@ -377,6 +439,7 @@ void FSpudClassMetadata::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 {
 	if (ChunkStart(Ar))
 	{
+		const uint32 VersionID = FSpudChunkHeader::EncodeMagic(SPUDDATA_VERSIONINFO_MAGIC);
 		const uint32 ClassNameIndexID = FSpudChunkHeader::EncodeMagic(SPUDDATA_CLASSNAMEINDEX_MAGIC);
 		const uint32 ClassDefListID = FSpudChunkHeader::EncodeMagic(SPUDDATA_CLASSDEFINITIONLIST_MAGIC);
 		const uint32 PropertyNameIndexID = FSpudChunkHeader::EncodeMagic(SPUDDATA_PROPERTYNAMEINDEX_MAGIC);
@@ -384,7 +447,9 @@ void FSpudClassMetadata::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 		while (IsStillInChunk(Ar))
 		{
 			Ar.PreviewNextChunk(Hdr, true);
-			if (Hdr.Magic == ClassNameIndexID)
+			if (Hdr.Magic == VersionID)
+				UserDataModelVersion.ReadFromArchive(Ar);
+			else if (Hdr.Magic == ClassNameIndexID)
 				ClassNameIndex.ReadFromArchive(Ar);
 			else if (Hdr.Magic == ClassDefListID)
 				ClassDefinitions.ReadFromArchive(Ar);
@@ -438,6 +503,24 @@ uint32 FSpudClassMetadata::FindOrAddPropertyIDFromProperty(const FProperty* Prop
 {
 	return FindOrAddPropertyIDFromName(Prop->GetNameCPP());
 }
+uint32 FSpudClassMetadata::FindOrAddPrefixID(const FString& Prefix)
+{
+	// Special case blank
+	if (Prefix.IsEmpty())
+		return SPUDDATA_PREFIXID_NONE;
+
+	// Otherwise same as property (helps share names when scope & prop names are their own entries)
+	return FindOrAddPropertyIDFromName(Prefix);	
+}
+uint32 FSpudClassMetadata::GetPrefixID(const FString& Prefix)
+{
+	// Special case blank
+	if (Prefix.IsEmpty())
+		return SPUDDATA_PREFIXID_NONE;
+	
+	// Prefixes share the property name lookup
+	return GetPropertyIDFromName(Prefix);	
+}
 
 const FString& FSpudClassMetadata::GetClassNameFromID(uint32 ID) const
 {
@@ -457,6 +540,42 @@ void FSpudClassMetadata::Reset()
 	ClassDefinitions.Reset();
 	PropertyNameIndex.Empty();
 	ClassNameIndex.Empty();	
+}
+
+bool FSpudClassMetadata::RenameClass(const FString& OldClassName, const FString& NewClassName)
+{
+	uint32 Index = ClassNameIndex.Rename(OldClassName, NewClassName);
+	if (Index != SPUDDATA_INDEX_NONE)
+	{
+		auto& ClassDef = ClassDefinitions.Values[Index];
+		ClassDef.ClassName = NewClassName;
+		return true;
+	}
+	return false;
+}
+
+bool FSpudClassMetadata::RenameProperty(const FString& ClassName, const FString& OldName, const FString& NewName, const FString& OldPrefix, const FString& NewPrefix)
+{
+	uint32* pClassID = ClassNameIndex.Lookup.Find(ClassName);
+	uint32* pPropertyNameID = PropertyNameIndex.Lookup.Find(OldName);
+	if (pClassID && pPropertyNameID)
+	{
+		// Need to find or add a new name IDs since prop names can be used across many classes
+		// This may orphan the old name ID but that doesn't hurt anyone except consuming a few bytes
+
+		// Now point our property for that class at new name. Everything else remains the same
+		auto& Def = ClassDefinitions.Values[*pClassID];
+	
+		uint32 OldNameID = GetPropertyIDFromName(OldName);
+		uint32 NewNameID = FindOrAddPropertyIDFromName(NewName);
+		uint32 OldPrefixID = GetPrefixID(OldPrefix);
+		uint32 NewPrefixID = FindOrAddPrefixID(NewPrefix);
+
+		return Def.RenameProperty(OldNameID, OldPrefixID, NewNameID, NewPrefixID);
+	}
+
+	return false;
+	
 }
 
 //------------------------------------------------------------------------------
@@ -663,11 +782,9 @@ void FSpudSaveInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 }
 
 //------------------------------------------------------------------------------
-void FSpudSaveData::PrepareForWrite(const FText& Title)
+void FSpudSaveData::PrepareForWrite()
 {
-	Info.Title = Title;
-	Info.SystemVersion = SPUD_SAVEGAME_CURRENT_VERSION;
-	Info.Timestamp = FDateTime::Now();
+	Info.SystemVersion = SPUD_CURRENT_SYSTEM_VERSION;
 }
 
 void FSpudSaveData::WriteToArchive(FSpudChunkedDataArchive& Ar)
@@ -709,8 +826,16 @@ void FSpudSaveData::WriteToArchive(FSpudChunkedDataArchive& Ar, const FString& L
 					IFileManager& FileMgr = IFileManager::Get();
 					auto InLevelArchive = TUniquePtr<FArchive>(FileMgr.CreateFileReader(*GetLevelDataPath(LevelPath, LevelData->Name)));
 
-					SpudCopyArchiveData(*InLevelArchive.Get(), Ar, InLevelArchive->TotalSize());
-					InLevelArchive->Close();
+					if (!InLevelArchive)
+					{
+						UE_LOG(LogSpudData, Error, TEXT("Level %s is recorded as being present but unloaded, but level data is not in file cache. "
+						"This level will be missing from the save"), *LevelData->Name);
+					}
+					else
+					{
+						SpudCopyArchiveData(*InLevelArchive.Get(), Ar, InLevelArchive->TotalSize());
+						InLevelArchive->Close();
+					}
 					break;
 				}
 			}
@@ -743,7 +868,7 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLe
 
 		Info.ReadFromArchive(Ar);
 
-		if (Ar.IsLoading() && Info.SystemVersion != SPUD_SAVEGAME_CURRENT_VERSION)
+		if (Ar.IsLoading() && Info.SystemVersion != SPUD_CURRENT_SYSTEM_VERSION)
 		{
 			// TODO: Deal with any version incompatibilities here
 		}

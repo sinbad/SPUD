@@ -26,6 +26,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPostLoadStreamingLevel, const F
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPreUnloadStreamingLevel, const FName&, LevelName);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPostUnloadStreamingLevel, const FName&, LevelName);
 
+// Callbacks passed to functions
+DECLARE_DYNAMIC_DELEGATE_RetVal_OneParam(bool, FSpudUpgradeSaveDelegate, class USpudState*, SaveState);
+
 UENUM(BlueprintType)
 enum class ESpudSystemState : uint8
 {
@@ -300,8 +303,61 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void ForceReset();
 
+	/// Set the version number recorded with world's data model in all save data written after this.
+	/// This is for use when you need to explicitly upgrade save games because of a change in the
+	/// classes / properties being saved, and the default property name matching rules are not enough.
+	/// Many changes to what you save are non-breaking. For example the following are not breaking:
+	/// 1. Adding new classes that are saved (they just won't be populated from old save games)
+	/// 2. Adding new SaveGame properties (they just won't be changed by loading old saves)
+	/// 3. Removing classes or properties (that data in old saves will be ignored)
+	///
+	/// Mostly it will just mean that you either lose some old data (fine if you don't care) or get the defaults
+	/// when you pull in data from old saves.
+	///
+	/// However, renaming things or making more significant changes where you need to upgrade the data through a
+	/// more explicit transformation process can be a problem.
+	/// That is what this UserDataModelVersion is for. If you never set it, it will be 0. This number will be written
+	/// into the metadata of all save data.
+	///
+	/// If you later make a change to your save data which you need to explicitly upgrade, then you should increment
+	/// this number (call this function before you need to save/load any data, as part of your game startup routine).
+	/// 
+	/// If, when loading some object data, the number in the data is different to this version, then all data for objects
+	/// described by the old version will be fed through a user-defined upgrade hook, to allow you to make manual fixes.
+	UFUNCTION(BlueprintCallable)
+    void SetUserDataModelVersion(int32 Version);
+
+	/// Gets the current version number of your game's data model (@see SetUserDataModelVersion for more details)
+	UFUNCTION(BlueprintCallable)
+    int32 GetUserDataModelVersion() const;
+
+	/**
+	 * @brief Triggers the upgrade process for all save games (asynchronously)
+	 * @details Each save game present will be fully loaded, and for each where the user data model version of any part differs from latest,
+     * the SaveNeedsUpgrading callback will be triggered (in a background thread). That callback should perform any
+     * changes it needs to the USpudState. When the callback completes the save will be written back to
+     * disk if the callback returned true.
+     * Note that at no point will any actors or levels be loaded. All changes made to the save are done manually so
+     * that next time they need to be applied to real game objects, the state is as you need it to be.
+     * If for some reason you need to have the actors loaded to perform the upgrade, then you should instead
+     * implement ISpudObjectCallback on those objects and perform the upgrades there instead (this cannot be done in
+     * bulk though, only on demand as each object is loaded).
+	 * @param WorldContextObject World context object
+	 * @param bUpgradeEvenIfNoUserDataModelVersionDifferences The default behaviour is to only upgrade save games where
+	 * the UserDataModelVersion in the save differs from the current user model version. You can therefore control which
+	 * saves need manual upgrading by incrementing SetUserDataModelVersion when you have a breaking change. Set this
+	 * argument to true to process all saves instead.
+	 * @param SaveNeedsUpgradingCallback The delegate which will be called for each save which needs upgrading. Important:
+	 * the save game will only be re-written to disk if you return true from this callback. A backup will be made of the previous save.
+	 * @param LatentInfo Completion callback
+	 */
+	UFUNCTION(BlueprintCallable, meta=(Latent, WorldContext="WorldContextObject", LatentInfo = "LatentInfo"), Category="SPUD")
+	static void UpgradeAllSaveGames(const UObject* WorldContextObject, bool bUpgradeEvenIfNoUserDataModelVersionDifferences, FSpudUpgradeSaveDelegate SaveNeedsUpgradingCallback, FLatentActionInfo LatentInfo);
+	
 	static FString GetSaveGameDirectory();
 	static FString GetSaveGameFilePath(const FString& SlotName);
+	// Lists saves: note that this is only the filenames, not the directory
+	static void ListSaveGameFiles(TArray<FString>& OutSaveFileList);
 	static FString GetActiveGameFolder();
 	static FString GetActiveGameFilePath(const FString& Name);
 	

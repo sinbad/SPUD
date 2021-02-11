@@ -913,12 +913,12 @@ void USpudState::StoreLevelActorDestroyed(AActor* Actor, FSpudSaveData::TLevelDa
 	LevelData->DestroyedActors.Add(SpudPropertyUtil::GetLevelActorName(Actor));
 }
 
-void USpudState::SaveToArchive(FArchive& Ar, const FText& Title)
+void USpudState::SaveToArchive(FArchive& Ar)
 {
 	// We use separate read / write in order to more clearly support chunked file format
 	// with the backwards compatibility that comes with 
 	FSpudChunkedDataArchive ChunkedAr(Ar);
-	SaveData.PrepareForWrite(Title);
+	SaveData.PrepareForWrite();
 	// Use WritePaged in all cases; if all data is loaded it amounts to the same thing
 	SaveData.WriteToArchive(ChunkedAr, GetActiveGameLevelFolder());
 
@@ -928,6 +928,8 @@ void USpudState::LoadFromArchive(FArchive& Ar, bool bFullyLoadAllLevelData)
 {
 	// Firstly, destroy any active game level files
 	RemoveAllActiveGameLevelFiles();
+
+	Source = Ar.GetArchiveName();
 	
 	FSpudChunkedDataArchive ChunkedAr(Ar);
 	if (bFullyLoadAllLevelData)
@@ -976,5 +978,53 @@ void USpudState::RemoveAllActiveGameLevelFiles()
 	FSpudSaveData::DeleteAllLevelDataFiles(GetActiveGameLevelFolder());
 }
 
+
+bool USpudState::RenameClass(const FString& OldClassName, const FString& NewClassName)
+{
+	// We only have to fix the metadata. All instances refer to the class by ID, so we just rename the
+	// class in-place. In practice this doesn't *really* matter except for spawned objects, which need
+	// to have the correct class name. Everything else doesn't really, the class ID is just used to find
+	// the property def in the save file which will still work even if the runtime class isn't called that any more
+	bool Changed = SaveData.GlobalData.Metadata.RenameClass(OldClassName, NewClassName);
+	for (auto && Pair : SaveData.LevelDataMap)
+	{
+		Changed = Pair.Value->Metadata.RenameClass(OldClassName, NewClassName) || Changed;
+	}
+	return Changed;
+}
+
+bool USpudState::RenameProperty(const FString& ClassName, const FString& OldPropertyName,
+                                const FString& NewPropertyName, const FString& OldPrefix, const FString& NewPrefix)
+{
+	// It's a little more complex than renaming a class because property names can be shared
+	// between classes (so "Status" property on ClassA has the same ID as "Status" property on ClassB), so you can't
+	// just replace in situ. For safety we'll always leave the existing property entry where it is, create or re-use
+	// another property name entry.
+	// But still only affects metadata; instances just have a list of data offsets corresponding with the class def,
+	// which is what looks after the naming
+	bool Changed = SaveData.GlobalData.Metadata.RenameProperty(ClassName, OldPropertyName, NewPropertyName, OldPrefix, NewPrefix);
+	for (auto && Pair : SaveData.LevelDataMap)
+	{
+		Changed = Pair.Value->Metadata.RenameProperty(ClassName, OldPropertyName, NewPropertyName, OldPrefix, NewPrefix) || Changed;
+	}
+	return Changed;
+}
+
+bool USpudState::RenameGlobalObject(const FString& OldName, const FString& NewName)
+{
+	return SaveData.GlobalData.Objects.RenameObject(OldName, NewName);
+}
+
+bool USpudState::RenameLevelObject(const FString& LevelName, const FString& OldName, const FString& NewName)
+{
+	auto LevelData = GetLevelData(LevelName, false);
+	if (LevelData.IsValid())
+	{
+		FScopeLock LevelLock(&LevelData->Mutex);
+
+		return LevelData->LevelActors.RenameObject(OldName, NewName);
+	}
+	return false;
+}
 
 PRAGMA_ENABLE_OPTIMIZATION
