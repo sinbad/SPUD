@@ -177,6 +177,13 @@ void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
         return;
 	}
 
+	if (SlotName.IsEmpty())
+	{
+		UE_LOG(LogSpudSubsystem, Error, TEXT("Cannot save a game with a blank slot name"));		
+		SaveComplete(SlotName, false);
+		return;
+	}
+
 	if (CurrentState != ESpudSystemState::RunningIdle)
 	{
 		// TODO: ignore or queue?
@@ -190,6 +197,8 @@ void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 
 	if (bTakeScreenshot)
 	{
+		UE_LOG(LogSpudSubsystem, Verbose, TEXT("Queueing screenshot for save %s"), *SlotName);
+
 		// Memory-based screenshot request
 		SlotNameInProgress = SlotName;
 		TitleInProgress = Title;
