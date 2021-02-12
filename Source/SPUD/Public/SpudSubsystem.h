@@ -105,8 +105,9 @@ public:
 	/// The desired height of screenshots taken for save games
 	UPROPERTY(BlueprintReadWrite)
 	int32 ScreenshotHeight = 135;
-	
-	
+	FDelegateHandle OnScreenshotHandle;
+
+
 protected:
 	FDelegateHandle OnPreLoadMapHandle;
 	FDelegateHandle OnPostLoadMapHandle;

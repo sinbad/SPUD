@@ -202,10 +202,9 @@ void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 		// Memory-based screenshot request
 		SlotNameInProgress = SlotName;
 		TitleInProgress = Title;
-		UGameViewportClient* GameViewportClient = GEngine->GameViewport;
-		GameViewportClient->OnScreenshotCaptured().AddUObject(this, &USpudSubsystem::OnScreenshotCaptured);
+		UGameViewportClient* ViewportClient = UGameplayStatics::GetPlayerController(GetWorld(), 0)->GetLocalPlayer()->ViewportClient;
+		OnScreenshotHandle = ViewportClient->OnScreenshotCaptured().AddUObject(this, &USpudSubsystem::OnScreenshotCaptured);
 		FScreenshotRequest::RequestScreenshot(false);
-
 		// OnScreenShotCaptured will finish
 	}
 	else
@@ -216,8 +215,9 @@ void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 
 void USpudSubsystem::OnScreenshotCaptured(int32 Width, int32 Height, const TArray<FColor>& Colours)
 {
-	UGameViewportClient* GameViewportClient = GEngine->GameViewport;
-	GameViewportClient->OnScreenshotCaptured().RemoveAll(this);
+	UGameViewportClient* ViewportClient = UGameplayStatics::GetPlayerController(GetWorld(), 0)->GetLocalPlayer()->ViewportClient;
+	ViewportClient->OnScreenshotCaptured().Remove(OnScreenshotHandle);
+	OnScreenshotHandle.Reset();
 
 	// Downscale the screenshot, pass to finish
 	TArray<FColor> RawDataCroppedResized;
