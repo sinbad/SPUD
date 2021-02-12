@@ -1038,4 +1038,20 @@ bool USpudState::RenameLevelObject(const FString& LevelName, const FString& OldN
 	return false;
 }
 
+TArray<FString> USpudState::GetLevelNames(bool bLoadedOnly)
+{
+	TArray<FString> Ret;
+	FScopeLock MapLock(&SaveData.LevelDataMapMutex);
+	for (auto && Pair : SaveData.LevelDataMap)
+	{
+		auto Lvl = Pair.Value;
+		FScopeLock LvlLock(&Lvl->Mutex);
+		if (!bLoadedOnly || Lvl->Status != LDS_Unloaded)
+		{
+			Ret.Add(Lvl->Name);
+		}
+	}
+	return Ret;
+}
+
 PRAGMA_ENABLE_OPTIMIZATION

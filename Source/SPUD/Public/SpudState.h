@@ -329,6 +329,10 @@ public:
 	UFUNCTION(BlueprintCallable)
     bool RenameLevelObject(const FString& LevelName, const FString& OldName, const FString& NewName);
 
+	/// Get a list of the levels we have state about
+	UFUNCTION(BlueprintCallable)
+    TArray<FString> GetLevelNames(bool bLoadedOnly);
+
 	/// Utility method to read *just* the information part of a save game from the start of an archive
 	/// This only reads the minimum needed to describe the save file and doesn't load any other data.
 	static bool LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInfo);
