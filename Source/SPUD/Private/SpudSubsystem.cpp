@@ -196,6 +196,9 @@ void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 
 void USpudSubsystem::OnScreenshotCaptured(int32 Width, int32 Height, const TArray<FColor>& Colours)
 {
+	UGameViewportClient* GameViewportClient = GEngine->GameViewport;
+	GameViewportClient->OnScreenshotCaptured().RemoveAll(this);
+
 	// Downscale the screenshot, pass to finish
 	TArray<FColor> RawDataCroppedResized;
 	FImageUtils::CropAndScaleImage(Width, Height, ScreenshotWidth, ScreenshotHeight, Colours, RawDataCroppedResized);
