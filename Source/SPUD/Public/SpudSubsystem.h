@@ -126,9 +126,6 @@ protected:
 	UPROPERTY()
 	TMap<FString, TWeakObjectPtr<UObject>> NamedGlobalObjects;
 	
-	UPROPERTY()
-	TArray<USpudSaveGameInfo*> SaveGameList;
-	
 	UPROPERTY(BlueprintReadOnly)
 	ESpudSystemState CurrentState = ESpudSystemState::RunningIdle;
 
@@ -166,7 +163,6 @@ protected:
 	void OnPostLoadMap(UWorld* World);
 	UFUNCTION()
 	void OnActorDestroyed(AActor* Actor);
-	void RefreshSaveGameList();
 	void SubscribeAllLevelObjectEvents();
 	void SubscribeLevelObjectEvents(ULevel* Level);
 	void UnsubscribeLevelObjectEvents(ULevel* Level);
@@ -309,11 +305,24 @@ public:
 
 	/// Get the list of the save games with metadata
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
-	const TArray<USpudSaveGameInfo*>& GetSaveGameList();
+	TArray<USpudSaveGameInfo*> GetSaveGameList(bool bIncludeQuickSave = true, bool bIncludeAutoSave = true);
 
 	/// Get info about the latest save game
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	USpudSaveGameInfo* GetLatestSaveGame();
+
+	/// Get info about the quick save game, may return null if none
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+    USpudSaveGameInfo* GetQuickSaveGame();
+
+	/// Get info about the auto save game, may return null if none
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+    USpudSaveGameInfo* GetAutoSaveGame();
+
+	/// Get information about a specific save game slot
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+	USpudSaveGameInfo* GetSaveGameInfo(const FString& SlotName);
+
 
 	/// By default you're not allowed to interrupt save / load operations and any requests received while another is
 	/// believed to be ongoing is ignored. This method basically overrides this and tells the system to accept
@@ -372,6 +381,15 @@ public:
 	UFUNCTION(BlueprintCallable, meta=(Latent, WorldContext="WorldContextObject", LatentInfo = "LatentInfo"), Category="SPUD")
 	static void UpgradeAllSaveGames(const UObject* WorldContextObject, bool bUpgradeEvenIfNoUserDataModelVersionDifferences, FSpudUpgradeSaveDelegate SaveNeedsUpgradingCallback, FLatentActionInfo LatentInfo);
 	
+	/// Return whether a named slot is a quick save
+	/// Useful for when parsing through saves to check if something is a manual save or not
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+    static bool IsQuickSave(const FString& SlotName);
+	/// Return whether a named slot is a quick save
+	/// Useful for when parsing through saves to check if something is a manual save or not
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+    static bool IsAutoSave(const FString& SlotName);
+
 	static FString GetSaveGameDirectory();
 	static FString GetSaveGameFilePath(const FString& SlotName);
 	// Lists saves: note that this is only the filenames, not the directory

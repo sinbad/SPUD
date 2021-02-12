@@ -95,6 +95,17 @@ void USpudSubsystem::QuickLoadGame()
 	LoadGame(SPUD_QUICKSAVE_SLOTNAME);
 }
 
+
+bool USpudSubsystem::IsQuickSave(const FString& SlotName)
+{
+	return SlotName == SPUD_QUICKSAVE_SLOTNAME;
+}
+
+bool USpudSubsystem::IsAutoSave(const FString& SlotName)
+{
+	return SlotName == SPUD_AUTOSAVE_SLOTNAME;
+}
+
 void USpudSubsystem::LoadLatestSaveGame()
 {
 	auto Latest = GetLatestSaveGame();
@@ -754,47 +765,56 @@ void USpudSubsystem::OnActorDestroyed(AActor* Actor)
 	}
 }
 
-
-void USpudSubsystem::RefreshSaveGameList()
+TArray<USpudSaveGameInfo*> USpudSubsystem::GetSaveGameList(bool bIncludeQuickSave, bool bIncludeAutoSave)
 {
-	IFileManager& FM = IFileManager::Get();
 
 	TArray<FString> SaveFiles;
 	ListSaveGameFiles(SaveFiles);
 
-	SaveGameList.Empty();
+	TArray<USpudSaveGameInfo*> Ret;
 	for (auto && File : SaveFiles)
 	{
-		// We want to parse just the very first part of the file, not all of it
-		FString AbsoluteFilename = FPaths::Combine(GetSaveGameDirectory(), File);
-		auto Archive = TUniquePtr<FArchive>(FM.CreateFileReader(*AbsoluteFilename));
+		FString SlotName = FPaths::GetBaseFilename(File);
 
-		if(!Archive)
+		if ((!bIncludeQuickSave && SlotName == SPUD_QUICKSAVE_SLOTNAME) ||
+			(!bIncludeAutoSave && SlotName == SPUD_AUTOSAVE_SLOTNAME))
 		{
-			UE_LOG(LogSpudSubsystem, Error, TEXT("Unable to open %s for reading info"), *File);
-			continue;
+			continue;			
 		}
-		
-		auto Info = NewObject<USpudSaveGameInfo>();
-		Info->SlotName = FPaths::GetBaseFilename(File);
 
-		USpudState::LoadSaveInfoFromArchive(*Archive, *Info);
-		Archive->Close();
-		
-		SaveGameList.Add(Info);		
-		
+		auto Info = GetSaveGameInfo(SlotName);
+		if (Info)
+			Ret.Add(Info);
 	}
+
+	return Ret;
 }
 
-const TArray<USpudSaveGameInfo*>& USpudSubsystem::GetSaveGameList()
+USpudSaveGameInfo* USpudSubsystem::GetSaveGameInfo(const FString& SlotName)
 {
-	RefreshSaveGameList();
-	return SaveGameList;
+	IFileManager& FM = IFileManager::Get();
+	// We want to parse just the very first part of the file, not all of it
+	FString AbsoluteFilename = FPaths::Combine(GetSaveGameDirectory(), SlotName + ".sav");
+	auto Archive = TUniquePtr<FArchive>(FM.CreateFileReader(*AbsoluteFilename));
+
+	if(!Archive)
+	{
+		UE_LOG(LogSpudSubsystem, Error, TEXT("Unable to open %s for reading info"), *AbsoluteFilename);
+		return nullptr;
+	}
+		
+	auto Info = NewObject<USpudSaveGameInfo>();
+	Info->SlotName = SlotName;
+
+	USpudState::LoadSaveInfoFromArchive(*Archive, *Info);
+	Archive->Close();
+		
+	return Info;
 }
 
 USpudSaveGameInfo* USpudSubsystem::GetLatestSaveGame()
 {
-	RefreshSaveGameList();
+	auto SaveGameList = GetSaveGameList();
 	USpudSaveGameInfo* Best = nullptr;
 	for (auto Curr : SaveGameList)
 	{
@@ -804,6 +824,16 @@ USpudSaveGameInfo* USpudSubsystem::GetLatestSaveGame()
 	return Best;
 }
 
+
+USpudSaveGameInfo* USpudSubsystem::GetQuickSaveGame()
+{
+	return GetSaveGameInfo(SPUD_QUICKSAVE_SLOTNAME);
+}
+
+USpudSaveGameInfo* USpudSubsystem::GetAutoSaveGame()
+{
+	return GetSaveGameInfo(SPUD_AUTOSAVE_SLOTNAME);
+}
 
 FString USpudSubsystem::GetSaveGameDirectory()
 {
