@@ -296,7 +296,7 @@ public:
 
 	/// Set the screenshot data for this save		
 	UFUNCTION(BlueprintCallable)
-	void SetScreenshot(int32 Width, int32 Height, TArray<FColor> ColourData);
+	void SetScreenshot(TArray<uint8>& ImgData);
 
 
 	/// Rename a class in this save data

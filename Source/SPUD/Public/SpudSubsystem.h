@@ -188,12 +188,7 @@ protected:
 	UFUNCTION()
     void OnScreenshotCaptured(int32 Width, int32 Height, const TArray<FColor>& Colours);
 
-	struct FScreenshotData
-	{
-		int32 Width, Height;
-		TArray<FColor> ColourData;
-	};
-	void FinishSaveGame(const FString& SlotName, const FText& Title, FScreenshotData* Screenshot);
+	void FinishSaveGame(const FString& SlotName, const FText& Title, TArray<uint8>* ScreenshotData);
 	void LoadComplete(const FString& SlotName, bool bSuccess);
 	void SaveComplete(const FString& SlotName, bool bSuccess);
 

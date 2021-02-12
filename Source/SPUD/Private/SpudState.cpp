@@ -979,12 +979,10 @@ void USpudState::RemoveAllActiveGameLevelFiles()
 }
 
 
-void USpudState::SetScreenshot(int32 Width, int32 Height, TArray<FColor> ColourData)
+void USpudState::SetScreenshot(TArray<uint8>& ImgData)
 {
 	auto& Scr = SaveData.Info.Screenshot;
-	Scr.Width = Width;
-	Scr.Height = Height;
-	Scr.ColourData = ColourData;
+	Scr.ImageData = ImgData;
 }
 
 bool USpudState::RenameClass(const FString& OldClassName, const FString& NewClassName)

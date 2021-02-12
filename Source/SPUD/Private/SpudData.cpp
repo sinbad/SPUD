@@ -780,9 +780,6 @@ void FSpudSaveInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 		Ar << TimestampStr;
 		FDateTime::ParseIso8601(*TimestampStr, Timestamp);
 
-		Screenshot.Height = Screenshot.Width = 0;
-		Screenshot.ColourData.Empty();
-		
 		// TODO read custom user data
 		const uint32 ScreenshotID = FSpudChunkHeader::EncodeMagic(SPUDDATA_SCREENSHOT_MAGIC);
 		FSpudChunkHeader Hdr;
@@ -801,22 +798,20 @@ void FSpudSaveInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 void FSpudSaveInfo::Reset()
 {
 	Title = FText();
-	Screenshot.Height = Screenshot.Width = 0;
-	Screenshot.ColourData.Empty();
-	
+	Screenshot.ImageData.Empty();
 }
 
 //------------------------------------------------------------------------------
 void FSpudScreenshot::WriteToArchive(FSpudChunkedDataArchive& Ar)
 {
 	// Don't write anything if no screenshot data
-	if (Width > 0 && Height > 0 && ColourData.Num() > 0)
+	if (ImageData.Num() > 0)
 	{
 		if (ChunkStart(Ar))
 		{
-			Ar << Width;
-			Ar << Height;
-			Ar << ColourData;
+			// Don't use << operator, just write the PNG data directly
+			// Chunk header already tells us how big it is since it's the only content
+			Ar.Serialize(ImageData.GetData(), ImageData.Num());
 			
 			ChunkEnd(Ar);
 		}
@@ -827,9 +822,9 @@ void FSpudScreenshot::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 {
 	if (ChunkStart(Ar))
 	{
-		Ar << Width;
-		Ar << Height;
-		Ar << ColourData;
+		// This chunk ONLY contains PNG data so data size from header is this
+		ImageData.SetNum(ChunkHeader.Length);
+		Ar.Serialize(ImageData.GetData(), ChunkHeader.Length);
 		ChunkEnd(Ar);
 	}
 }

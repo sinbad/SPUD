@@ -737,9 +737,9 @@ struct SPUD_API FSpudLevelData : public FSpudChunk
 /// Screenshot chunk
 struct SPUD_API FSpudScreenshot : public FSpudChunk
 {
-	uint16 Width;
-	uint16 Height;
-	TArray<FColor> ColourData;
+	// PNG encoded image bytes
+	TArray<uint8> ImageData;
+	
 	virtual const char* GetMagic() const override { return SPUDDATA_SCREENSHOT_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
 	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;

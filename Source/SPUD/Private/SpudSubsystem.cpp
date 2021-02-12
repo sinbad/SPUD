@@ -197,15 +197,17 @@ void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 void USpudSubsystem::OnScreenshotCaptured(int32 Width, int32 Height, const TArray<FColor>& Colours)
 {
 	// Downscale the screenshot, pass to finish
-	FScreenshotData Screenshot;
-	Screenshot.Width = ScreenshotWidth;
-	Screenshot.Height = ScreenshotHeight;
-	FImageUtils::CropAndScaleImage(Width, Height, Screenshot.Width, Screenshot.Height, Colours, Screenshot.ColourData);
+	TArray<FColor> RawDataCroppedResized;
+	FImageUtils::CropAndScaleImage(Width, Height, ScreenshotWidth, ScreenshotHeight, Colours, RawDataCroppedResized);
+
+	// Convert down to PNG
+	TArray<uint8> PngData;
+	FImageUtils::CompressImageArray(ScreenshotWidth, ScreenshotHeight, RawDataCroppedResized, PngData);
 	
-	FinishSaveGame(SlotNameInProgress, TitleInProgress, &Screenshot);
+	FinishSaveGame(SlotNameInProgress, TitleInProgress, &PngData);
 	
 }
-void USpudSubsystem::FinishSaveGame(const FString& SlotName, const FText& Title, FScreenshotData* Screenshot)
+void USpudSubsystem::FinishSaveGame(const FString& SlotName, const FText& Title, TArray<uint8>* ScreenshotData)
 {
 	auto State = GetActiveState();
 	auto World = GetWorld();
@@ -232,8 +234,8 @@ void USpudSubsystem::FinishSaveGame(const FString& SlotName, const FText& Title,
 
 	State->SetTitle(Title);
 	State->SetTimestamp(FDateTime::Now());
-	if (Screenshot)
-		State->SetScreenshot(Screenshot->Width, Screenshot->Height, Screenshot->ColourData);
+	if (ScreenshotData)
+		State->SetScreenshot(*ScreenshotData);
 	
 	// UGameplayStatics::SaveGameToSlot prefixes our save with a lot of crap that we don't need
 	// And also wraps it with FObjectAndNameAsStringProxyArchive, which again we don't need
