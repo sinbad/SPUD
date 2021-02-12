@@ -187,7 +187,7 @@ void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 	if (CurrentState != ESpudSystemState::RunningIdle)
 	{
 		// TODO: ignore or queue?
-		UE_LOG(LogSpudSubsystem, Fatal, TEXT("TODO: Overlapping calls to save/load, resolve this"));
+		UE_LOG(LogSpudSubsystem, Error, TEXT("TODO: Overlapping calls to save/load, resolve this"));
 		SaveComplete(SlotName, false);
 		return;
 	}
@@ -333,7 +333,7 @@ void USpudSubsystem::LoadGame(const FString& SlotName)
 	if (CurrentState != ESpudSystemState::RunningIdle)
 	{
 		// TODO: ignore or queue?
-		UE_LOG(LogSpudSubsystem, Fatal, TEXT("TODO: Overlapping calls to save/load, resolve this"));
+		UE_LOG(LogSpudSubsystem, Error, TEXT("TODO: Overlapping calls to save/load, resolve this"));
 		LoadComplete(SlotName, false);
 		return;
 	}
