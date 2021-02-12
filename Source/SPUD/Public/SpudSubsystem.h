@@ -227,7 +227,7 @@ public:
     void AutoSaveGame();
 	/// Perform a Quick Save of the game in a single re-used slot, in response to a player request
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
-    void QuickSaveGame();
+    void QuickSaveGame(bool bTakeScreenshot = true);
 	/// Quick load the game from the last player-requested Quick Save slot (NOT the last autosave or manual save)
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void QuickLoadGame();
