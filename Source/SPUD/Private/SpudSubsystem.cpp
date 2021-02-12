@@ -557,7 +557,6 @@ void USpudSubsystem::PostLoadStreamLevel(int32 LinkID)
 		auto StreamLevel = UGameplayStatics::GetStreamingLevel(GetWorld(), LevelName);
 		if (StreamLevel)
 		{
-			ULevel* Level = StreamLevel->GetLoadedLevel();
 			StreamLevel->SetShouldBeVisible(true);
 		}		
 
