@@ -27,6 +27,9 @@ class SPUD_API USpudSaveGameInfo : public UObject
 	/// The name of the save game slot this refers to
 	UPROPERTY(BlueprintReadOnly)
 	FString SlotName;
+	/// Thumbnail screenshot (may be blank if one wasn't included in the save game)
+	UPROPERTY(BlueprintReadOnly)
+	UTexture2D* Thumbnail;
 
 };
 

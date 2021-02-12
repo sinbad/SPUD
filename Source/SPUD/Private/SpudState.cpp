@@ -10,6 +10,7 @@
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/MovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "ImageUtils.h"
 
 DEFINE_LOG_CATEGORY(LogSpudState)
 
@@ -962,6 +963,10 @@ bool USpudState::LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInf
 	{
 		OutInfo.Title = StorageInfo.Title;
 		OutInfo.Timestamp = StorageInfo.Timestamp;
+		if (StorageInfo.Screenshot.ImageData.Num() > 0)
+			OutInfo.Thumbnail = FImageUtils::ImportBufferAsTexture2D(StorageInfo.Screenshot.ImageData);
+		else
+			OutInfo.Thumbnail = nullptr;
 	}
 	return Ok;
 	
