@@ -44,7 +44,7 @@ enum class ESpudSystemState : uint8
 
 /// Subsystem which controls our save games, and also the active game's persistent state (for streaming levels)
 UCLASS()
-class SPUD_API USpudSubsystem : public UGameInstanceSubsystem
+class SPUD_API USpudSubsystem : public UGameInstanceSubsystem, public FTickableGameObject
 {
 	GENERATED_BODY()
 
@@ -118,7 +118,7 @@ protected:
 	FCriticalSection LevelsPendingLoadMutex;
 	FCriticalSection LevelsPendingUnloadMutex;
 	FTimerHandle StreamLevelUnloadTimerHandle;
-	
+	float ScreenshotTimeout = 0;	
 	FString SlotNameInProgress;
 	FText TitleInProgress;
 
@@ -182,6 +182,8 @@ protected:
 	void StoreWorld(UWorld* World, bool bReleaseLevels, bool bBlocking);
 	void StoreLevel(ULevel* Level, bool bRelease, bool bBlocking);
 
+	UFUNCTION()
+	void ScreenshotTimedOut();
 	UFUNCTION()
     void OnScreenshotCaptured(int32 Width, int32 Height, const TArray<FColor>& Colours);
 
@@ -397,6 +399,14 @@ public:
 	static void ListSaveGameFiles(TArray<FString>& OutSaveFileList);
 	static FString GetActiveGameFolder();
 	static FString GetActiveGameFilePath(const FString& Name);
+
+
+	// FTickableGameObject begin
+	virtual void Tick(float DeltaTime) override;
+	virtual ETickableTickType GetTickableTickType() const override;
+	virtual bool IsTickableWhenPaused() const override;
+	virtual TStatId GetStatId() const override;
+	// FTickableGameObject end
 	
 };
 
