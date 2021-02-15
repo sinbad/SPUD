@@ -27,6 +27,9 @@ class SPUD_API USpudSaveGameInfo : public UObject
 	/// The name of the save game slot this refers to
 	UPROPERTY(BlueprintReadOnly)
 	FString SlotName;
+	/// Thumbnail screenshot (may be blank if one wasn't included in the save game)
+	UPROPERTY(BlueprintReadOnly)
+	UTexture2D* Thumbnail;
 
 };
 
@@ -294,6 +297,11 @@ public:
 	UFUNCTION(BlueprintCallable)
     void SetTimestamp(const FDateTime& Timestamp) {SaveData.Info.Timestamp = Timestamp; }
 
+	/// Set the screenshot data for this save		
+	UFUNCTION(BlueprintCallable)
+	void SetScreenshot(TArray<uint8>& ImgData);
+
+
 	/// Rename a class in this save data
 	/// This is for performing upgrades on save games that would otherwise be broken
 	/// Returns whether any changes were made
@@ -320,6 +328,10 @@ public:
 	/// Returns whether any changes were made
 	UFUNCTION(BlueprintCallable)
     bool RenameLevelObject(const FString& LevelName, const FString& OldName, const FString& NewName);
+
+	/// Get a list of the levels we have state about
+	UFUNCTION(BlueprintCallable)
+    TArray<FString> GetLevelNames(bool bLoadedOnly);
 
 	/// Utility method to read *just* the information part of a save game from the start of an archive
 	/// This only reads the minimum needed to describe the save file and doesn't load any other data.

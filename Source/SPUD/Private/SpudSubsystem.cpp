@@ -3,6 +3,7 @@
 #include "SpudState.h"
 #include "Engine/LevelStreaming.h"
 #include "Kismet/GameplayStatics.h"
+#include "ImageUtils.h"
 
 PRAGMA_DISABLE_OPTIMIZATION
 
@@ -84,14 +85,25 @@ void USpudSubsystem::AutoSaveGame()
 	SaveGame(SPUD_AUTOSAVE_SLOTNAME, NSLOCTEXT("Spud", "AutoSaveTitle", "Autosave"));
 }
 
-void USpudSubsystem::QuickSaveGame()
+void USpudSubsystem::QuickSaveGame(bool bTakeScreenshot)
 {
-	SaveGame(SPUD_QUICKSAVE_SLOTNAME, NSLOCTEXT("Spud", "QuickSaveTitle", "Quick Save"));
+	SaveGame(SPUD_QUICKSAVE_SLOTNAME, NSLOCTEXT("Spud", "QuickSaveTitle", "Quick Save"), bTakeScreenshot);
 }
 
 void USpudSubsystem::QuickLoadGame()
 {
 	LoadGame(SPUD_QUICKSAVE_SLOTNAME);
+}
+
+
+bool USpudSubsystem::IsQuickSave(const FString& SlotName)
+{
+	return SlotName == SPUD_QUICKSAVE_SLOTNAME;
+}
+
+bool USpudSubsystem::IsAutoSave(const FString& SlotName)
+{
+	return SlotName == SPUD_AUTOSAVE_SLOTNAME;
 }
 
 void USpudSubsystem::LoadLatestSaveGame()
@@ -157,23 +169,91 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 	PostTravelToNewMap.Broadcast();
 }
 
-bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "" */)
+void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "" */, bool bTakeScreenshot /* = true */)
 {
 	if (!ServerCheck(true))
-		return false;
+	{
+		SaveComplete(SlotName, false);
+        return;
+	}
+
+	if (SlotName.IsEmpty())
+	{
+		UE_LOG(LogSpudSubsystem, Error, TEXT("Cannot save a game with a blank slot name"));		
+		SaveComplete(SlotName, false);
+		return;
+	}
 
 	if (CurrentState != ESpudSystemState::RunningIdle)
 	{
 		// TODO: ignore or queue?
-		UE_LOG(LogSpudSubsystem, Fatal, TEXT("TODO: Overlapping calls to save/load, resolve this"));
-		return false;
+		UE_LOG(LogSpudSubsystem, Error, TEXT("TODO: Overlapping calls to save/load, resolve this"));
+		SaveComplete(SlotName, false);
+		return;
 	}
 
 	CurrentState = ESpudSystemState::SavingGame;
 	PreSaveGame.Broadcast(SlotName);
-	
-	auto State = GetActiveState();
 
+	if (bTakeScreenshot)
+	{
+		UE_LOG(LogSpudSubsystem, Verbose, TEXT("Queueing screenshot for save %s"), *SlotName);
+
+		// Memory-based screenshot request
+		SlotNameInProgress = SlotName;
+		TitleInProgress = Title;
+		UGameViewportClient* ViewportClient = UGameplayStatics::GetPlayerController(GetWorld(), 0)->GetLocalPlayer()->ViewportClient;
+		OnScreenshotHandle = ViewportClient->OnScreenshotCaptured().AddUObject(this, &USpudSubsystem::OnScreenshotCaptured);
+		FScreenshotRequest::RequestScreenshot(false);
+		// OnScreenShotCaptured will finish
+		// EXCEPT that if a Widget BP is open in the editor, this request will disappear into nowhere!! (4.26.1)
+		// So we need a failsafe
+		// Wait for 1 second. Can't use FTimerManager because there's no option for those to tick while game paused (which is common in saves!)
+		ScreenshotTimeout = 1;
+	}
+	else
+	{
+		FinishSaveGame(SlotName, Title, nullptr);
+	}
+}
+
+
+void USpudSubsystem::ScreenshotTimedOut()
+{
+	// We failed to get a screenshot back in time
+	// This is mostly likely down to a weird fecking issue in PIE where if ANY Widget Blueprint is open while a screenshot
+	// is requested, that request is never fulfilled
+
+	UE_LOG(LogSpudSubsystem, Error, TEXT("Request for save screenshot timed out. This is most likely a UE4 bug: "
+		"Widget Blueprints being open in the editor during PIE seems to break screenshots. Completing save game without a screenshot."))
+
+	ScreenshotTimeout = 0;
+	FinishSaveGame(SlotNameInProgress, TitleInProgress, nullptr);
+	
+}
+
+void USpudSubsystem::OnScreenshotCaptured(int32 Width, int32 Height, const TArray<FColor>& Colours)
+{
+	ScreenshotTimeout = 0;
+
+	UGameViewportClient* ViewportClient = UGameplayStatics::GetPlayerController(GetWorld(), 0)->GetLocalPlayer()->ViewportClient;
+	ViewportClient->OnScreenshotCaptured().Remove(OnScreenshotHandle);
+	OnScreenshotHandle.Reset();
+
+	// Downscale the screenshot, pass to finish
+	TArray<FColor> RawDataCroppedResized;
+	FImageUtils::CropAndScaleImage(Width, Height, ScreenshotWidth, ScreenshotHeight, Colours, RawDataCroppedResized);
+
+	// Convert down to PNG
+	TArray<uint8> PngData;
+	FImageUtils::CompressImageArray(ScreenshotWidth, ScreenshotHeight, RawDataCroppedResized, PngData);
+	
+	FinishSaveGame(SlotNameInProgress, TitleInProgress, &PngData);
+	
+}
+void USpudSubsystem::FinishSaveGame(const FString& SlotName, const FText& Title, TArray<uint8>* ScreenshotData)
+{
+	auto State = GetActiveState();
 	auto World = GetWorld();
 
 	// We do NOT reset
@@ -198,6 +278,8 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 
 	State->SetTitle(Title);
 	State->SetTimestamp(FDateTime::Now());
+	if (ScreenshotData)
+		State->SetScreenshot(*ScreenshotData);
 	
 	// UGameplayStatics::SaveGameToSlot prefixes our save with a lot of crap that we don't need
 	// And also wraps it with FObjectAndNameAsStringProxyArchive, which again we don't need
@@ -231,11 +313,18 @@ bool USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 		SaveOK = false;
 	}
 
-	CurrentState = ESpudSystemState::RunningIdle;
-	PostSaveGame.Broadcast(SlotName, SaveOK);
+	SaveComplete(SlotName, SaveOK);
 
-	return SaveOK;
 }
+
+void USpudSubsystem::SaveComplete(const FString& SlotName, bool bSuccess)
+{
+	SlotNameInProgress = "";
+	TitleInProgress = FText();
+	CurrentState = ESpudSystemState::RunningIdle;
+	PostSaveGame.Broadcast(SlotName, bSuccess);
+}
+
 
 
 void USpudSubsystem::StoreWorld(UWorld* World, bool bReleaseLevels, bool bBlocking)
@@ -253,20 +342,21 @@ void USpudSubsystem::StoreLevel(ULevel* Level, bool bRelease, bool bBlocking)
 	GetActiveState()->StoreLevel(Level, bRelease, bBlocking);
 	PostLevelStore.Broadcast(LevelName, true);
 }
-void USpudSubsystem::SaveComplete(const FString& SlotName, bool bSuccess)
-{
-}
 
-bool USpudSubsystem::LoadGame(const FString& SlotName)
+void USpudSubsystem::LoadGame(const FString& SlotName)
 {
 	if (!ServerCheck(true))
-		return false;
+	{
+		LoadComplete(SlotName, false);
+		return;
+	}
 
 	if (CurrentState != ESpudSystemState::RunningIdle)
 	{
 		// TODO: ignore or queue?
-		UE_LOG(LogSpudSubsystem, Fatal, TEXT("TODO: Overlapping calls to save/load, resolve this"));
-		return false;
+		UE_LOG(LogSpudSubsystem, Error, TEXT("TODO: Overlapping calls to save/load, resolve this"));
+		LoadComplete(SlotName, false);
+		return;
 	}
 
 	CurrentState = ESpudSystemState::LoadingGame;
@@ -293,14 +383,14 @@ bool USpudSubsystem::LoadGame(const FString& SlotName)
 		{
 			UE_LOG(LogSpudSubsystem, Error, TEXT("Error while loading game from %s"), *SlotName);
 			LoadComplete(SlotName, false);
-			return false;
+			return;
 		}
 	}
 	else
 	{
 		UE_LOG(LogSpudSubsystem, Error, TEXT("Error while opening save game for slot %s"), *SlotName);		
 		LoadComplete(SlotName, false);
-		return false;
+		return;
 	}
 
 	// Just do the reverse of what we did
@@ -320,8 +410,6 @@ bool USpudSubsystem::LoadGame(const FString& SlotName)
 	SlotNameInProgress = SlotName;
 	UE_LOG(LogSpudSubsystem, Verbose, TEXT("(Re)loading map: %s"), *State->GetPersistentLevel());		
 	UGameplayStatics::OpenLevel(GetWorld(), FName(State->GetPersistentLevel()));
-
-	return true;
 }
 
 
@@ -510,7 +598,6 @@ void USpudSubsystem::PostLoadStreamLevel(int32 LinkID)
 		auto StreamLevel = UGameplayStatics::GetStreamingLevel(GetWorld(), LevelName);
 		if (StreamLevel)
 		{
-			ULevel* Level = StreamLevel->GetLoadedLevel();
 			StreamLevel->SetShouldBeVisible(true);
 		}		
 
@@ -708,47 +795,56 @@ void USpudSubsystem::OnActorDestroyed(AActor* Actor)
 	}
 }
 
-
-void USpudSubsystem::RefreshSaveGameList()
+TArray<USpudSaveGameInfo*> USpudSubsystem::GetSaveGameList(bool bIncludeQuickSave, bool bIncludeAutoSave)
 {
-	IFileManager& FM = IFileManager::Get();
 
 	TArray<FString> SaveFiles;
 	ListSaveGameFiles(SaveFiles);
 
-	SaveGameList.Empty();
+	TArray<USpudSaveGameInfo*> Ret;
 	for (auto && File : SaveFiles)
 	{
-		// We want to parse just the very first part of the file, not all of it
-		FString AbsoluteFilename = FPaths::Combine(GetSaveGameDirectory(), File);
-		auto Archive = TUniquePtr<FArchive>(FM.CreateFileReader(*AbsoluteFilename));
+		FString SlotName = FPaths::GetBaseFilename(File);
 
-		if(!Archive)
+		if ((!bIncludeQuickSave && SlotName == SPUD_QUICKSAVE_SLOTNAME) ||
+			(!bIncludeAutoSave && SlotName == SPUD_AUTOSAVE_SLOTNAME))
 		{
-			UE_LOG(LogSpudSubsystem, Error, TEXT("Unable to open %s for reading info"), *File);
-			continue;
+			continue;			
 		}
-		
-		auto Info = NewObject<USpudSaveGameInfo>();
-		Info->SlotName = FPaths::GetBaseFilename(File);
 
-		USpudState::LoadSaveInfoFromArchive(*Archive, *Info);
-		Archive->Close();
-		
-		SaveGameList.Add(Info);		
-		
+		auto Info = GetSaveGameInfo(SlotName);
+		if (Info)
+			Ret.Add(Info);
 	}
+
+	return Ret;
 }
 
-const TArray<USpudSaveGameInfo*>& USpudSubsystem::GetSaveGameList()
+USpudSaveGameInfo* USpudSubsystem::GetSaveGameInfo(const FString& SlotName)
 {
-	RefreshSaveGameList();
-	return SaveGameList;
+	IFileManager& FM = IFileManager::Get();
+	// We want to parse just the very first part of the file, not all of it
+	FString AbsoluteFilename = FPaths::Combine(GetSaveGameDirectory(), SlotName + ".sav");
+	auto Archive = TUniquePtr<FArchive>(FM.CreateFileReader(*AbsoluteFilename));
+
+	if(!Archive)
+	{
+		UE_LOG(LogSpudSubsystem, Error, TEXT("Unable to open %s for reading info"), *AbsoluteFilename);
+		return nullptr;
+	}
+		
+	auto Info = NewObject<USpudSaveGameInfo>();
+	Info->SlotName = SlotName;
+
+	USpudState::LoadSaveInfoFromArchive(*Archive, *Info);
+	Archive->Close();
+		
+	return Info;
 }
 
 USpudSaveGameInfo* USpudSubsystem::GetLatestSaveGame()
 {
-	RefreshSaveGameList();
+	auto SaveGameList = GetSaveGameList();
 	USpudSaveGameInfo* Best = nullptr;
 	for (auto Curr : SaveGameList)
 	{
@@ -758,6 +854,16 @@ USpudSaveGameInfo* USpudSubsystem::GetLatestSaveGame()
 	return Best;
 }
 
+
+USpudSaveGameInfo* USpudSubsystem::GetQuickSaveGame()
+{
+	return GetSaveGameInfo(SPUD_QUICKSAVE_SLOTNAME);
+}
+
+USpudSaveGameInfo* USpudSubsystem::GetAutoSaveGame()
+{
+	return GetSaveGameInfo(SPUD_AUTOSAVE_SLOTNAME);
+}
 
 FString USpudSubsystem::GetSaveGameDirectory()
 {
@@ -913,6 +1019,40 @@ void USpudSubsystem::UpgradeAllSaveGames(const UObject* WorldContextObject,
 	}
 }
 
+// FTickableGameObject begin
 
+
+void USpudSubsystem::Tick(float DeltaTime)
+{
+	if (ScreenshotTimeout > 0)
+	{
+		ScreenshotTimeout -= DeltaTime;
+		if (ScreenshotTimeout <= 0)
+		{
+			ScreenshotTimeout = 0;
+			ScreenshotTimedOut();
+		}
+	}
+}
+
+ETickableTickType USpudSubsystem::GetTickableTickType() const
+{
+	// This is for timeout purposes
+	return ETickableTickType::Always;
+}
+
+bool USpudSubsystem::IsTickableWhenPaused() const
+{
+	// We need the screenshot failsafe timeout even when paused
+	return true;
+}
+
+TStatId USpudSubsystem::GetStatId() const
+{
+	RETURN_QUICK_DECLARE_CYCLE_STAT(USpudSubsystem, STATGROUP_Tickables);
+}
+
+
+// FTickableGameObject end
 
 PRAGMA_ENABLE_OPTIMIZATION

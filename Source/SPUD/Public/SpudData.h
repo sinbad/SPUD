@@ -9,6 +9,7 @@ extern int32 GCurrentUserDataModelVersion;
 // Chunk IDs
 #define SPUDDATA_SAVEGAME_MAGIC "SAVE"
 #define SPUDDATA_SAVEINFO_MAGIC "INFO"
+#define SPUDDATA_SCREENSHOT_MAGIC "SHOT"
 #define SPUDDATA_METADATA_MAGIC "META"
 #define SPUDDATA_CLASSDEFINITIONLIST_MAGIC "CLST"
 #define SPUDDATA_CLASSDEF_MAGIC "CDEF"
@@ -733,6 +734,17 @@ struct SPUD_API FSpudLevelData : public FSpudChunk
 	bool IsUserDataModelOutdated() const { return Metadata.IsUserDataModelOutdated(); }
 };
 
+/// Screenshot chunk
+struct SPUD_API FSpudScreenshot : public FSpudChunk
+{
+	// PNG encoded image bytes
+	TArray<uint8> ImageData;
+	
+	virtual const char* GetMagic() const override { return SPUDDATA_SCREENSHOT_MAGIC; }
+	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
+};
+
 /// Description of the save game, so we can just read this chunk to get info about it
 /// This is better than having a separate metadata file describing the save in order to get description, date/time etc
 /// because it means saves can just be copied as single standalone files
@@ -747,13 +759,16 @@ struct SPUD_API FSpudSaveInfo : public FSpudChunk
 	FText Title;
 	/// Timestamp of the save. Used for display and also to find the latest save for "Continue" behaviour
 	FDateTime Timestamp;
+	/// Optional screenshot
+	FSpudScreenshot Screenshot;
 
-	// TODO: support for screenshots and custom data. These should be encapsulated in child chunks
+	// TODO: support custom data. Should be encapsulated in child chunk(s)
 	
 	virtual const char* GetMagic() const override { return SPUDDATA_SAVEINFO_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
 	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
 	
+	void Reset();
 };
 
 /// The top-level structure for the entire save file

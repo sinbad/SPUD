@@ -10,6 +10,7 @@
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/MovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "ImageUtils.h"
 
 DEFINE_LOG_CATEGORY(LogSpudState)
 
@@ -962,6 +963,10 @@ bool USpudState::LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInf
 	{
 		OutInfo.Title = StorageInfo.Title;
 		OutInfo.Timestamp = StorageInfo.Timestamp;
+		if (StorageInfo.Screenshot.ImageData.Num() > 0)
+			OutInfo.Thumbnail = FImageUtils::ImportBufferAsTexture2D(StorageInfo.Screenshot.ImageData);
+		else
+			OutInfo.Thumbnail = nullptr;
 	}
 	return Ok;
 	
@@ -978,6 +983,12 @@ void USpudState::RemoveAllActiveGameLevelFiles()
 	FSpudSaveData::DeleteAllLevelDataFiles(GetActiveGameLevelFolder());
 }
 
+
+void USpudState::SetScreenshot(TArray<uint8>& ImgData)
+{
+	auto& Scr = SaveData.Info.Screenshot;
+	Scr.ImageData = ImgData;
+}
 
 bool USpudState::RenameClass(const FString& OldClassName, const FString& NewClassName)
 {
@@ -1025,6 +1036,22 @@ bool USpudState::RenameLevelObject(const FString& LevelName, const FString& OldN
 		return LevelData->LevelActors.RenameObject(OldName, NewName);
 	}
 	return false;
+}
+
+TArray<FString> USpudState::GetLevelNames(bool bLoadedOnly)
+{
+	TArray<FString> Ret;
+	FScopeLock MapLock(&SaveData.LevelDataMapMutex);
+	for (auto && Pair : SaveData.LevelDataMap)
+	{
+		auto Lvl = Pair.Value;
+		FScopeLock LvlLock(&Lvl->Mutex);
+		if (!bLoadedOnly || Lvl->Status != LDS_Unloaded)
+		{
+			Ret.Add(Lvl->Name);
+		}
+	}
+	return Ret;
 }
 
 PRAGMA_ENABLE_OPTIMIZATION

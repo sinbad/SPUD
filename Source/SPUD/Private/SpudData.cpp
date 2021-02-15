@@ -761,7 +761,11 @@ void FSpudSaveInfo::WriteToArchive(FSpudChunkedDataArchive& Ar)
 		FString TimestampStr = Timestamp.ToIso8601(); 
 		Ar << TimestampStr;
 
-		// TODO write chunks for screenshot and custom user data
+		// This won't write anything if there isn't any screenshot data
+		Screenshot.WriteToArchive(Ar);
+		
+		// TODO write chunks for custom user data
+		
 		ChunkEnd(Ar);
 	}
 }
@@ -776,7 +780,51 @@ void FSpudSaveInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 		Ar << TimestampStr;
 		FDateTime::ParseIso8601(*TimestampStr, Timestamp);
 
-		// TODO write chunks for screenshot and custom user data
+		// TODO read custom user data
+		const uint32 ScreenshotID = FSpudChunkHeader::EncodeMagic(SPUDDATA_SCREENSHOT_MAGIC);
+		FSpudChunkHeader Hdr;
+		while (IsStillInChunk(Ar))
+		{
+			Ar.PreviewNextChunk(Hdr, true);
+			if (Hdr.Magic == ScreenshotID)
+				Screenshot.ReadFromArchive(Ar);
+			else
+				Ar.SkipNextChunk();
+		}		
+		ChunkEnd(Ar);
+	}
+}
+
+void FSpudSaveInfo::Reset()
+{
+	Title = FText();
+	Screenshot.ImageData.Empty();
+}
+
+//------------------------------------------------------------------------------
+void FSpudScreenshot::WriteToArchive(FSpudChunkedDataArchive& Ar)
+{
+	// Don't write anything if no screenshot data
+	if (ImageData.Num() > 0)
+	{
+		if (ChunkStart(Ar))
+		{
+			// Don't use << operator, just write the PNG data directly
+			// Chunk header already tells us how big it is since it's the only content
+			Ar.Serialize(ImageData.GetData(), ImageData.Num());
+			
+			ChunkEnd(Ar);
+		}
+	}
+}
+
+void FSpudScreenshot::ReadFromArchive(FSpudChunkedDataArchive& Ar)
+{
+	if (ChunkStart(Ar))
+	{
+		// This chunk ONLY contains PNG data so data size from header is this
+		ImageData.SetNum(ChunkHeader.Length);
+		Ar.Serialize(ImageData.GetData(), ChunkHeader.Length);
 		ChunkEnd(Ar);
 	}
 }
@@ -842,8 +890,6 @@ void FSpudSaveData::WriteToArchive(FSpudChunkedDataArchive& Ar, const FString& L
 			// Finish the level container
 			LevelDataMapChunk.ChunkEnd(Ar);
 		}
-
-		// TODO: screenshot / customdata chunks
 
 		ChunkEnd(Ar);
 	}
@@ -956,6 +1002,7 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 
 void FSpudSaveData::Reset()
 {
+	Info.Reset();
 	GlobalData.Reset();
 	{
 		FScopeLock MapMutex(&LevelDataMapMutex);
