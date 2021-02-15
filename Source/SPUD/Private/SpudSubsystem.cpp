@@ -16,32 +16,28 @@ DEFINE_LOG_CATEGORY(LogSpudSubsystem)
 
 void USpudSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
-	if (ServerCheck(false))
-	{
-		OnPostLoadMapHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &USpudSubsystem::OnPostLoadMap);
-		OnPreLoadMapHandle = FCoreUObjectDelegates::PreLoadMap.AddUObject(this, &USpudSubsystem::OnPreLoadMap);
+	// Note: this will register for clients too, but callbacks will be ignored
+	// We can't call ServerCheck() here because GameMode won't be valid (which is what we use to determine server mode)
+	OnPostLoadMapHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &USpudSubsystem::OnPostLoadMap);
+	OnPreLoadMapHandle = FCoreUObjectDelegates::PreLoadMap.AddUObject(this, &USpudSubsystem::OnPreLoadMap);
 
 #if WITH_EDITORONLY_DATA
-		// The one problem we have is that in PIE mode, PostLoadMap doesn't get fired for the current map you're on
-		// So we'll need to trigger it manually
-		auto World = GetWorld();
-		if (World && World->WorldType == EWorldType::PIE)
-		{
-			// TODO: make this more configurable, use a known save etc
-			NewGame();
-		}
-		
-#endif
+	// The one problem we have is that in PIE mode, PostLoadMap doesn't get fired for the current map you're on
+	// So we'll need to trigger it manually
+	auto World = GetWorld();
+	if (World && World->WorldType == EWorldType::PIE)
+	{
+		// TODO: make this more configurable, use a known save etc
+		NewGame();
 	}
+	
+#endif
 }
 
 void USpudSubsystem::Deinitialize()
 {
-	if (ServerCheck(false))
-	{
-		FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(OnPostLoadMapHandle);
-		FCoreUObjectDelegates::PreLoadMap.Remove(OnPreLoadMapHandle);
-	}
+	FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(OnPostLoadMapHandle);
+	FCoreUObjectDelegates::PreLoadMap.Remove(OnPreLoadMapHandle);
 }
 
 
@@ -57,19 +53,21 @@ void USpudSubsystem::NewGame()
 
 bool USpudSubsystem::ServerCheck(bool LogWarning) const
 {
-	// What's the correct way to check authority here? GIsServer doesn't work in Standalone mode
-	return true;
+	// Note: must only call this when game mode is present! Don't call when unloading
+	// On missing world etc we just assume true for safety
+	auto GI = GetGameInstance();
+	if (!GI)
+		return true;
+
+	auto World = GI->GetWorld();
+	if (!World)
+		return true;
 	
-	if (LogWarning && !GIsServer)
-		UE_LOG(LogSpudSubsystem, Warning, TEXT("Attempted to interact with USpudSystem on a client-only instance, not valid!"))
-	return GIsServer;
+	return World->GetAuthGameMode() != nullptr;
 }
 
 void USpudSubsystem::EndGame()
 {
-	if (!ServerCheck(true))
-		return;
-
 	if (ActiveState)
 		ActiveState->ResetState();
 	
@@ -115,6 +113,9 @@ void USpudSubsystem::LoadLatestSaveGame()
 
 void USpudSubsystem::OnPreLoadMap(const FString& MapName)
 {
+	if (!ServerCheck(false))
+		return;
+
 	PreTravelToNewMap.Broadcast(MapName);
 	// All streaming maps will be unloaded by travelling, so remove all
 	LevelRequests.Empty();
@@ -139,6 +140,9 @@ void USpudSubsystem::OnPreLoadMap(const FString& MapName)
 }
 void USpudSubsystem::OnPostLoadMap(UWorld* World)
 {
+	if (!ServerCheck(false))
+		return;
+	
 	if (CurrentState == ESpudSystemState::RunningIdle ||
 		CurrentState == ESpudSystemState::LoadingGame)
 	{
@@ -431,25 +435,16 @@ bool USpudSubsystem::DeleteSave(const FString& SlotName)
 
 void USpudSubsystem::AddPersistentGlobalObject(UObject* Obj)
 {
-	if (!ServerCheck(false))
-		return;
-
 	GlobalObjects.AddUnique(TWeakObjectPtr<UObject>(Obj));	
 }
 
 void USpudSubsystem::AddPersistentGlobalObjectWithName(UObject* Obj, const FString& Name)
 {
-	if (!ServerCheck(false))
-		return;
-
 	NamedGlobalObjects.Add(Name, Obj);
 }
 
 void USpudSubsystem::RemovePersistentGlobalObject(UObject* Obj)
 {
-	if (!ServerCheck(false))
-		return;
-
 	GlobalObjects.Remove(TWeakObjectPtr<UObject>(Obj));
 	
 	for (auto It = NamedGlobalObjects.CreateIterator(); It; ++It)
@@ -461,9 +456,6 @@ void USpudSubsystem::RemovePersistentGlobalObject(UObject* Obj)
 
 void USpudSubsystem::ClearLevelState(const FString& LevelName)
 {
-	if (!ServerCheck(false))
-		return;
-
 	GetActiveState()->ClearLevel(LevelName);
 	
 }
