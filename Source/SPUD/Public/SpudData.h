@@ -645,6 +645,7 @@ struct SPUD_API FSpudClassMetadata : public FSpudChunk
 	bool RenameProperty(const FString& ClassName, const FString& OldName, const FString& NewName, const FString& OldPrefix = "", const FString& NewPrefix = "");
 	
 	bool IsUserDataModelOutdated() const { return UserDataModelVersion.Version != GCurrentUserDataModelVersion; }
+	uint32 GetUserDataModelVersion() const { return UserDataModelVersion.Version; }
 };
 
 enum SPUD_API ELevelDataStatus
@@ -670,6 +671,7 @@ struct SPUD_API FSpudGlobalData : public FSpudChunk
 	void Reset();
 	
 	bool IsUserDataModelOutdated() const { return Metadata.IsUserDataModelOutdated(); }
+	uint32 GetUserDataModelVersion() const { return Metadata.GetUserDataModelVersion(); }
 };
 
 struct SPUD_API FSpudLevelData : public FSpudChunk
@@ -732,6 +734,7 @@ struct SPUD_API FSpudLevelData : public FSpudChunk
 	void Reset();
 
 	bool IsUserDataModelOutdated() const { return Metadata.IsUserDataModelOutdated(); }
+	uint32 GetUserDataModelVersion() const { return Metadata.GetUserDataModelVersion(); }
 };
 
 /// Screenshot chunk

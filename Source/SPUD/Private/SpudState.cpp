@@ -528,29 +528,35 @@ void USpudState::RestoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelD
 
 	if (ActorData)
 	{
-		PreRestoreObject(Actor);
+		PreRestoreObject(Actor, LevelData->GetUserDataModelVersion());
 		
 		RestoreCoreActorData(Actor, ActorData->CoreData);
 		RestoreObjectProperties(Actor, ActorData->Properties, LevelData->Metadata, RuntimeObjects);
 
-		PostRestoreObject(Actor, ActorData->CustomData);		
+		PostRestoreObject(Actor, ActorData->CustomData, LevelData->GetUserDataModelVersion());		
 	}
 }
 
 
-void USpudState::PreRestoreObject(UObject* Obj)
+void USpudState::PreRestoreObject(UObject* Obj, uint32 StoredUserVersion)
 {
 	if(Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass()))
 	{
+		if (GCurrentUserDataModelVersion != StoredUserVersion)
+			ISpudObjectCallback::Execute_SpudPreRestoreDataModelUpgrade(Obj, this, StoredUserVersion, GCurrentUserDataModelVersion);
+			
 		ISpudObjectCallback::Execute_SpudPreRestore(Obj, this);
 		
 	}
 }
 
-void USpudState::PostRestoreObject(UObject* Obj, const FSpudCustomData& FromCustomData)
+void USpudState::PostRestoreObject(UObject* Obj, const FSpudCustomData& FromCustomData, uint32 StoredUserVersion)
 {
 	if (Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass()))
 	{
+		if (GCurrentUserDataModelVersion != StoredUserVersion)
+			ISpudObjectCallback::Execute_SpudPostRestoreDataModelUpgrade(Obj, this, StoredUserVersion, GCurrentUserDataModelVersion);
+
 		FMemoryReader Reader(FromCustomData.Data);
 		auto CustomData = NewObject<USpudStateCustomData>();
 		CustomData->Init(&Reader);
@@ -806,11 +812,11 @@ void USpudState::RestoreGlobalObject(UObject* Obj, const FSpudNamedObjectData* D
 	if (Data)
 	{
 		UE_LOG(LogSpudState, Verbose, TEXT("* RESTORE Global Object %s"), *Data->Name)
-		PreRestoreObject(Obj);
+		PreRestoreObject(Obj, SaveData.GlobalData.GetUserDataModelVersion());
 		
 		RestoreObjectProperties(Obj, Data->Properties, SaveData.GlobalData.Metadata, nullptr);
 
-		PostRestoreObject(Obj, Data->CustomData);
+		PostRestoreObject(Obj, Data->CustomData, SaveData.GlobalData.GetUserDataModelVersion());
 	}
 	
 }

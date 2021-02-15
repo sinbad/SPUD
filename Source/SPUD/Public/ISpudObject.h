@@ -76,6 +76,14 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
     void SpudPostStore(const USpudState* State);
 
+	/// Called just before PreRestore if the UserDataModelVersion of the stored data for this object is out of date
+	/// This is an alternative to calling UpgradeAllSaveGames on USpudSubsystem, you can upgrade on demand with the
+	/// benefit of having the actual object available. At this point you should probably only be modifying USpudState,
+	/// to make it compatible, because the normal restore will still happen after this. See SpudPostRestoreDataModelUpgrade
+	/// if you want to alter things afterwards.
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
+    void SpudPreRestoreDataModelUpgrade(USpudState* State, int32 StoredVersion, int32 CurrentVersion);
+	
 	/// Called just before this object's state is populated from a persistent state
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
     void SpudPreRestore(const USpudState* State);
@@ -86,6 +94,13 @@ public:
 	/// You are in charge of making sure you write/read the same data in the finalise methods
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
     void SpudRestoreCustomData(USpudState* State, USpudStateCustomData* CustomData);
+
+	/// Called just before PostRestore if the UserDataModelVersion of the stored data for this object is out of date
+	/// This is an alternative to calling UpgradeAllSaveGames on USpudSubsystem, you can upgrade on demand with the
+	/// benefit of having the actual object available. At this point the normal restore process has occurred but you
+	/// can do some post-restore things specific to the data model being changed.
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
+    void SpudPostRestoreDataModelUpgrade(const USpudState* State, int32 StoredVersion, int32 CurrentVersion);
 
 	/// Called just after the state for this object has been fully restored.
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")

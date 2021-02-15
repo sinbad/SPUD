@@ -108,8 +108,8 @@ protected:
 	// Returns whether this is an actor which is not technically in a level, but is auto-created so doesn't need to be
 	// spawned by the restore process. E.g. GameMode, Pawns
 	bool ShouldRespawnRuntimeActor(const AActor* Actor) const;
-	void PreRestoreObject(UObject* Obj);
-	void PostRestoreObject(UObject* Obj, const FSpudCustomData& FromCustomData);
+	void PreRestoreObject(UObject* Obj, uint32 StoredUserVersion);
+	void PostRestoreObject(UObject* Obj, const FSpudCustomData& FromCustomData, uint32 StoredUserVersion);
 	void RestoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData, const TMap<FGuid, UObject*>* RuntimeObjects);
 	void RestoreGlobalObject(UObject* Obj, const FSpudNamedObjectData* Data);
 	AActor* RespawnActor(const FSpudSpawnedActorData& SpawnedActor, const FSpudClassMetadata& Meta, ULevel* Level);
