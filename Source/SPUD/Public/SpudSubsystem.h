@@ -43,7 +43,7 @@ enum class ESpudSystemState : uint8
 };
 
 /// Subsystem which controls our save games, and also the active game's persistent state (for streaming levels)
-UCLASS()
+UCLASS(Config=Engine)
 class SPUD_API USpudSubsystem : public UGameInstanceSubsystem, public FTickableGameObject
 {
 	GENERATED_BODY()
@@ -96,14 +96,14 @@ public:
 
 	/// The time delay after the last request for a streaming level is withdrawn, that the level will be unloaded
 	/// This is used to reduce load/unload thrashing at boundaries
-	UPROPERTY(BlueprintReadWrite)
+	UPROPERTY(BlueprintReadWrite, Config)
 	float StreamLevelUnloadDelay = 3;
 
 	/// The desired width of screenshots taken for save games
-	UPROPERTY(BlueprintReadWrite)
+	UPROPERTY(BlueprintReadWrite, Config)
 	int32 ScreenshotWidth = 240;
 	/// The desired height of screenshots taken for save games
-	UPROPERTY(BlueprintReadWrite)
+	UPROPERTY(BlueprintReadWrite, Config)
 	int32 ScreenshotHeight = 135;
 	FDelegateHandle OnScreenshotHandle;
 
