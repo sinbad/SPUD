@@ -111,6 +111,7 @@ public:
 protected:
 	FDelegateHandle OnPreLoadMapHandle;
 	FDelegateHandle OnPostLoadMapHandle;
+	FDelegateHandle OnSeamlessTravelHandle;
 	int32 LoadUnloadRequests = 0;
 	bool FirstStreamRequestSinceMapLoad = true;
 	TMap<int32, FName> LevelsPendingLoad;
