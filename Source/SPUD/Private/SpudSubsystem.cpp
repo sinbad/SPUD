@@ -80,9 +80,11 @@ void USpudSubsystem::EndGame()
 	CurrentState = ESpudSystemState::Disabled;
 }
 
-void USpudSubsystem::AutoSaveGame()
+void USpudSubsystem::AutoSaveGame(FText Title, bool bTakeScreenshot)
 {
-	SaveGame(SPUD_AUTOSAVE_SLOTNAME, NSLOCTEXT("Spud", "AutoSaveTitle", "Autosave"));
+	SaveGame(SPUD_AUTOSAVE_SLOTNAME,
+		Title.IsEmpty() ? NSLOCTEXT("Spud", "AutoSaveTitle", "Autosave") : Title,
+		bTakeScreenshot);
 }
 
 void USpudSubsystem::QuickSaveGame(FText Title, bool bTakeScreenshot)

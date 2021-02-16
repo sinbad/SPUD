@@ -223,11 +223,19 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	void EndGame();
 
-	/// Trigger an autosave of the game; this one will register as the latest save, but will NOT count as a Quick Save
-	/// for Quick Load purposes
+	/** Trigger an autosave of the game; this one will register as the latest save, but will NOT count as a Quick Save
+    * for Quick Load purposes
+	* @param Title Optional title of the save, if blank will be titled "Autosave"
+	* @param bTakeScreenshot If true, the save will include a screenshot, the dimensions of which are
+	* set by the ScreenshotWidth/ScreenshotHeight properties.
+	**/
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
-    void AutoSaveGame();
-	/// Perform a Quick Save of the game in a single re-used slot, in response to a player request
+    void AutoSaveGame(FText Title = FText(), bool bTakeScreenshot = true);
+	/** Perform a Quick Save of the game in a single re-used slot, in response to a player request
+	 * @param Title Optional title of the save, if blank will be titled "Quick Save"
+	 * @param bTakeScreenshot If true, the save will include a screenshot, the dimensions of which are
+	 * set by the ScreenshotWidth/ScreenshotHeight properties.
+	 **/
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void QuickSaveGame(FText Title = FText(), bool bTakeScreenshot = true);
 	/// Quick load the game from the last player-requested Quick Save slot (NOT the last autosave or manual save)
@@ -239,7 +247,7 @@ public:
 
 
 	/**
-	 * @brief Save a game. Asynchronous, use the PostSaveGame event to determine when the save is finished.
+	 * Save a game. Asynchronous, use the PostSaveGame event to determine when the save is finished.
 	 * @param SlotName The name of the slot for this save
 	 * @param Title A descriptive title to go with the save
 	 * @param bTakeScreenshot If true, the save will include a screenshot, the dimensions of which are
@@ -256,41 +264,44 @@ public:
     bool DeleteSave(const FString& SlotName);
 
 	/**
-	* @brief Add a global object to the list of objects which will have their state saved / loaded
-		Level actors which implement ISpudObject will automatically be saved/loaded but global objects like GameInstance
-		will not be, by default. Call this to add additional objects to the save/load behaviour. 
-	 * @param Obj The global object to track. This object will have its state saved/loaded.
-	 * @note As a global object, Obj is expected to always exist and will not be re-created by this system. In addition,
-	 * it must be uniquely identifiable, either by its FName, or by a SpudGuid property you add to it. If you cannot
-	 * guarantee the FName is always the same (may not always be the case with auto-created objects like GameInstance)
-	 * then either add a predefined SpudGuid (FGuid) property and always set it to a known value, or use the alternative
-	 * AddPersistentGlobalObjectWithName method, which identifies this object explicitly.
-	 */
+	* Add a global object to the list of objects which will have their state saved / loaded
+	* Level actors which implement ISpudObject will automatically be saved/loaded but global objects like GameInstance
+	* will not be, by default. Call this to add additional objects to the save/load behaviour.
+	*
+	* As a global object, Obj is expected to always exist and will not be re-created by this system. In addition,
+	* it must be uniquely identifiable, either by its FName, or by a SpudGuid property you add to it. If you cannot
+	* guarantee the FName is always the same (may not always be the case with auto-created objects like GameInstance)
+	* then either add a predefined SpudGuid (FGuid) property and always set it to a known value, or use the alternative
+	* AddPersistentGlobalObjectWithName method, which identifies this object explicitly.
+	* 
+	* @param Obj The global object to track. This object will have its state saved/loaded.
+	*/
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	void AddPersistentGlobalObject(UObject* Obj);
 	
 	/**
-	* @brief Add a global object to the list of objects which will have their state saved / loaded
-		Level actors which implement ISpudObject will automatically be saved/loaded but global objects like GameInstance
-		will not be, by default. Call this to add additional objects to the save/load behaviour. 
-	 * @param Obj The global object to track. This object will have its state saved/loaded.
-	 * @param Name The name by which to identify this object in the save file. This is in case you can't guarantee the
-	 * FName of the object is always the same (e.g. GameInstance_0, GameInstance_1 auto-generated names), so you always
-	 * want this object to be identified by this name. You could also add a constant FGuid property called SpudGuid to
-	 * identify the object, but this method means you don't have to do that.
-	 */
+	* Add a global object to the list of objects which will have their state saved / loaded, identified by a name.
+	* Level actors which implement ISpudObject will automatically be saved/loaded but global objects like GameInstance
+	* will not be, by default. Call this to add additional objects to the save/load behaviour. The name is in case you can't guarantee the
+	* FName of the object is always the same (e.g. GameInstance_0, GameInstance_1 auto-generated names), so you always
+	* want this object to be identified by this name. You could also add a constant FGuid property called SpudGuid to
+	* identify the object, but this method means you don't have to do that.
+	* 
+	* @param Obj The global object to track. This object will have its state saved/loaded.
+	* @param Name The name by which to identify this object in the save file. 
+	*/
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void AddPersistentGlobalObjectWithName(UObject* Obj, const FString& Name);
 
 	/**
-	 * @brief Remove an object from tracking so it will no longer be saved or loaded.
+	 * Remove an object from tracking so it will no longer be saved or loaded.
 	 * @param Obj The object to remove from tracking
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void RemovePersistentGlobalObject(UObject* Obj);
 
 	/**
-	 * @brief Clears / forgets all state associated with a named level in the active game. Use this to reset a level back
+	 * Clears / forgets all state associated with a named level in the active game. Use this to reset a level back
 	 * to its original state. The level should not be loaded when you call this, because it does NOT reset any actors,
 	 * it just clears the state so that next time the level is loaded, there is no saved state to restore. So call this
 	 * before loading the level / travelling to the map.
@@ -365,8 +376,9 @@ public:
     int32 GetUserDataModelVersion() const;
 
 	/**
-	 * @brief Triggers the upgrade process for all save games (asynchronously)
-	 * @details Each save game present will be fully loaded, and for each where the user data model version of any part differs from latest,
+	 * Triggers the upgrade process for all save games (asynchronously)
+	 * 
+	 * Each save game present will be fully loaded, and for each where the user data model version of any part differs from latest,
      * the SaveNeedsUpgrading callback will be triggered (in a background thread). That callback should perform any
      * changes it needs to the USpudState. When the callback completes the save will be written back to
      * disk if the callback returned true.
