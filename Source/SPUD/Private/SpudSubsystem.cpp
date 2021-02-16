@@ -85,9 +85,11 @@ void USpudSubsystem::AutoSaveGame()
 	SaveGame(SPUD_AUTOSAVE_SLOTNAME, NSLOCTEXT("Spud", "AutoSaveTitle", "Autosave"));
 }
 
-void USpudSubsystem::QuickSaveGame(bool bTakeScreenshot)
+void USpudSubsystem::QuickSaveGame(FText Title, bool bTakeScreenshot)
 {
-	SaveGame(SPUD_QUICKSAVE_SLOTNAME, NSLOCTEXT("Spud", "QuickSaveTitle", "Quick Save"), bTakeScreenshot);
+	SaveGame(SPUD_QUICKSAVE_SLOTNAME,
+		Title.IsEmpty() ? NSLOCTEXT("Spud", "QuickSaveTitle", "Quick Save") : Title,
+		bTakeScreenshot);
 }
 
 void USpudSubsystem::QuickLoadGame()
