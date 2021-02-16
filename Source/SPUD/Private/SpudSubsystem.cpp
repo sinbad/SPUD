@@ -20,6 +20,7 @@ void USpudSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	// We can't call ServerCheck() here because GameMode won't be valid (which is what we use to determine server mode)
 	OnPostLoadMapHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &USpudSubsystem::OnPostLoadMap);
 	OnPreLoadMapHandle = FCoreUObjectDelegates::PreLoadMap.AddUObject(this, &USpudSubsystem::OnPreLoadMap);
+	FWorldDelegates::OnSeamlessTravelTransition.AddUObject(this, &USpudSubsystem::OnSeamlessTravelTransition);
 
 #if WITH_EDITORONLY_DATA
 	// The one problem we have is that in PIE mode, PostLoadMap doesn't get fired for the current map you're on
@@ -138,6 +139,18 @@ void USpudSubsystem::OnPreLoadMap(const FString& MapName)
 		}
 	}
 }
+
+void USpudSubsystem::OnSeamlessTravelTransition(UWorld* World)
+{
+	if (IsValid(World))
+	{
+		FString MapName = UGameplayStatics::GetCurrentLevelName(World);
+		UE_LOG(LogSpudSubsystem, Verbose, TEXT("OnSeamlessTravelTransition: %s"), *MapName);
+		// Just before seamless travel, do the same thing as pre load map on OpenLevel
+		OnPreLoadMap(MapName);
+	}
+}
+
 void USpudSubsystem::OnPostLoadMap(UWorld* World)
 {
 	if (!ServerCheck(false))

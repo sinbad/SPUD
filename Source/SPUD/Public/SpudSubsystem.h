@@ -161,6 +161,8 @@ protected:
 	UFUNCTION()
 	void OnPreLoadMap(const FString& MapName);
 	UFUNCTION()
+	void OnSeamlessTravelTransition(UWorld* World);
+	UFUNCTION()
 	void OnPostLoadMap(UWorld* World);
 	UFUNCTION()
 	void OnActorDestroyed(AActor* Actor);
