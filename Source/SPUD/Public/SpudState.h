@@ -339,6 +339,13 @@ public:
 
 };
 
+/// Custom data that can be stored alongside properties for a UObject to handle anything else
+/// Note: this is *deliberately* a very simple wrapper around sequential data. You have to write/read
+/// the same way and it's not upgrade-proof (without you doing the work). The reason it's not more friendly,
+/// with sa name lookups and metadata etc, is that this can get really inefficient because it's executing per object.
+/// I want to push people toward using properties first and foremost because those have been optimised, with fast
+/// paths for unchanged class structures and so on. Therefore if you want to do something purely custom here you
+/// can, but it's pretty raw (and therefore still fast).
 UCLASS()
 class SPUD_API USpudStateCustomData : public UObject
 {
