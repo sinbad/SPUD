@@ -976,6 +976,8 @@ bool USpudState::LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInf
 			OutInfo.Thumbnail = FImageUtils::ImportBufferAsTexture2D(StorageInfo.Screenshot.ImageData);
 		else
 			OutInfo.Thumbnail = nullptr;
+		OutInfo.CustomInfo = NewObject<USpudCustomSaveInfo>();
+		OutInfo.CustomInfo->SetData(StorageInfo.CustomInfo);
 	}
 	return Ok;
 	
@@ -992,6 +994,19 @@ void USpudState::RemoveAllActiveGameLevelFiles()
 	FSpudSaveData::DeleteAllLevelDataFiles(GetActiveGameLevelFolder());
 }
 
+
+void USpudState::SetCustomSaveInfo(const USpudCustomSaveInfo* ExtraInfo)
+{
+	if (ExtraInfo)
+	{
+		// Copy data
+		SaveData.Info.CustomInfo = ExtraInfo->GetData();
+	}
+	else
+	{
+		SaveData.Info.CustomInfo.Reset();
+	}
+}
 
 void USpudState::SetScreenshot(TArray<uint8>& ImgData)
 {

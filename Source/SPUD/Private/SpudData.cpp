@@ -796,9 +796,9 @@ void FSpudSaveInfo::WriteToArchive(FSpudChunkedDataArchive& Ar)
 
 		// This won't write anything if there isn't any screenshot data
 		Screenshot.WriteToArchive(Ar);
-		
-		// TODO write chunks for custom user data
-		
+		// Ditto, if no custom info this won't do anything
+		CustomInfo.WriteToArchive(Ar);
+	
 		ChunkEnd(Ar);
 	}
 }
@@ -813,14 +813,16 @@ void FSpudSaveInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSy
 		Ar << TimestampStr;
 		FDateTime::ParseIso8601(*TimestampStr, Timestamp);
 
-		// TODO read custom user data
 		const uint32 ScreenshotID = FSpudChunkHeader::EncodeMagic(SPUDDATA_SCREENSHOT_MAGIC);
+		const uint32 CustomInfoID = FSpudChunkHeader::EncodeMagic(SPUDDATA_CUSTOMINFO_MAGIC);
 		FSpudChunkHeader Hdr;
 		while (IsStillInChunk(Ar))
 		{
 			Ar.PreviewNextChunk(Hdr, true);
 			if (Hdr.Magic == ScreenshotID)
 				Screenshot.ReadFromArchive(Ar, StoredSystemVersion);
+			else if (Hdr.Magic == CustomInfoID)
+				CustomInfo.ReadFromArchive(Ar, StoredSystemVersion);
 			else
 				Ar.SkipNextChunk();
 		}		
@@ -832,6 +834,7 @@ void FSpudSaveInfo::Reset()
 {
 	Title = FText();
 	Screenshot.ImageData.Empty();
+	CustomInfo.Reset();
 }
 
 //------------------------------------------------------------------------------
@@ -860,6 +863,41 @@ void FSpudScreenshot::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 Stored
 		Ar.Serialize(ImageData.GetData(), ChunkHeader.Length);
 		ChunkEnd(Ar);
 	}
+}
+//------------------------------------------------------------------------------
+
+void FSpudSaveCustomInfo::WriteToArchive(FSpudChunkedDataArchive& Ar)
+{
+	// Don't write the chunk at all if no data
+	if (PropertyData.Num() == 0)
+		return;
+	
+	if (ChunkStart(Ar))
+	{
+		Ar << PropertyNames;
+		Ar << PropertyOffsets;
+		Ar << PropertyData;
+		ChunkEnd(Ar);
+	}
+}
+
+void FSpudSaveCustomInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion)
+{
+	if (ChunkStart(Ar))
+	{
+		Ar << PropertyNames;
+		Ar << PropertyOffsets;
+		Ar << PropertyData;
+		ChunkEnd(Ar);
+	}
+}
+
+
+void FSpudSaveCustomInfo::Reset()
+{
+	PropertyNames.Empty();
+	PropertyOffsets.Empty();
+	PropertyData.Empty();
 }
 
 //------------------------------------------------------------------------------

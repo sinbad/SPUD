@@ -80,18 +80,20 @@ void USpudSubsystem::EndGame()
 	CurrentState = ESpudSystemState::Disabled;
 }
 
-void USpudSubsystem::AutoSaveGame(FText Title, bool bTakeScreenshot)
+void USpudSubsystem::AutoSaveGame(FText Title, bool bTakeScreenshot, const USpudCustomSaveInfo* ExtraInfo)
 {
 	SaveGame(SPUD_AUTOSAVE_SLOTNAME,
 		Title.IsEmpty() ? NSLOCTEXT("Spud", "AutoSaveTitle", "Autosave") : Title,
-		bTakeScreenshot);
+		bTakeScreenshot,
+		ExtraInfo);
 }
 
-void USpudSubsystem::QuickSaveGame(FText Title, bool bTakeScreenshot)
+void USpudSubsystem::QuickSaveGame(FText Title, bool bTakeScreenshot, const USpudCustomSaveInfo* ExtraInfo)
 {
 	SaveGame(SPUD_QUICKSAVE_SLOTNAME,
 		Title.IsEmpty() ? NSLOCTEXT("Spud", "QuickSaveTitle", "Quick Save") : Title,
-		bTakeScreenshot);
+		bTakeScreenshot,
+		ExtraInfo);
 }
 
 void USpudSubsystem::QuickLoadGame()
@@ -191,7 +193,7 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 	PostTravelToNewMap.Broadcast();
 }
 
-void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "" */, bool bTakeScreenshot /* = true */)
+void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title, bool bTakeScreenshot, const USpudCustomSaveInfo* ExtraInfo)
 {
 	if (!ServerCheck(true))
 	{
@@ -224,6 +226,7 @@ void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 		// Memory-based screenshot request
 		SlotNameInProgress = SlotName;
 		TitleInProgress = Title;
+		ExtraInfoInProgress = ExtraInfo;
 		UGameViewportClient* ViewportClient = UGameplayStatics::GetPlayerController(GetWorld(), 0)->GetLocalPlayer()->ViewportClient;
 		OnScreenshotHandle = ViewportClient->OnScreenshotCaptured().AddUObject(this, &USpudSubsystem::OnScreenshotCaptured);
 		FScreenshotRequest::RequestScreenshot(false);
@@ -235,7 +238,7 @@ void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title /* = "
 	}
 	else
 	{
-		FinishSaveGame(SlotName, Title, nullptr);
+		FinishSaveGame(SlotName, Title, ExtraInfo, nullptr);
 	}
 }
 
@@ -250,7 +253,7 @@ void USpudSubsystem::ScreenshotTimedOut()
 		"Widget Blueprints being open in the editor during PIE seems to break screenshots. Completing save game without a screenshot."))
 
 	ScreenshotTimeout = 0;
-	FinishSaveGame(SlotNameInProgress, TitleInProgress, nullptr);
+	FinishSaveGame(SlotNameInProgress, TitleInProgress, ExtraInfoInProgress, nullptr);
 	
 }
 
@@ -270,10 +273,10 @@ void USpudSubsystem::OnScreenshotCaptured(int32 Width, int32 Height, const TArra
 	TArray<uint8> PngData;
 	FImageUtils::CompressImageArray(ScreenshotWidth, ScreenshotHeight, RawDataCroppedResized, PngData);
 	
-	FinishSaveGame(SlotNameInProgress, TitleInProgress, &PngData);
+	FinishSaveGame(SlotNameInProgress, TitleInProgress, ExtraInfoInProgress, &PngData);
 	
 }
-void USpudSubsystem::FinishSaveGame(const FString& SlotName, const FText& Title, TArray<uint8>* ScreenshotData)
+void USpudSubsystem::FinishSaveGame(const FString& SlotName, const FText& Title, const USpudCustomSaveInfo* ExtraInfo, TArray<uint8>* ScreenshotData)
 {
 	auto State = GetActiveState();
 	auto World = GetWorld();
@@ -300,6 +303,7 @@ void USpudSubsystem::FinishSaveGame(const FString& SlotName, const FText& Title,
 
 	State->SetTitle(Title);
 	State->SetTimestamp(FDateTime::Now());
+	State->SetCustomSaveInfo(ExtraInfo);
 	if (ScreenshotData)
 		State->SetScreenshot(*ScreenshotData);
 	
@@ -343,6 +347,7 @@ void USpudSubsystem::SaveComplete(const FString& SlotName, bool bSuccess)
 {
 	SlotNameInProgress = "";
 	TitleInProgress = FText();
+	ExtraInfoInProgress = nullptr;
 	CurrentState = ESpudSystemState::RunningIdle;
 	PostSaveGame.Broadcast(SlotName, bSuccess);
 }
@@ -1025,6 +1030,13 @@ void USpudSubsystem::UpgradeAllSaveGames(bool bUpgradeEvenIfNoUserDataModelVersi
 		                                                            SaveNeedsUpgradingCallback, LatentInfo));
 	}
 }
+
+USpudCustomSaveInfo* USpudSubsystem::CreateCustomSaveInfo()
+{
+	return NewObject<USpudCustomSaveInfo>();
+}
+
+
 
 // FTickableGameObject begin
 
