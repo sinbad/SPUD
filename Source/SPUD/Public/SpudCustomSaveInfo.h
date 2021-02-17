@@ -104,6 +104,9 @@ protected:
 				// Remove from middle
 				const int DataLen = Data.PropertyOffsets[Index+1] - Data.PropertyOffsets[Index];
 				Data.PropertyData.RemoveAt(Index, DataLen);
+
+				for (int j = Index + 1; j < Data.PropertyOffsets.Num(); ++j)
+					Data.PropertyOffsets[j] -= DataLen;
 			}
 			Data.PropertyNames.RemoveAt(Index);
 			Data.PropertyOffsets.RemoveAt(Index);
