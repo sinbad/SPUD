@@ -396,17 +396,17 @@ public:
 	 * the save game will only be re-written to disk if you return true from this callback. A backup will be made of the previous save.
 	 * @param LatentInfo Completion callback
 	 */
-	UFUNCTION(BlueprintCallable, meta=(Latent, WorldContext="WorldContextObject", LatentInfo = "LatentInfo"), Category="SPUD")
-	static void UpgradeAllSaveGames(const UObject* WorldContextObject, bool bUpgradeEvenIfNoUserDataModelVersionDifferences, FSpudUpgradeSaveDelegate SaveNeedsUpgradingCallback, FLatentActionInfo LatentInfo);
+	UFUNCTION(BlueprintCallable, meta=(Latent, LatentInfo = "LatentInfo"), Category="SPUD")
+	void UpgradeAllSaveGames(bool bUpgradeEvenIfNoUserDataModelVersionDifferences, FSpudUpgradeSaveDelegate SaveNeedsUpgradingCallback, FLatentActionInfo LatentInfo);
 	
 	/// Return whether a named slot is a quick save
 	/// Useful for when parsing through saves to check if something is a manual save or not
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
-    static bool IsQuickSave(const FString& SlotName);
+    bool IsQuickSave(const FString& SlotName);
 	/// Return whether a named slot is a quick save
 	/// Useful for when parsing through saves to check if something is a manual save or not
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
-    static bool IsAutoSave(const FString& SlotName);
+    bool IsAutoSave(const FString& SlotName);
 
 	static FString GetSaveGameDirectory();
 	static FString GetSaveGameFilePath(const FString& SlotName);

@@ -1012,20 +1012,17 @@ public:
 };
 
 
-void USpudSubsystem::UpgradeAllSaveGames(const UObject* WorldContextObject,
-                                         bool bUpgradeEvenIfNoUserDataModelVersionDifferences,
+void USpudSubsystem::UpgradeAllSaveGames(bool bUpgradeEvenIfNoUserDataModelVersionDifferences,
                                          FSpudUpgradeSaveDelegate SaveNeedsUpgradingCallback,
                                          FLatentActionInfo LatentInfo)
 {
-	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
+	
+	FLatentActionManager& LatentActionManager = GetGameInstance()->GetLatentActionManager();
+	if (LatentActionManager.FindExistingAction<FUpgradeAllSavesAction>(LatentInfo.CallbackTarget, LatentInfo.UUID) == nullptr)
 	{
-		FLatentActionManager& LatentActionManager = World->GetLatentActionManager();
-		if (LatentActionManager.FindExistingAction<FUpgradeAllSavesAction>(LatentInfo.CallbackTarget, LatentInfo.UUID) == nullptr)
-		{
-			LatentActionManager.AddNewAction(LatentInfo.CallbackTarget, LatentInfo.UUID,
-			                                 new FUpgradeAllSavesAction(bUpgradeEvenIfNoUserDataModelVersionDifferences,
-			                                                            SaveNeedsUpgradingCallback, LatentInfo));
-		}
+		LatentActionManager.AddNewAction(LatentInfo.CallbackTarget, LatentInfo.UUID,
+		                                 new FUpgradeAllSavesAction(bUpgradeEvenIfNoUserDataModelVersionDifferences,
+		                                                            SaveNeedsUpgradingCallback, LatentInfo));
 	}
 }
 
