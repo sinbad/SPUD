@@ -1,5 +1,11 @@
 # FAQ
 
+## What UE versions are supported?
+
+Recommended: UE 4.26.1+
+
+UE 4.25.4 also works, with some caveats (see below).
+
 ## It's not working in Play In Editor (PIE) mode!
 
 First and foremost, **make sure you've saved all your levels**. If you're playing
@@ -16,7 +22,7 @@ with unsaved levels.
 
 ## It's not working in Standalone mode!
 
-I have no idea why this is. Playing in Standalone mode from the editor randomly
+I have no idea why this happens, but it seems to be pre-4.26 only. Playing in Standalone mode from the editor randomly
 resets some properties sometimes and I haven't been able to figure out why. It's
 only playing Standalone from the editor:
 
@@ -25,8 +31,15 @@ only playing Standalone from the editor:
 
 Having discussed this with others who have experienced other weird problems
 specifically with Standalone, we've concluded that Standalone mode is just "bad". 
+However in 4.26 everything seemed to start working in Standalone so YMMV.
 
-Don't use it. Use PIE, or package the game.
+To be safe, use PIE, or package the game.
+
+## Seamless travel doesn't save data in UE 4.25
+
+Unfortunately the events needed to detect when seamless travel is starting were only
+added in UE 4.26. If you want to use seamless travel in UE 4.25, you'll have to call `USpudSubsystem::PreLoadMap`
+yourself just before travelling.
 
 ## Physics doesn't play out the same way every time I load!
 
