@@ -993,6 +993,19 @@ void USpudState::RemoveAllActiveGameLevelFiles()
 }
 
 
+void USpudState::SetCustomSaveInfo(USpudCustomSaveInfo* ExtraInfo)
+{
+	if (ExtraInfo)
+	{
+		// Copy data
+		SaveData.Info.CustomInfo = ExtraInfo->GetData();
+	}
+	else
+	{
+		SaveData.Info.CustomInfo.Reset();
+	}
+}
+
 void USpudState::SetScreenshot(TArray<uint8>& ImgData)
 {
 	auto& Scr = SaveData.Info.Screenshot;

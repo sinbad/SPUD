@@ -10,6 +10,8 @@ extern int32 GCurrentUserDataModelVersion;
 #define SPUDDATA_SAVEGAME_MAGIC "SAVE"
 #define SPUDDATA_SAVEINFO_MAGIC "INFO"
 #define SPUDDATA_SCREENSHOT_MAGIC "SHOT"
+// custom per-save header info
+#define SPUDDATA_CUSTOMINFO_MAGIC "CINF"
 #define SPUDDATA_METADATA_MAGIC "META"
 #define SPUDDATA_CLASSDEFINITIONLIST_MAGIC "CLST"
 #define SPUDDATA_CLASSDEF_MAGIC "CDEF"
@@ -28,7 +30,8 @@ extern int32 GCurrentUserDataModelVersion;
 #define SPUDDATA_DESTROYEDACTORLIST_MAGIC "DATS"
 #define SPUDDATA_PROPERTYDEF_MAGIC "PDEF"
 #define SPUDDATA_PROPERTYDATA_MAGIC "PROP"
-#define SPUDDATA_CUSTOMDATA_MAGIC "CUST"
+// custom per-object data
+#define SPUDDATA_CUSTOMDATA_MAGIC "CUST" 
 #define SPUDDATA_COREACTORDATA_MAGIC "CORA"
 
 #define SPUDDATA_INDEX_NONE 0xFFFFFFFF
@@ -750,6 +753,30 @@ struct SPUD_API FSpudScreenshot : public FSpudChunk
 	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override;
 };
 
+
+/// Custom information you can store at the front of a save file. Used to store anything else that you want to be able
+/// to display on save/load screens that isn't already covered by FSpudSaveInfo.
+struct SPUD_API FSpudSaveCustomInfo : public FSpudChunk
+{
+	// This uses a lot of the same concepts as object storage elsewhere in SPUD, but is simplified since we only
+	// need a single set of properties here and always use the "slow" lookup route (since this will never occur
+	// at scale). So there is no class def lookup, no shared property indexes or name indexes. But the property
+	// storage is basically the same.
+	
+	/// List of property names ordered by position in the data buffer (not a map because this is simpler and more useful for insertion)
+	/// We shouldn't have enough data in here to make a difference performance wise
+	TArray<FString> PropertyNames;
+	/// Ordered list of data offsets corresponding to names
+	TArray<uint32> PropertyOffsets;
+	/// Property storage, consists of a block of data and offset metadata (indexed)  
+	TArray<uint8> PropertyData;
+
+	virtual const char* GetMagic() const override { return SPUDDATA_CUSTOMINFO_MAGIC; }
+	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override;
+	void Reset();
+};
+
 /// Description of the save game, so we can just read this chunk to get info about it
 /// This is better than having a separate metadata file describing the save in order to get description, date/time etc
 /// because it means saves can just be copied as single standalone files
@@ -764,6 +791,8 @@ struct SPUD_API FSpudSaveInfo : public FSpudChunk
 	FText Title;
 	/// Timestamp of the save. Used for display and also to find the latest save for "Continue" behaviour
 	FDateTime Timestamp;
+	/// Custom fields to be made available in info header
+	FSpudSaveCustomInfo CustomInfo;
 	/// Optional screenshot
 	FSpudScreenshot Screenshot;
 

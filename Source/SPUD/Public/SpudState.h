@@ -1,6 +1,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+#include "SpudCustomSaveInfo.h"
 #include "SpudData.h"
 #include "SpudPropertyUtil.h"
 
@@ -292,6 +294,9 @@ public:
 	/// Set the title associated with this save state 
 	UFUNCTION(BlueprintCallable)
 	void SetTitle(const FText& Title) {SaveData.Info.Title = Title; }
+	/// Extra information to be stored in the save header that can be read when listing saves (before loading)
+	UFUNCTION(BlueprintCallable)
+	void SetCustomSaveInfo(USpudCustomSaveInfo* ExtraInfo);
 
 	/// Get the timestamp for when this save state was created
 	UFUNCTION(BlueprintCallable)
