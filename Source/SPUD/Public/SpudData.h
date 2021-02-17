@@ -183,7 +183,7 @@ struct SPUD_API FSpudChunk
 	virtual ~FSpudChunk() = default;
 	virtual const char* GetMagic() const = 0;
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) = 0;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) = 0;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) = 0;
 
 	bool ChunkStart(FArchive& Ar);
 	void ChunkEnd(FArchive& Ar);
@@ -199,7 +199,7 @@ struct SPUD_API FSpudAdhocWrapperChunk : public FSpudChunk
 	virtual const char* GetMagic() const override { return Magic; }
 	// You should not call read/write, this chunk is solely for wrapping others without owning them
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override { check(false);}
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override { check(false); }
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override { check(false); }
 };
 
 /// Definition of a property on a class
@@ -229,7 +229,7 @@ struct SPUD_API FSpudVersionInfo : public FSpudChunk
 
 	virtual const char* GetMagic() const override { return SPUDDATA_VERSIONINFO_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override;
 };
 
 
@@ -247,7 +247,7 @@ struct SPUD_API FSpudClassDef : public FSpudChunk
 	virtual const char* GetMagic() const override{ return SPUDDATA_CLASSDEF_MAGIC; }
 	
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override;
 
 	/// Add a new property and return its index
 	int AddProperty(uint32 InPropNameID, uint32 InPrefixID, uint16 InDataType);
@@ -283,25 +283,27 @@ struct SPUD_API FSpudDataHolder : public FSpudChunk
 	TArray<uint8> Data;
 
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override;
 
 	virtual void Reset();
 
 };
 /// Holder for property data that we automatically populate
-struct SPUD_API FSpudPropertyData : public FSpudDataHolder
+struct SPUD_API FSpudPropertyData : public FSpudChunk
 {
 	/// List of byte offsets into the data buffer where each property can be found
 	/// Properties are ordered as per the relevant FSpudClassDef
 	/// We need offsets per-instance not per-class because data offsets can be different per instance
 	// (string lengths, array lengths can vary)
 	TArray<uint32> PropertyOffsets;
+	TArray<uint8> Data;
 	
 	virtual const char* GetMagic() const override { return SPUDDATA_PROPERTYDATA_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override;
+	void ReadFromArchiveV1(FSpudChunkedDataArchive& Ar);
 
-	virtual void Reset() override;
+	virtual void Reset();
 
 };
 /// Holder for actor core data; not properties e.g. transform
@@ -338,7 +340,7 @@ struct SPUD_API FSpudNamedObjectData : public FSpudObjectData
 
 	virtual const char* GetMagic() const override { return SPUDDATA_NAMEDOBJECT_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override;
 };
 
 /// An actor which was spawned at runtime, not present in a level
@@ -352,7 +354,7 @@ struct SPUD_API FSpudSpawnedActorData : public FSpudObjectData
 
 	virtual const char* GetMagic() const override { return SPUDDATA_SPAWNEDACTOR_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override;
 };
 
 
@@ -368,7 +370,7 @@ struct SPUD_API FSpudDestroyedLevelActor : public FSpudChunk
 
 	virtual const char* GetMagic() const override { return SPUDDATA_DESTROYEDACTOR_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override;
 };
 
 /// A map of nested structs, which need to be written out in a more complex way and have their own Key() method
@@ -395,7 +397,7 @@ struct FSpudStructMapData : public FSpudChunk
 			
 	}
 
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override
 	{
 		if (ChunkStart(Ar))
 		{
@@ -408,7 +410,7 @@ struct FSpudStructMapData : public FSpudChunk
 			{
 				if (Ar.NextChunkIs(ChildMagicID))
 				{
-					ChildData.ReadFromArchive(Ar);
+					ChildData.ReadFromArchive(Ar, StoredSystemVersion);
 					Contents.Add(ChildData.Key(), ChildData);						
 				}
 				else
@@ -447,7 +449,7 @@ struct FSpudArray : public FSpudChunk
 		}
 	}
 
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override
 	{
 		if (ChunkStart(Ar))
 		{
@@ -460,7 +462,7 @@ struct FSpudArray : public FSpudChunk
 			{
 				if (Ar.NextChunkIs(ChildMagicID))
 				{
-					ChildData.ReadFromArchive(Ar);
+					ChildData.ReadFromArchive(Ar, StoredSystemVersion);
 					Values.Add(ChildData);						
 				}
 				else
@@ -579,7 +581,7 @@ struct FSpudIndex : public FSpudChunk
 		}
 	}
 
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override
 	{
 		if (ChunkStart(Ar))
 		{
@@ -624,7 +626,7 @@ struct SPUD_API FSpudClassMetadata : public FSpudChunk
 	
 	virtual const char* GetMagic() const override { return SPUDDATA_METADATA_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override;
 
 	
 	FSpudClassDef& FindOrAddClassDef(const FString& ClassName);
@@ -667,7 +669,7 @@ struct SPUD_API FSpudGlobalData : public FSpudChunk
 
 	virtual const char* GetMagic() const override { return SPUDDATA_GLOBALDATA_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override;
 	void Reset();
 	
 	bool IsUserDataModelOutdated() const { return Metadata.IsUserDataModelOutdated(); }
@@ -723,7 +725,7 @@ struct SPUD_API FSpudLevelData : public FSpudChunk
 
 	virtual const char* GetMagic() const override { return SPUDDATA_LEVELDATA_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override;
 
 	/// Empty the lists of actors ready to be re-populated
 	virtual void PreStoreWorld();
@@ -745,7 +747,7 @@ struct SPUD_API FSpudScreenshot : public FSpudChunk
 	
 	virtual const char* GetMagic() const override { return SPUDDATA_SCREENSHOT_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override;
 };
 
 /// Description of the save game, so we can just read this chunk to get info about it
@@ -769,7 +771,7 @@ struct SPUD_API FSpudSaveInfo : public FSpudChunk
 	
 	virtual const char* GetMagic() const override { return SPUDDATA_SAVEINFO_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override;
 	
 	void Reset();
 };
@@ -796,7 +798,7 @@ struct SPUD_API FSpudSaveData : public FSpudChunk
 	/// Write contents to archive, with the option of loading back in level data that's been released (doesn't all have to be in memory)
 	void WriteToArchive(FSpudChunkedDataArchive& Ar, const FString& LevelPath);
 	/// Read the entire save file into memory
-	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar) override;
+	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override;
 
 	/**
 	 * @brief Read a save file with extra options. Options to pipe all level data chunks
@@ -834,6 +836,12 @@ struct SPUD_API FSpudSaveData : public FSpudChunk
 	*/
 	virtual bool WriteAndReleaseLevelData(const FString& LevelName, const FString& LevelPath, bool bBlocking);
 	
+	/**
+	* @brief Write any loaded data for all levels to disk, and unload from memory . They become part of the
+	* on-disk state for the active game which can later be re-combined with others into a single save game.
+	* @param LevelPath The path in which to write the level data
+	*/
+	virtual void WriteAndReleaseAllLevelData(const FString& LevelPath);
 	/**
 	 * @brief Delete any state associated with a given level, forgetting any saved state for it.
 	 * @param LevelName The name of the level

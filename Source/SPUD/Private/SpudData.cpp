@@ -8,7 +8,8 @@ PRAGMA_DISABLE_OPTIMIZATION
 
 DEFINE_LOG_CATEGORY(LogSpudData)
 
-#define SPUD_CURRENT_SYSTEM_VERSION 1
+// System version covers our internal format changes
+#define SPUD_CURRENT_SYSTEM_VERSION 2
 
 // int32 so that Blueprint-compatible. 2 billion should be enough anyway and you can always use the negatives
 int32 GCurrentUserDataModelVersion = 0;
@@ -137,7 +138,7 @@ void FSpudVersionInfo::WriteToArchive(FSpudChunkedDataArchive& Ar)
 		ChunkEnd(Ar);
 	}
 }
-void FSpudVersionInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar)
+void FSpudVersionInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion)
 {
 	if (ChunkStart(Ar))
 	{
@@ -166,7 +167,7 @@ void FSpudClassDef::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	}	
 }
 
-void FSpudClassDef::ReadFromArchive(FSpudChunkedDataArchive& Ar)
+void FSpudClassDef::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion)
 {
 	if (ChunkStart(Ar))
 	{
@@ -276,21 +277,53 @@ bool FSpudClassDef::MatchesRuntimeClass(const FSpudClassMetadata& Meta) const
 
 void FSpudPropertyData::WriteToArchive(FSpudChunkedDataArchive& Ar)
 {
-	Ar << PropertyOffsets;
-	FSpudDataHolder::WriteToArchive(Ar);
+	if (ChunkStart(Ar))
+	{
+		Ar << PropertyOffsets;
+		Ar << Data;
+		ChunkEnd(Ar);
+	}
 }
 
-void FSpudPropertyData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
+void FSpudPropertyData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion)
 {
+	// Breaking change compat
+	if (StoredSystemVersion == 1)
+	{
+		ReadFromArchiveV1(Ar);
+		return;
+	}
+
+	// Latest system version
+	PropertyOffsets.Empty();
+	if (ChunkStart(Ar))
+	{
+		Ar << PropertyOffsets;
+		Ar << Data;
+		ChunkEnd(Ar);
+	}
+}
+void FSpudPropertyData::ReadFromArchiveV1(FSpudChunkedDataArchive& Ar)
+{
+	// V1 accidentally wrote PropertyOffsets *before* the chunk header because it wrote it
+	// manually then re-used the parent class write. 
+	// It all worked because read & write were the same, but it breaks the rules of chunk wrapping
+	// We need to read this back the old way for compatibility
+
 	PropertyOffsets.Empty();
 	Ar << PropertyOffsets;
-	FSpudDataHolder::ReadFromArchive(Ar);
+	// This bit used to be a call to inherited Read, hence wrapping incorrectly
+	if (ChunkStart(Ar))
+	{
+		Ar << Data;
+		ChunkEnd(Ar);
+	}	
 }
 
 void FSpudPropertyData::Reset()
 {
-	FSpudDataHolder::Reset();
 	PropertyOffsets.Empty();
+	Data.Empty();
 }
 
 //------------------------------------------------------------------------------
@@ -310,7 +343,7 @@ void FSpudDataHolder::WriteToArchive(FSpudChunkedDataArchive& Ar)
 		ChunkEnd(Ar);
 	}
 }
-void FSpudDataHolder::ReadFromArchive(FSpudChunkedDataArchive& Ar)
+void FSpudDataHolder::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion)
 {
 	if (ChunkStart(Ar))
 	{
@@ -335,7 +368,7 @@ void FSpudDestroyedLevelActor::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	}
 }
 
-void FSpudDestroyedLevelActor::ReadFromArchive(FSpudChunkedDataArchive& Ar)
+void FSpudDestroyedLevelActor::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion)
 {
 	// Simple case
 	if (ChunkStart(Ar))
@@ -358,14 +391,14 @@ void FSpudNamedObjectData::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	}
 }
 
-void FSpudNamedObjectData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
+void FSpudNamedObjectData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion)
 {
 	if (ChunkStart(Ar))
 	{
 		Ar << Name;
-		CoreData.ReadFromArchive(Ar);
-		Properties.ReadFromArchive(Ar);
-		CustomData.ReadFromArchive(Ar);
+		CoreData.ReadFromArchive(Ar, StoredSystemVersion);
+		Properties.ReadFromArchive(Ar, StoredSystemVersion);
+		CustomData.ReadFromArchive(Ar, StoredSystemVersion);
 		ChunkEnd(Ar);
 	}
 }
@@ -383,15 +416,15 @@ void FSpudSpawnedActorData::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	}
 }
 
-void FSpudSpawnedActorData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
+void FSpudSpawnedActorData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion)
 {
 	if (ChunkStart(Ar))
 	{
 		Ar << ClassID;
 		Ar << Guid;
-		CoreData.ReadFromArchive(Ar);
-		Properties.ReadFromArchive(Ar);
-		CustomData.ReadFromArchive(Ar);
+		CoreData.ReadFromArchive(Ar, StoredSystemVersion);
+		Properties.ReadFromArchive(Ar, StoredSystemVersion);
+		CustomData.ReadFromArchive(Ar, StoredSystemVersion);
 		ChunkEnd(Ar);
 	}
 }
@@ -435,7 +468,7 @@ void FSpudClassMetadata::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	}
 }
 
-void FSpudClassMetadata::ReadFromArchive(FSpudChunkedDataArchive& Ar)
+void FSpudClassMetadata::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion)
 {
 	if (ChunkStart(Ar))
 	{
@@ -448,13 +481,13 @@ void FSpudClassMetadata::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 		{
 			Ar.PreviewNextChunk(Hdr, true);
 			if (Hdr.Magic == VersionID)
-				UserDataModelVersion.ReadFromArchive(Ar);
+				UserDataModelVersion.ReadFromArchive(Ar, StoredSystemVersion);
 			else if (Hdr.Magic == ClassNameIndexID)
-				ClassNameIndex.ReadFromArchive(Ar);
+				ClassNameIndex.ReadFromArchive(Ar, StoredSystemVersion);
 			else if (Hdr.Magic == ClassDefListID)
-				ClassDefinitions.ReadFromArchive(Ar);
+				ClassDefinitions.ReadFromArchive(Ar, StoredSystemVersion);
 			else if (Hdr.Magic == PropertyNameIndexID)
-				PropertyNameIndex.ReadFromArchive(Ar);
+				PropertyNameIndex.ReadFromArchive(Ar, StoredSystemVersion);
 			else
 				Ar.SkipNextChunk();
 		}
@@ -632,7 +665,7 @@ bool FSpudLevelData::ReadLevelInfoFromArchive(FSpudChunkedDataArchive& Ar, bool 
 	
 }
 
-void FSpudLevelData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
+void FSpudLevelData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion)
 {
 	FScopeLock Lock(&Mutex);
 	
@@ -650,13 +683,13 @@ void FSpudLevelData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 		{
 			Ar.PreviewNextChunk(Hdr, true);
 			if (Hdr.Magic == MetadataID)
-				Metadata.ReadFromArchive(Ar);
+				Metadata.ReadFromArchive(Ar, StoredSystemVersion);
 			else if (Hdr.Magic == LevelActorsID)
-				LevelActors.ReadFromArchive(Ar);
+				LevelActors.ReadFromArchive(Ar, StoredSystemVersion);
 			else if (Hdr.Magic == SpawnedActorsID)
-				SpawnedActors.ReadFromArchive(Ar);
+				SpawnedActors.ReadFromArchive(Ar, StoredSystemVersion);
 			else if (Hdr.Magic == DestroyedActorsID)
-				DestroyedActors.ReadFromArchive(Ar);
+				DestroyedActors.ReadFromArchive(Ar, StoredSystemVersion);
 			else
 				Ar.SkipNextChunk();
 		}
@@ -718,7 +751,7 @@ void FSpudGlobalData::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	}
 }
 
-void FSpudGlobalData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
+void FSpudGlobalData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion)
 {
 	// Separate loading process since it's easier to deal with chunk robustness and versions
 	if (ChunkStart(Ar))
@@ -732,9 +765,9 @@ void FSpudGlobalData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 		{
 			Ar.PreviewNextChunk(Hdr, true);
 			if (Hdr.Magic == MetadataID)
-				Metadata.ReadFromArchive(Ar);
+				Metadata.ReadFromArchive(Ar, StoredSystemVersion);
 			else if (Hdr.Magic == ObjectsID)
-				Objects.ReadFromArchive(Ar);
+				Objects.ReadFromArchive(Ar, StoredSystemVersion);
 			else
 				Ar.SkipNextChunk();
 		}
@@ -770,7 +803,7 @@ void FSpudSaveInfo::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	}
 }
 
-void FSpudSaveInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar)
+void FSpudSaveInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion)
 {
 	if (ChunkStart(Ar))
 	{
@@ -787,7 +820,7 @@ void FSpudSaveInfo::ReadFromArchive(FSpudChunkedDataArchive& Ar)
 		{
 			Ar.PreviewNextChunk(Hdr, true);
 			if (Hdr.Magic == ScreenshotID)
-				Screenshot.ReadFromArchive(Ar);
+				Screenshot.ReadFromArchive(Ar, StoredSystemVersion);
 			else
 				Ar.SkipNextChunk();
 		}		
@@ -818,7 +851,7 @@ void FSpudScreenshot::WriteToArchive(FSpudChunkedDataArchive& Ar)
 	}
 }
 
-void FSpudScreenshot::ReadFromArchive(FSpudChunkedDataArchive& Ar)
+void FSpudScreenshot::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion)
 {
 	if (ChunkStart(Ar))
 	{
@@ -912,11 +945,16 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLe
 			return;
 		}
 
-		Info.ReadFromArchive(Ar);
+		Info.ReadFromArchive(Ar, 0);
 
+		bool bOrigLoadAllLevels = bLoadAllLevels;
+		bool bIsUpgrading = false;
 		if (Ar.IsLoading() && Info.SystemVersion != SPUD_CURRENT_SYSTEM_VERSION)
 		{
-			// TODO: Deal with any version incompatibilities here
+			// System version upgrade, we need to load all levels to fix, then page out
+			UE_LOG(LogSpudData, Warning, TEXT("Save file %s is an old system version, automatically upgrading..."), *Ar.GetArchiveName())
+			bLoadAllLevels = true;
+			bIsUpgrading = true;
 		}
 		const uint32 GlobalDataID = FSpudChunkHeader::EncodeMagic(SPUDDATA_GLOBALDATA_MAGIC);
 		const uint32 LevelDataMapID = FSpudChunkHeader::EncodeMagic(SPUDDATA_LEVELDATAMAP_MAGIC);
@@ -924,7 +962,7 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLe
 		{
 			Ar.PreviewNextChunk(Hdr, true);
 			if (Hdr.Magic == GlobalDataID)
-				GlobalData.ReadFromArchive(Ar);
+				GlobalData.ReadFromArchive(Ar, Info.SystemVersion);
 			else if (Hdr.Magic == LevelDataMapID)
 			{
 				// Read levels using adhoc wrapper so we can choose what to do for each
@@ -945,7 +983,7 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLe
 							if (bLoadAllLevels)
 							{
 								TLevelDataPtr LvlData(new FSpudLevelData());
-								LvlData->ReadFromArchive(Ar);
+								LvlData->ReadFromArchive(Ar, Info.SystemVersion);
 								{
 									FScopeLock MapMutex(&LevelDataMapMutex);					
 									LevelDataMap.Add(LvlData->Key(), LvlData);
@@ -990,11 +1028,22 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLe
 				Ar.SkipNextChunk();
 		}
 
+		if (bIsUpgrading)
+			UE_LOG(LogSpudData, Warning, TEXT("Save file %s upgrade complete. Not changed on disk, will be saved in new format next time."), *Ar.GetArchiveName())
+
+		if (bLoadAllLevels && !bOrigLoadAllLevels)
+		{
+			// We forced a load of all levels even though the caller didn't want it (perhaps because of upgrade)
+			// So now unload them
+			WriteAndReleaseAllLevelData(LevelPath);
+		}
+
 		ChunkEnd(Ar);
 	}
+
 }
 
-void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar)
+void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion)
 {
 	ReadFromArchive(Ar, true, "");
 }
@@ -1087,7 +1136,7 @@ bool FSpudSaveData::ReadSaveInfoFromArchive(FSpudChunkedDataArchive& Ar, FSpudSa
 		UE_LOG(LogSpudData, Error, TEXT("Cannot get info for save game, INFO chunk isn't present at start"))
 		return false;		
 	}
-	OutInfo.ReadFromArchive(Ar);
+	OutInfo.ReadFromArchive(Ar, 0);
 
 	return true;
 	
@@ -1121,7 +1170,8 @@ FSpudSaveData::TLevelDataPtr FSpudSaveData::GetLevelData(const FString& LevelNam
 				{
 					FSpudChunkedDataArchive ChunkedAr(*Archive);
 
-					Ret->ReadFromArchive(ChunkedAr);
+					// We have to assume that leveldata has been upgraded at load time if system version was incorrect
+					Ret->ReadFromArchive(ChunkedAr, SPUD_CURRENT_SYSTEM_VERSION);
 					ChunkedAr.Close();
 
 					if (ChunkedAr.IsError() || ChunkedAr.IsCriticalError())
@@ -1148,6 +1198,16 @@ FSpudSaveData::TLevelDataPtr FSpudSaveData::GetLevelData(const FString& LevelNam
 	}
 
 	return Ret;
+}
+
+
+void FSpudSaveData::WriteAndReleaseAllLevelData(const FString& LevelPath)
+{
+	FScopeLock MapLock(&LevelDataMapMutex);
+	for (auto && Pair : LevelDataMap)
+	{
+		WriteAndReleaseLevelData(Pair.Key, LevelPath, true);
+	}
 }
 
 bool FSpudSaveData::WriteAndReleaseLevelData(const FString& LevelName, const FString& LevelPath, bool bBlocking)

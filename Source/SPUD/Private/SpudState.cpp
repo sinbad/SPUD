@@ -195,6 +195,12 @@ void USpudState::ReleaseLevelData(const FString& LevelName, bool bBlocking)
 	SaveData.WriteAndReleaseLevelData(LevelName, GetActiveGameLevelFolder(), bBlocking);
 }
 
+
+void USpudState::ReleaseAllLevelData()
+{
+	SaveData.WriteAndReleaseAllLevelData(GetActiveGameLevelFolder());
+}
+
 FSpudNamedObjectData* USpudState::GetLevelActorData(const AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData, bool AutoCreate)
 {
 	// FNames are constant within a level
@@ -939,10 +945,7 @@ void USpudState::LoadFromArchive(FArchive& Ar, bool bFullyLoadAllLevelData)
 	Source = Ar.GetArchiveName();
 	
 	FSpudChunkedDataArchive ChunkedAr(Ar);
-	if (bFullyLoadAllLevelData)
-		SaveData.ReadFromArchive(ChunkedAr);
-	else
-		SaveData.ReadFromArchive(ChunkedAr, false, GetActiveGameLevelFolder());
+	SaveData.ReadFromArchive(ChunkedAr, bFullyLoadAllLevelData, GetActiveGameLevelFolder());
 }
 
 bool USpudState::IsLevelDataLoaded(const FString& LevelName)

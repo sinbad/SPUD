@@ -207,6 +207,9 @@ public:
 	/// Will page in the level data concerned from disk if necessary and will retain it in memory
 	void StoreLevelActorDestroyed(AActor* Actor);
 
+	/// Stores any data for all levels to disk and releases the memory being used to store persistent state
+	void ReleaseAllLevelData();
+
 	/// Stores any data for a level to disk and releases the memory its using to store persistent state
 	void ReleaseLevelData(const FString& LevelName, bool bBlocking);
 
