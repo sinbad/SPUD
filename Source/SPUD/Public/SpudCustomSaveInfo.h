@@ -12,7 +12,7 @@
 /// Helper class to allow users to apply custom properties to the header information of save files,
 /// which can then be read back on save/load screens without loading the entire save.
 /// Could be things like completion percentage, hours played, current quests, character class, character level etc
-UCLASS()
+UCLASS(BlueprintType)
 class SPUD_API USpudCustomSaveInfo : public UObject
 {
 	GENERATED_BODY()

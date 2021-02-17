@@ -125,7 +125,7 @@ protected:
 	FString SlotNameInProgress;
 	FText TitleInProgress;
 	UPROPERTY()
-	USpudCustomSaveInfo* ExtraInfoInProgress;
+	const USpudCustomSaveInfo* ExtraInfoInProgress;
 
 	UPROPERTY()
 	TArray<TWeakObjectPtr<UObject>> GlobalObjects;
@@ -194,7 +194,7 @@ protected:
 	UFUNCTION()
     void OnScreenshotCaptured(int32 Width, int32 Height, const TArray<FColor>& Colours);
 
-	void FinishSaveGame(const FString& SlotName, const FText& Title, USpudCustomSaveInfo* ExtraInfo, TArray<uint8>* ScreenshotData);
+	void FinishSaveGame(const FString& SlotName, const FText& Title, const USpudCustomSaveInfo* ExtraInfo, TArray<uint8>* ScreenshotData);
 	void LoadComplete(const FString& SlotName, bool bSuccess);
 	void SaveComplete(const FString& SlotName, bool bSuccess);
 
@@ -235,7 +235,7 @@ public:
 	* @param ExtraInfo Optional object containing custom fields you want to be available when listing saves
 	**/
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
-    void AutoSaveGame(FText Title = FText(), bool bTakeScreenshot = true, USpudCustomSaveInfo* ExtraInfo = nullptr);
+    void AutoSaveGame(FText Title = FText(), bool bTakeScreenshot = true, const USpudCustomSaveInfo* ExtraInfo = nullptr);
 	/** Perform a Quick Save of the game in a single re-used slot, in response to a player request
 	 * @param Title Optional title of the save, if blank will be titled "Quick Save"
 	 * @param bTakeScreenshot If true, the save will include a screenshot, the dimensions of which are
@@ -243,7 +243,7 @@ public:
 	 * @param ExtraInfo Optional object containing custom fields you want to be available when listing saves
 	 **/
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
-    void QuickSaveGame(FText Title = FText(), bool bTakeScreenshot = true, USpudCustomSaveInfo* ExtraInfo = nullptr);
+    void QuickSaveGame(FText Title = FText(), bool bTakeScreenshot = true, const USpudCustomSaveInfo* ExtraInfo = nullptr);
 	/// Quick load the game from the last player-requested Quick Save slot (NOT the last autosave or manual save)
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void QuickLoadGame();
@@ -254,8 +254,8 @@ public:
 	/// Create a save game descriptor which you can use to store additional descriptive information about a save game.
 	/// Fill the returned object in then pass it to the SaveGame call to have additional info to display on save/load screens
 	/// Could be things like completion percentage, hours played, current quests, character class, character level etc
-	UFUNCTION(BlueprintCallable, BlueprintPure)
-	static USpudCustomSaveInfo* SpudCreateCustomSaveInfo();
+	UFUNCTION(BlueprintCallable)
+	USpudCustomSaveInfo* CreateCustomSaveInfo();
 
 	/**
 	 * Save a game. Asynchronous, use the PostSaveGame event to determine when the save is finished.
@@ -266,7 +266,7 @@ public:
 	 * @param ExtraInfo Optional object containing custom fields you want to be available when listing saves
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
-    void SaveGame(const FString& SlotName, const FText& Title = FText(), bool bTakeScreenshot = true, USpudCustomSaveInfo* ExtraInfo = nullptr);
+    void SaveGame(const FString& SlotName, const FText& Title = FText(), bool bTakeScreenshot = true, const USpudCustomSaveInfo* ExtraInfo = nullptr);
 	/// Load the game in a given slot name. Asynchronous, use the PostLoadGame event to determine when load is complete (and success)
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void LoadGame(const FString& SlotName);

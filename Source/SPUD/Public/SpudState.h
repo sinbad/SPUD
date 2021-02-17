@@ -32,6 +32,9 @@ class SPUD_API USpudSaveGameInfo : public UObject
 	/// Thumbnail screenshot (may be blank if one wasn't included in the save game)
 	UPROPERTY(BlueprintReadOnly)
 	UTexture2D* Thumbnail;
+	/// Custom fields that you chose to store with the save header information specifically for your game
+	UPROPERTY(BlueprintReadOnly)
+	USpudCustomSaveInfo* CustomInfo;
 
 };
 
@@ -296,7 +299,7 @@ public:
 	void SetTitle(const FText& Title) {SaveData.Info.Title = Title; }
 	/// Extra information to be stored in the save header that can be read when listing saves (before loading)
 	UFUNCTION(BlueprintCallable)
-	void SetCustomSaveInfo(USpudCustomSaveInfo* ExtraInfo);
+	void SetCustomSaveInfo(const USpudCustomSaveInfo* ExtraInfo);
 
 	/// Get the timestamp for when this save state was created
 	UFUNCTION(BlueprintCallable)

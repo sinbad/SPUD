@@ -80,7 +80,7 @@ void USpudSubsystem::EndGame()
 	CurrentState = ESpudSystemState::Disabled;
 }
 
-void USpudSubsystem::AutoSaveGame(FText Title, bool bTakeScreenshot, USpudCustomSaveInfo* ExtraInfo)
+void USpudSubsystem::AutoSaveGame(FText Title, bool bTakeScreenshot, const USpudCustomSaveInfo* ExtraInfo)
 {
 	SaveGame(SPUD_AUTOSAVE_SLOTNAME,
 		Title.IsEmpty() ? NSLOCTEXT("Spud", "AutoSaveTitle", "Autosave") : Title,
@@ -88,7 +88,7 @@ void USpudSubsystem::AutoSaveGame(FText Title, bool bTakeScreenshot, USpudCustom
 		ExtraInfo);
 }
 
-void USpudSubsystem::QuickSaveGame(FText Title, bool bTakeScreenshot, USpudCustomSaveInfo* ExtraInfo)
+void USpudSubsystem::QuickSaveGame(FText Title, bool bTakeScreenshot, const USpudCustomSaveInfo* ExtraInfo)
 {
 	SaveGame(SPUD_QUICKSAVE_SLOTNAME,
 		Title.IsEmpty() ? NSLOCTEXT("Spud", "QuickSaveTitle", "Quick Save") : Title,
@@ -193,7 +193,7 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 	PostTravelToNewMap.Broadcast();
 }
 
-void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title, bool bTakeScreenshot, USpudCustomSaveInfo* ExtraInfo)
+void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title, bool bTakeScreenshot, const USpudCustomSaveInfo* ExtraInfo)
 {
 	if (!ServerCheck(true))
 	{
@@ -276,7 +276,7 @@ void USpudSubsystem::OnScreenshotCaptured(int32 Width, int32 Height, const TArra
 	FinishSaveGame(SlotNameInProgress, TitleInProgress, ExtraInfoInProgress, &PngData);
 	
 }
-void USpudSubsystem::FinishSaveGame(const FString& SlotName, const FText& Title, USpudCustomSaveInfo* ExtraInfo, TArray<uint8>* ScreenshotData)
+void USpudSubsystem::FinishSaveGame(const FString& SlotName, const FText& Title, const USpudCustomSaveInfo* ExtraInfo, TArray<uint8>* ScreenshotData)
 {
 	auto State = GetActiveState();
 	auto World = GetWorld();
@@ -1031,7 +1031,7 @@ void USpudSubsystem::UpgradeAllSaveGames(bool bUpgradeEvenIfNoUserDataModelVersi
 	}
 }
 
-USpudCustomSaveInfo* USpudSubsystem::SpudCreateCustomSaveInfo()
+USpudCustomSaveInfo* USpudSubsystem::CreateCustomSaveInfo()
 {
 	return NewObject<USpudCustomSaveInfo>();
 }
