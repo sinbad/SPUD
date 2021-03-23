@@ -521,5 +521,8 @@ public:
 	UFUNCTION(BlueprintCallable)
     bool ReadByte(uint8& OutByte) { return Read(OutByte); }
 
+	/// Access the underlying archive in order to write custom data directly.
+	FArchive* GetUnderlyingArchive() const { return Ar; }
+
 };
 
