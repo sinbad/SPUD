@@ -4,8 +4,6 @@
 
 #include "SpudPropertyUtil.h"
 
-PRAGMA_DISABLE_OPTIMIZATION
-
 DEFINE_LOG_CATEGORY(LogSpudData)
 
 // System version covers our internal format changes
@@ -1353,5 +1351,3 @@ int64 SpudCopyArchiveData(FArchive& InArchive, FArchive& OutArchive, int64 Lengt
 	}
 	return BytesCopied;
 }
-
-PRAGMA_ENABLE_OPTIMIZATION

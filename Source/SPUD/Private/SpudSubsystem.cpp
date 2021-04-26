@@ -5,8 +5,6 @@
 #include "Kismet/GameplayStatics.h"
 #include "ImageUtils.h"
 
-PRAGMA_DISABLE_OPTIMIZATION
-
 DEFINE_LOG_CATEGORY(LogSpudSubsystem)
 
 
@@ -1080,5 +1078,3 @@ TStatId USpudSubsystem::GetStatId() const
 
 
 // FTickableGameObject end
-
-PRAGMA_ENABLE_OPTIMIZATION

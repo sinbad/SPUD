@@ -14,8 +14,6 @@
 
 DEFINE_LOG_CATEGORY(LogSpudState)
 
-PRAGMA_DISABLE_OPTIMIZATION
-
 USpudState::USpudState()
 {
 	// In case game crashed etc, remove all garbage active level files at construction too
@@ -1077,5 +1075,3 @@ TArray<FString> USpudState::GetLevelNames(bool bLoadedOnly)
 	}
 	return Ret;
 }
-
-PRAGMA_ENABLE_OPTIMIZATION
