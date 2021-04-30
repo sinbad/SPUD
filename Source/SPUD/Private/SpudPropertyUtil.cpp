@@ -232,24 +232,25 @@ bool SpudPropertyUtil::VisitPersistentProperties(UObject* RootObject, const UStr
 					return false;				
 			}
 		}
-		else if (const auto OProp = CastField<FObjectProperty>(Property))
-		{
-			if (IsNonActorObjectProperty(Property))
-			{
-				const auto Obj = ContainerPtr ? OProp->GetObjectPropertyValue(ContainerPtr) : nullptr;
-				const auto ObjDataPtr = ContainerPtr ? OProp->ContainerPtrToValuePtr<void>(ContainerPtr) : nullptr;
-				// Non-actor UObjects are treated as nested values like structs
-				const uint32 NewPrefixID = Visitor.GetNestedPrefix(OProp, PrefixID);
-				// Should never have no prefix, if none abort
-				if (NewPrefixID == SPUDDATA_PREFIXID_NONE)
-					continue;
-
-				const int NewDepth = Depth + 1;
-				if (!VisitPersistentProperties(Obj, OProp->PropertyClass, NewPrefixID, ObjDataPtr, true, NewDepth, Visitor))
-					return false;				
-				
-			}
-		}
+		// Nested non-Actor UObjects not really working, needs more work
+		// else if (const auto OProp = CastField<FObjectProperty>(Property))
+		// {
+		// 	if (IsNonActorObjectProperty(Property))
+		// 	{
+		// 		const auto Obj = ContainerPtr ? OProp->GetObjectPropertyValue(ContainerPtr) : nullptr;
+		// 		const auto ObjDataPtr = ContainerPtr ? OProp->ContainerPtrToValuePtr<void>(ContainerPtr) : nullptr;
+		// 		// Non-actor UObjects are treated as nested values like structs
+		// 		const uint32 NewPrefixID = Visitor.GetNestedPrefix(OProp, PrefixID);
+		// 		// Should never have no prefix, if none abort
+		// 		if (NewPrefixID == SPUDDATA_PREFIXID_NONE)
+		// 			continue;
+		//
+		// 		const int NewDepth = Depth + 1;
+		// 		if (!VisitPersistentProperties(Obj, OProp->PropertyClass, NewPrefixID, ObjDataPtr, true, NewDepth, Visitor))
+		// 			return false;				
+		// 		
+		// 	}
+		// }
 	}
 
 	return true;
@@ -545,15 +546,16 @@ void SpudPropertyUtil::StoreContainerProperty(FProperty* Property, const UObject
 			bUpdateOK = true;
 		}
 	}
-	else if (IsNonActorObjectProperty(Property))
-	{
-		// Nested non-actor objects are ok, recursed like structs
-		// Visitor will cascade
-		const FString Prefix = FString::ChrN(Depth, '-');
-		UE_LOG(LogSpudProps, Verbose, TEXT("|%s %s:"), *Prefix, *Property->GetNameCPP());
-		bUpdateOK = true;
-		
-	}
+	// Nested non-Actor UObjects not really working, needs more work
+	// else if (IsNonActorObjectProperty(Property))
+	// {
+	// 	// Nested non-actor objects are ok, recursed like structs
+	// 	// Visitor will cascade
+	// 	const FString Prefix = FString::ChrN(Depth, '-');
+	// 	UE_LOG(LogSpudProps, Verbose, TEXT("|%s %s:"), *Prefix, *Property->GetNameCPP());
+	// 	bUpdateOK = true;
+	// 	
+	// }
 	else 
 	{
 		bUpdateOK =
@@ -647,12 +649,13 @@ void SpudPropertyUtil::RestoreContainerProperty(UObject* RootObject, FProperty* 
 			bUpdateOK = true;
 		}
 	}
-	else if (IsNonActorObjectProperty(Property))
-	{
-		// Nested non-actor objects are ok, recursed like structs
-		// Visitor will cascade
-		bUpdateOK = true;		
-	}
+	// Nested non-Actor UObjects not really working, needs more work
+	// else if (IsNonActorObjectProperty(Property))
+	// {
+	// 	// Nested non-actor objects are ok, recursed like structs
+	// 	// Visitor will cascade
+	// 	bUpdateOK = true;		
+	// }
 	else 
 	{
 		bUpdateOK =
