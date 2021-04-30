@@ -721,15 +721,19 @@ bool USpudState::RestoreFastPropertyVisitor::VisitProperty(UObject* RootObject, 
 	uint32 CurrentPrefixID, void* ContainerPtr, int Depth)
 {
 	// Fast path can just iterate both sides of properties because stored properties are in the same order
-	auto& StoredProperty = *StoredPropertyIterator;
-	SpudPropertyUtil::RestoreProperty(RootObject, Property, ContainerPtr, StoredProperty, RuntimeObjects, DataIn);
+	if (StoredPropertyIterator)
+	{
+		auto& StoredProperty = *StoredPropertyIterator;
+		SpudPropertyUtil::RestoreProperty(RootObject, Property, ContainerPtr, StoredProperty, RuntimeObjects, DataIn);
 
-	// We DON'T increment the property iterator for custom structs, since they don't have any values of their own
-	// It's their nested properties that have the values, they're only context
-	if (!SpudPropertyUtil::IsCustomStructProperty(Property))
-		++StoredPropertyIterator;
+		// We DON'T increment the property iterator for custom structs, since they don't have any values of their own
+		// It's their nested properties that have the values, they're only context
+		if (!SpudPropertyUtil::IsCustomStructProperty(Property))
+			++StoredPropertyIterator;
 
-	return true;
+		return true;
+	}
+	return false;
 }
 
 bool USpudState::RestoreSlowPropertyVisitor::VisitProperty(UObject* RootObject, FProperty* Property,

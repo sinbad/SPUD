@@ -697,6 +697,12 @@ bool SpudPropertyUtil::StoredMatchesRuntimePropertyVisitor::VisitProperty(UObjec
 
 	// The next property we encounter from the Container should match the next item on
 	// StoredPropertyIterator. We increment it as well!
+	if (!StoredPropertyIterator)
+	{
+		// Ran out of stored properties early, so doesn't match
+		bMatches = false;
+		return false;
+	}
 	auto& StoredProperty = *StoredPropertyIterator++;
 
 	// Wrong struct nesting (ID comes from stored record of prefix matched with struct name on parent call)
@@ -822,6 +828,5 @@ FString SpudPropertyUtil::GetGlobalObjectID(const UObject* Obj)
 	else
 		return Obj->GetFName().ToString();	
 }
-
 
 
