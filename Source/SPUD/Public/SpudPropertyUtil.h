@@ -89,13 +89,13 @@ public:
 		*/
 		virtual void UnsupportedProperty(UObject* RootObject, FProperty* Property, uint32 CurrentPrefixID, int Depth) {}
 		/**
-		 * @brief Generate a nested prefix ID for properties underneath a custom struct property
-		* @param SProp The property identifying the custom struct
+		 * @brief Generate a nested prefix ID for properties underneath a struct or uobject property
+		* @param Prop The property identifying the custom struct
 		* @param CurrentPrefixID The current prefix up to this point
 		* @return The new PrefixID for properties nested within this struct. If you return SPUD_PREFIXID_NONE then
 		* nested properties will be skipped.
 		 */
-		virtual uint32 GetNestedPrefix(FStructProperty* SProp, uint32 CurrentPrefixID) = 0;
+		virtual uint32 GetNestedPrefix(FProperty* Prop, uint32 CurrentPrefixID) = 0;
 	};
 
 	/**
@@ -120,6 +120,9 @@ public:
 
 	static bool IsCustomStructProperty(const FProperty* Property);
 
+	/// Whether a property is an object reference, but not an actor (stored nested like structs on the assumption it always exists)
+	static bool IsNonActorObjectProperty(FProperty* Property, const void* Data);
+
 	static uint16 GetPropertyDataType(const FProperty* Prop);
 
 	class StoredMatchesRuntimePropertyVisitor : public SpudPropertyUtil::PropertyVisitor
@@ -134,7 +137,7 @@ public:
                                             const FSpudClassDef& InClassDef, const FSpudClassMetadata& InMeta);
 		virtual bool VisitProperty(UObject* RootObject, FProperty* Property, uint32 CurrentPrefixID,
 		                           void* ContainerPtr, int Depth) override;
-		virtual uint32 GetNestedPrefix(FStructProperty* SProp, uint32 CurrentPrefixID) override;
+		virtual uint32 GetNestedPrefix(FProperty* Prop, uint32 CurrentPrefixID) override;
 		// After visiting, was everything a match
 		bool IsMatch() const { return bMatches; }
 	};
@@ -143,9 +146,9 @@ public:
                                           bool bIgnoreArrayFlag);
 
 	
-	static FString GetNestedPrefix(uint32 PrefixIDSoFar, FStructProperty* SProp, const FSpudClassMetadata& Meta);
-	static uint32 GetNestedPrefixID(uint32 PrefixIDSoFar, FStructProperty* SProp, const FSpudClassMetadata& Meta);
-	static uint32 FindOrAddNestedPrefixID(uint32 PrefixIDSoFar, FStructProperty* SProp, FSpudClassMetadata& Meta);
+	static FString GetNestedPrefix(uint32 PrefixIDSoFar, FProperty* Prop, const FSpudClassMetadata& Meta);
+	static uint32 GetNestedPrefixID(uint32 PrefixIDSoFar, FProperty* Prop, const FSpudClassMetadata& Meta);
+	static uint32 FindOrAddNestedPrefixID(uint32 PrefixIDSoFar, FProperty* Prop, FSpudClassMetadata& Meta);
 	static void RegisterProperty(uint32 PropNameID, uint32 PrefixID, uint16 DataType, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FArchive& Out);
 	static void RegisterProperty(const FString& Name, uint32 PrefixID, uint16 DataType, FSpudClassDef&
                           ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FArchive& Out);
@@ -164,8 +167,8 @@ public:
                                  const void* ContainerPtr, int Depth, FSpudClassDef& ClassDef,
                                  TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FMemoryWriter& Out);
 	static void StoreContainerProperty(FProperty* Property, const UObject* RootObject,
-                                     uint32 PrefixID, const void* ContainerPtr, bool bIsArrayElement, int Depth,
-                                     FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FMemoryWriter& Out);
+	                                   uint32 PrefixID, const void* ContainerPtr, bool bIsArrayElement, int Depth,
+	                                   FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FMemoryWriter& Out);
 
 
 	typedef TMap<FGuid, UObject*> RuntimeObjectMap;

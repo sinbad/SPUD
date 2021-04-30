@@ -58,6 +58,17 @@ bool SpudPropertyUtil::IsCustomStructProperty(const FProperty* Property)
 	return false;
 }
 
+bool SpudPropertyUtil::IsNonActorObjectProperty(FProperty* Property, const void* Data)
+{
+	if (const auto OProp = CastField<FObjectProperty>(Property))
+	{
+		const auto Obj = OProp->GetObjectPropertyValue(Data);
+		return Obj && !Cast<AActor>(OProp->GetObjectPropertyValue(Data));
+	}
+
+	return false;
+}
+
 uint16 SpudPropertyUtil::GetPropertyDataType(const FProperty* Prop)
 {
 	bool bIsArray = false;
@@ -128,22 +139,22 @@ uint16 SpudPropertyUtil::GetPropertyDataType(const FProperty* Prop)
 	
 }
 
-FString SpudPropertyUtil::GetNestedPrefix(uint32 PrefixIDSoFar, FStructProperty* SProp, const FSpudClassMetadata& Meta)
+FString SpudPropertyUtil::GetNestedPrefix(uint32 PrefixIDSoFar, FProperty* Prop, const FSpudClassMetadata& Meta)
 {
-	return (PrefixIDSoFar == SPUDDATA_PREFIXID_NONE) ? SProp->GetNameCPP() :
-        Meta.GetPropertyNameFromID(PrefixIDSoFar) + "/" + SProp->GetNameCPP();
+	return (PrefixIDSoFar == SPUDDATA_PREFIXID_NONE) ? Prop->GetNameCPP() :
+        Meta.GetPropertyNameFromID(PrefixIDSoFar) + "/" + Prop->GetNameCPP();
 	
 }
 
-uint32 SpudPropertyUtil::FindOrAddNestedPrefixID(uint32 PrefixIDSoFar, FStructProperty* SProp, FSpudClassMetadata& Meta)
+uint32 SpudPropertyUtil::FindOrAddNestedPrefixID(uint32 PrefixIDSoFar, FProperty* Prop, FSpudClassMetadata& Meta)
 {
-	const FString NewPrefixString = GetNestedPrefix(PrefixIDSoFar, SProp, Meta);
+	const FString NewPrefixString = GetNestedPrefix(PrefixIDSoFar, Prop, Meta);
 	return Meta.FindOrAddPropertyIDFromName(NewPrefixString);
 	
 }
-uint32 SpudPropertyUtil::GetNestedPrefixID(uint32 PrefixIDSoFar, FStructProperty* SProp, const FSpudClassMetadata& Meta)
+uint32 SpudPropertyUtil::GetNestedPrefixID(uint32 PrefixIDSoFar, FProperty* Prop, const FSpudClassMetadata& Meta)
 {
-	const FString NewPrefixString = GetNestedPrefix(PrefixIDSoFar, SProp, Meta);
+	const FString NewPrefixString = GetNestedPrefix(PrefixIDSoFar, Prop, Meta);
 	return Meta.GetPropertyIDFromName(NewPrefixString);
 	
 }
@@ -218,6 +229,24 @@ bool SpudPropertyUtil::VisitPersistentProperties(UObject* RootObject, const UStr
 				const auto StructPtr = ContainerPtr ? SProp->ContainerPtrToValuePtr<void>(ContainerPtr) : nullptr;
 				if (!VisitPersistentProperties(RootObject, SProp->Struct, NewPrefixID, StructPtr, true, NewDepth, Visitor))
 					return false;				
+			}
+		}
+		else if (const auto OProp = CastField<FObjectProperty>(Property))
+		{
+			const auto Obj = OProp->GetObjectPropertyValue(ContainerPtr);
+			const auto Actor = Cast<AActor>(Obj);
+			if (Obj && !Actor)
+			{
+				// Non-actor UObjects are treated as nested values like structs
+				const uint32 NewPrefixID = Visitor.GetNestedPrefix(OProp, PrefixID);
+				// Should never have no prefix, if none abort
+				if (NewPrefixID == SPUDDATA_PREFIXID_NONE)
+					continue;
+
+				const int NewDepth = Depth + 1;
+				if (!VisitPersistentProperties(Obj, Obj->GetClass(), NewPrefixID, Obj, true, NewDepth, Visitor))
+					return false;				
+				
 			}
 		}
 	}
@@ -343,6 +372,8 @@ bool SpudPropertyUtil::TryWriteActorRefPropertyData(FProperty* Property, uint32 
 		auto Actor = Cast<AActor>(Obj);
 		if (Obj && !Actor)
 		{
+			// We shouldn't get here if it's a non-actor (and thus stored in place), we should have cascaded earlier
+			// Therefore this is an error here
 			UE_LOG(LogSpudProps, Error, TEXT("Property %s is an object reference, but refers to a non-Actor object which is not supported."), *OProp->GetName())
 			return false;
 		}
@@ -512,6 +543,15 @@ void SpudPropertyUtil::StoreContainerProperty(FProperty* Property, const UObject
 			UE_LOG(LogSpudProps, Verbose, TEXT("|%s %s:"), *Prefix, *Property->GetNameCPP());
 			bUpdateOK = true;
 		}
+	}
+	else if (IsNonActorObjectProperty(Property, DataPtr))
+	{
+		// Nested non-actor objects are ok, recursed like structs
+		// Visitor will cascade
+		const FString Prefix = FString::ChrN(Depth, '-');
+		UE_LOG(LogSpudProps, Verbose, TEXT("|%s %s:"), *Prefix, *Property->GetNameCPP());
+		bUpdateOK = true;
+		
 	}
 	else 
 	{
@@ -739,10 +779,10 @@ bool SpudPropertyUtil::StoredMatchesRuntimePropertyVisitor::VisitProperty(UObjec
 }
 
 uint32 SpudPropertyUtil::StoredMatchesRuntimePropertyVisitor::GetNestedPrefix(
-	FStructProperty* SProp, uint32 CurrentPrefixID)
+	FProperty* Prop, uint32 CurrentPrefixID)
 {
 	// This doesn't create a new ID, expects it to be there already
-	return GetNestedPrefixID(CurrentPrefixID, SProp, Meta);
+	return GetNestedPrefixID(CurrentPrefixID, Prop, Meta);
 }
 bool SpudPropertyUtil::IsRuntimeActor(AActor* Actor)
 {

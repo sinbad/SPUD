@@ -93,7 +93,7 @@ protected:
 
 		virtual void UnsupportedProperty(UObject* RootObject, FProperty* Property, uint32 CurrentPrefixID,
 			int Depth) override;
-		virtual uint32 GetNestedPrefix(FStructProperty* SProp, uint32 CurrentPrefixID) override;
+		virtual uint32 GetNestedPrefix(FProperty* Prop, uint32 CurrentPrefixID) override;
 	};
 
 	FSpudSaveData::TLevelDataPtr GetLevelData(const FString& LevelName, bool AutoCreate);
@@ -140,7 +140,7 @@ protected:
 		RestorePropertyVisitor(FMemoryReader& InDataIn, const FSpudClassDef& InClassDef, const FSpudClassMetadata& InMeta, const TMap<FGuid, UObject*>* InRuntimeObjects):
 			ClassDef(InClassDef), Meta(InMeta), RuntimeObjects(InRuntimeObjects), DataIn(InDataIn) {}
 
-		virtual uint32 GetNestedPrefix(FStructProperty* SProp, uint32 CurrentPrefixID) override;		
+		virtual uint32 GetNestedPrefix(FProperty* Prop, uint32 CurrentPrefixID) override;		
 	};
 
 

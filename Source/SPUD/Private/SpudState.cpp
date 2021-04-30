@@ -87,10 +87,10 @@ void USpudState::StorePropertyVisitor::UnsupportedProperty(UObject* RootObject,
 }
 
 uint32 USpudState::StorePropertyVisitor::GetNestedPrefix(
-	FStructProperty* SProp, uint32 CurrentPrefixID)
+	FProperty* Prop, uint32 CurrentPrefixID)
 {
 	// When updating we generate new prefix IDs as needed
-	return SpudPropertyUtil::FindOrAddNestedPrefixID(CurrentPrefixID, SProp, Meta);
+	return SpudPropertyUtil::FindOrAddNestedPrefixID(CurrentPrefixID, Prop, Meta);
 }
 
 void USpudState::WriteCoreActorData(AActor* Actor, FArchive& Out) const
@@ -710,10 +710,10 @@ void USpudState::RestoreObjectPropertiesSlow(UObject* Obj, const FSpudPropertyDa
 }
 
 
-uint32 USpudState::RestorePropertyVisitor::GetNestedPrefix(FStructProperty* SProp, uint32 CurrentPrefixID)
+uint32 USpudState::RestorePropertyVisitor::GetNestedPrefix(FProperty* Prop, uint32 CurrentPrefixID)
 {
 	// This doesn't create a new ID, expects it to be there already (should be since restoring)
-	return SpudPropertyUtil::GetNestedPrefixID(CurrentPrefixID, SProp, Meta);
+	return SpudPropertyUtil::GetNestedPrefixID(CurrentPrefixID, Prop, Meta);
 }
 
 
