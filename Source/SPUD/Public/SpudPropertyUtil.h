@@ -121,7 +121,7 @@ public:
 	static bool IsCustomStructProperty(const FProperty* Property);
 
 	/// Whether a property is an object reference, but not an actor (stored nested like structs on the assumption it always exists)
-	static bool IsNonActorObjectProperty(FProperty* Property, const void* Data);
+	static bool IsNonActorObjectProperty(FProperty* Property);
 
 	static uint16 GetPropertyDataType(const FProperty* Prop);
 

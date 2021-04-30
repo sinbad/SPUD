@@ -58,14 +58,15 @@ bool SpudPropertyUtil::IsCustomStructProperty(const FProperty* Property)
 	return false;
 }
 
-bool SpudPropertyUtil::IsNonActorObjectProperty(FProperty* Property, const void* Data)
+bool SpudPropertyUtil::IsNonActorObjectProperty(FProperty* Property)
 {
 	if (const auto OProp = CastField<FObjectProperty>(Property))
 	{
-		const auto Obj = OProp->GetObjectPropertyValue(Data);
-		return Obj && !Cast<AActor>(OProp->GetObjectPropertyValue(Data));
+		if (OProp->PropertyClass && !OProp->PropertyClass->IsChildOf(AActor::StaticClass()))
+		{
+			return true;
+		}
 	}
-
 	return false;
 }
 
@@ -233,10 +234,10 @@ bool SpudPropertyUtil::VisitPersistentProperties(UObject* RootObject, const UStr
 		}
 		else if (const auto OProp = CastField<FObjectProperty>(Property))
 		{
-			const auto Obj = OProp->GetObjectPropertyValue(ContainerPtr);
-			const auto Actor = Cast<AActor>(Obj);
-			if (Obj && !Actor)
+			if (IsNonActorObjectProperty(Property))
 			{
+				const auto Obj = ContainerPtr ? OProp->GetObjectPropertyValue(ContainerPtr) : nullptr;
+				const auto ObjDataPtr = ContainerPtr ? OProp->ContainerPtrToValuePtr<void>(ContainerPtr) : nullptr;
 				// Non-actor UObjects are treated as nested values like structs
 				const uint32 NewPrefixID = Visitor.GetNestedPrefix(OProp, PrefixID);
 				// Should never have no prefix, if none abort
@@ -244,7 +245,7 @@ bool SpudPropertyUtil::VisitPersistentProperties(UObject* RootObject, const UStr
 					continue;
 
 				const int NewDepth = Depth + 1;
-				if (!VisitPersistentProperties(Obj, Obj->GetClass(), NewPrefixID, Obj, true, NewDepth, Visitor))
+				if (!VisitPersistentProperties(Obj, OProp->PropertyClass, NewPrefixID, ObjDataPtr, true, NewDepth, Visitor))
 					return false;				
 				
 			}
@@ -544,7 +545,7 @@ void SpudPropertyUtil::StoreContainerProperty(FProperty* Property, const UObject
 			bUpdateOK = true;
 		}
 	}
-	else if (IsNonActorObjectProperty(Property, DataPtr))
+	else if (IsNonActorObjectProperty(Property))
 	{
 		// Nested non-actor objects are ok, recursed like structs
 		// Visitor will cascade
@@ -645,6 +646,12 @@ void SpudPropertyUtil::RestoreContainerProperty(UObject* RootObject, FProperty* 
 			// We don't cascade here any more, visitor does it
 			bUpdateOK = true;
 		}
+	}
+	else if (IsNonActorObjectProperty(Property))
+	{
+		// Nested non-actor objects are ok, recursed like structs
+		// Visitor will cascade
+		bUpdateOK = true;		
 	}
 	else 
 	{
