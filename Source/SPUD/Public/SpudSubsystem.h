@@ -220,7 +220,7 @@ public:
 
 	/// Start a new game with a blank persistent state
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
-    void NewGame();
+    void NewGame(bool CheckServerOnly = true);
 
 	/// Terminate a running game. Does not save state. Call this when returning to a main menu for example.
 	/// All map changes after this are ignored by the persistence system

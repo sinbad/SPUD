@@ -31,7 +31,7 @@ void USpudSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	if (World && World->WorldType == EWorldType::PIE)
 	{
 		// TODO: make this more configurable, use a known save etc
-		NewGame();
+		NewGame(false);
 	}
 	
 #endif
@@ -47,9 +47,9 @@ void USpudSubsystem::Deinitialize()
 }
 
 
-void USpudSubsystem::NewGame()
+void USpudSubsystem::NewGame(bool CheckServerOnly)
 {
-	if (!ServerCheck(true))
+	if (CheckServerOnly && !ServerCheck(true))
 		return;
 		
 	EndGame();
