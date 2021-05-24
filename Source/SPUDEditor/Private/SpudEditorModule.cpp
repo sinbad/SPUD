@@ -13,7 +13,7 @@ DEFINE_LOG_CATEGORY(LogSpudEditor);
 
 void FSpudEditorModule::StartupModule()
 {
-    UE_LOG(LogSpudEditor, Warning, TEXT("SpudEditor: StartupModule"));
+    UE_LOG(LogSpudEditor, Log, TEXT("SpudEditor: StartupModule"));
     
     PrePIEHandle = FEditorDelegates::PreBeginPIE.AddStatic(&FSpudEditorModule::PreBeginPIE);
 
@@ -33,7 +33,7 @@ void FSpudEditorModule::StartupModule()
 void FSpudEditorModule::ShutdownModule()
 {
     FEditorDelegates::PreBeginPIE.Remove(PrePIEHandle);
-    UE_LOG(LogSpudEditor, Warning, TEXT("SpudEditor: ShutdownModule"));
+    UE_LOG(LogSpudEditor, Log, TEXT("SpudEditor: ShutdownModule"));
 }
 
 void FSpudEditorModule::PreBeginPIE(bool)
@@ -54,7 +54,7 @@ void FSpudEditorModule::PreBeginPIE(bool)
 	{
 		if (AutoSave)
 		{
-			UE_LOG(LogSpudEditor, Warning, TEXT("Auto-saving Levels: %s"), *FString::Join(UnsavedLevels, TEXT(", ")));
+			UE_LOG(LogSpudEditor, Log, TEXT("Auto-saving Levels: %s"), *FString::Join(UnsavedLevels, TEXT(", ")));
 			// Use the same options as the File > Save All Levels command
 			const bool bPromptUserToSave = false;
 			const bool bSaveMapPackages = true;

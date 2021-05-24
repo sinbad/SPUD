@@ -51,7 +51,6 @@ void ASpudStreamingVolume::NotifyActorBeginOverlap(AActor* OtherActor)
 		
 	++ActorsOverlapping;
 	
-	//UE_LOG(LogTemp, Warning, TEXT("Actor: %s begin overlap"), *OtherActor->GetName());
 	auto PS = GetSpudSubsystem(GetWorld());
 	if (PS)
 	{
@@ -61,7 +60,7 @@ void ASpudStreamingVolume::NotifyActorBeginOverlap(AActor* OtherActor)
 			{
 				// Can't use GetAssetPathName in PIE because it gets prefixed with UEDPIE_0_ for uniqueness with editor version
 				FName LevelName = FName(Level.GetAssetName());
-				//UE_LOG(LogTemp, Warning, TEXT("Requesting Stream Load: %s"), *Level.GetAssetName());
+				//UE_LOG(LogTemp, Verbose, TEXT("Requesting Stream Load: %s"), *Level.GetAssetName());
 				PS->AddRequestForStreamingLevel(this, LevelName, false);				
 			}
 		}
@@ -74,7 +73,6 @@ void ASpudStreamingVolume::NotifyActorEndOverlap(AActor* OtherActor)
 		return;
 
 	--ActorsOverlapping;
-	//UE_LOG(LogTemp, Warning, TEXT("Actor: %s end overlap"), *OtherActor->GetName());
 
 	if (ActorsOverlapping <= 0)
 	{
@@ -87,7 +85,7 @@ void ASpudStreamingVolume::NotifyActorEndOverlap(AActor* OtherActor)
 				{
 					// Can't use GetAssetPathName in PIE because it gets prefixed with UEDPIE_0_ for uniqueness with editor version
 					FName LevelName = FName(Level.GetAssetName());
-					//UE_LOG(LogTemp, Warning, TEXT("Withdrawing Stream Level Request: %s"), *LevelName.ToString());
+					//UE_LOG(LogTemp, Verbose, TEXT("Withdrawing Stream Level Request: %s"), *LevelName.ToString());
 					PS->WithdrawRequestForStreamingLevel(this, LevelName);				
 				}
 			}

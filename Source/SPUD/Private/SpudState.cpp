@@ -368,7 +368,7 @@ void USpudState::RestoreLevel(ULevel* Level)
 
 	if (!LevelData.IsValid())
 	{
-		UE_LOG(LogSpudState, Warning, TEXT("Skipping restore level %s, no data (this may be fine)"), *LevelName);
+		UE_LOG(LogSpudState, Log, TEXT("Skipping restore level %s, no data (this may be fine)"), *LevelName);
 		return;
 	}
 
@@ -760,13 +760,13 @@ bool USpudState::RestoreSlowPropertyVisitor::VisitProperty(UObject* RootObject, 
 	uint32 PropID = Meta.GetPropertyIDFromName(Property->GetName());
 	if (PropID == SPUDDATA_INDEX_NONE)
 	{
-		UE_LOG(LogSpudState, Warning, TEXT("Skipping property %s on class %s, not found in class definition"), *Property->GetName(), *ClassDef.ClassName);
+		UE_LOG(LogSpudState, Log, TEXT("Skipping property %s on class %s, not found in class definition"), *Property->GetName(), *ClassDef.ClassName);
 		return true;
 	}
 	const int* PropertyIndexPtr = InnerMapPtr->Find(PropID);
 	if (!PropertyIndexPtr)
 	{
-		UE_LOG(LogSpudState, Warning, TEXT("Skipping property %s on class %s, data not found"), *Property->GetName(), *ClassDef.ClassName);
+		UE_LOG(LogSpudState, Log, TEXT("Skipping property %s on class %s, data not found"), *Property->GetName(), *ClassDef.ClassName);
 		return true;		
 	}
 	if (*PropertyIndexPtr < 0 || *PropertyIndexPtr >= ClassDef.Properties.Num())

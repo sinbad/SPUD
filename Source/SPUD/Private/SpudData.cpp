@@ -988,7 +988,7 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLe
 		if (Ar.IsLoading() && Info.SystemVersion != SPUD_CURRENT_SYSTEM_VERSION)
 		{
 			// System version upgrade, we need to load all levels to fix, then page out
-			UE_LOG(LogSpudData, Warning, TEXT("Save file %s is an old system version, automatically upgrading..."), *Ar.GetArchiveName())
+			UE_LOG(LogSpudData, Log, TEXT("Save file %s is an old system version, automatically upgrading..."), *Ar.GetArchiveName())
 			bLoadAllLevels = true;
 			bIsUpgrading = true;
 		}
@@ -1065,7 +1065,7 @@ void FSpudSaveData::ReadFromArchive(FSpudChunkedDataArchive& Ar, bool bLoadAllLe
 		}
 
 		if (bIsUpgrading)
-			UE_LOG(LogSpudData, Warning, TEXT("Save file %s upgrade complete. Not changed on disk, will be saved in new format next time."), *Ar.GetArchiveName())
+			UE_LOG(LogSpudData, Log, TEXT("Save file %s upgrade complete. Not changed on disk, will be saved in new format next time."), *Ar.GetArchiveName())
 
 		if (bLoadAllLevels && !bOrigLoadAllLevels)
 		{

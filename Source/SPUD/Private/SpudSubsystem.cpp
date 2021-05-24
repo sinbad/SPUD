@@ -653,7 +653,7 @@ void USpudSubsystem::PostLoadStreamLevelGameThread(FName LevelName)
 		ULevel* Level = StreamLevel->GetLoadedLevel();
 		if (!Level)
 		{
-			UE_LOG(LogSpudSubsystem, Warning, TEXT("PostLoadStreamLevel called for %s but level is null; probably unloaded again?"), *LevelName.ToString());
+			UE_LOG(LogSpudSubsystem, Log, TEXT("PostLoadStreamLevel called for %s but level is null; probably unloaded again?"), *LevelName.ToString());
 			return;
 		}
 		PreLevelRestore.Broadcast(LevelName.ToString());
