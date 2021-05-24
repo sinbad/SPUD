@@ -17,13 +17,22 @@ protected:
 	UPROPERTY(Category=LevelStreamingVolume, EditAnywhere, BlueprintReadOnly, meta=(DisplayName = "Streaming Levels", AllowedClasses="World"))
 	TArray<FSoftObjectPath> StreamingLevels;
 
-	UPROPERTY(BlueprintReadOnly)
-	int ActorsOverlapping;
+	UPROPERTY()
+	TArray<AActor*> RelevantActorsInVolume;
 
+	UPROPERTY()
+	TArray<APawn*> PawnsInVolume;
+	
 	ASpudStreamingVolume(const FObjectInitializer& ObjectInitializer);
 
 	virtual void BeginPlay() override;
-	bool IsActorWeCareAbout(AActor* Actor) const;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	bool IsRelevantActor(AActor* Actor) const;
+	void AddRelevantActor(AActor* Actor);
+	void RemoveRelevantActor(AActor* Actor);
+
+	UFUNCTION()
+	void OnPawnControllerChanged(APawn* Pawn, AController* NewCtrl);
 
 public:
 
