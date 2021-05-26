@@ -214,13 +214,6 @@ FSpudNamedObjectData* USpudState::GetLevelActorData(const AActor* Actor, FSpudSa
 	return Ret;
 }
 
-FString USpudState::GetClassName(const UObject* Obj)
-{
-	// Full class name allows for re-spawning
-	// E.g. /Game/Blueprints/Class.Blah_C
-	return Obj->GetClass()->GetPathName();
-}
-
 FSpudSpawnedActorData* USpudState::GetSpawnedActorData(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData, bool AutoCreate)
 {
 	// For automatically spawned singleton objects such as GameModes, Pawns you should create a SpudGuid
@@ -253,7 +246,7 @@ FSpudSpawnedActorData* USpudState::GetSpawnedActorData(AActor* Actor, FSpudSaveD
 	{
 		Ret = &LevelData->SpawnedActors.Contents.Emplace(GuidStr);
 		Ret->Guid = Guid;
-		const FString ClassName = GetClassName(Actor); 
+		const FString ClassName = SpudPropertyUtil::GetClassName(Actor); 
 		Ret->ClassID = LevelData->Metadata.FindOrAddClassIDFromName(ClassName);
 	}
 	
@@ -317,7 +310,7 @@ void USpudState::StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
 	if (Data)
 	{
 		FSpudClassMetadata& Meta = SaveData.GlobalData.Metadata;
-		const FString& ClassName = GetClassName(Obj);
+		const FString& ClassName = SpudPropertyUtil::GetClassName(Obj);
 		auto& ClassDef = Meta.FindOrAddClassDef(ClassName);
 		auto& PropOffsets = Data->Properties.PropertyOffsets;
 		
@@ -662,11 +655,11 @@ void USpudState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& F
 
 void USpudState::RestoreObjectProperties(UObject* Obj, const FSpudPropertyData& FromData, const FSpudClassMetadata& Meta, const TMap<FGuid, UObject*>* RuntimeObjects)
 {
-	const auto ClassName = GetClassName(Obj);
+	const auto ClassName = SpudPropertyUtil::GetClassName(Obj);
 	const auto ClassDef = Meta.GetClassDef(ClassName);
 	if (!ClassDef)
 	{
-		UE_LOG(LogSpudState, Error, TEXT("Unable to find ClassDef for: %s %s"), *GetClassName(Obj));
+		UE_LOG(LogSpudState, Error, TEXT("Unable to find ClassDef for: %s %s"), *SpudPropertyUtil::GetClassName(Obj));
 		return;
 	}
 
@@ -724,7 +717,7 @@ bool USpudState::RestoreFastPropertyVisitor::VisitProperty(UObject* RootObject, 
 	if (StoredPropertyIterator)
 	{
 		auto& StoredProperty = *StoredPropertyIterator;
-		SpudPropertyUtil::RestoreProperty(RootObject, Property, ContainerPtr, StoredProperty, RuntimeObjects, DataIn);
+		SpudPropertyUtil::RestoreProperty(RootObject, Property, ContainerPtr, StoredProperty, RuntimeObjects, Meta, DataIn);
 
 		// We DON'T increment the property iterator for custom structs and nested UObjects, since they don't have any values of their own
 		// It's their nested properties that have the values, they're only context
@@ -776,7 +769,7 @@ bool USpudState::RestoreSlowPropertyVisitor::VisitProperty(UObject* RootObject, 
 	}
 	auto& StoredProperty = ClassDef.Properties[*PropertyIndexPtr];
 	
-	SpudPropertyUtil::RestoreProperty(RootObject, Property, ContainerPtr, StoredProperty, RuntimeObjects, DataIn);
+	SpudPropertyUtil::RestoreProperty(RootObject, Property, ContainerPtr, StoredProperty, RuntimeObjects, Meta, DataIn);
 	return true;
 }
 
@@ -849,7 +842,7 @@ void USpudState::StoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelDat
 	TArray<uint8>* pDestPropertyData = nullptr;
 	TArray<uint8>* pDestCustomData = nullptr;
 	FSpudClassMetadata& Meta = LevelData->Metadata;
-	FSpudClassDef& ClassDef = Meta.FindOrAddClassDef(GetClassName(Actor));
+	FSpudClassDef& ClassDef = Meta.FindOrAddClassDef(SpudPropertyUtil::GetClassName(Actor));
 	TArray<uint32>* pOffsets = nullptr;
 	if (bRespawn)
 	{

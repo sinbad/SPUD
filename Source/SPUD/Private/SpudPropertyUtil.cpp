@@ -58,7 +58,19 @@ bool SpudPropertyUtil::IsCustomStructProperty(const FProperty* Property)
 	return false;
 }
 
-bool SpudPropertyUtil::IsNonActorObjectProperty(FProperty* Property)
+bool SpudPropertyUtil::IsActorObjectProperty(const FProperty* Property)
+{
+	if (const auto OProp = CastField<FObjectProperty>(Property))
+	{
+		if (OProp->PropertyClass && OProp->PropertyClass->IsChildOf(AActor::StaticClass()))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool SpudPropertyUtil::IsNonActorObjectProperty(const FProperty* Property)
 {
 	if (const auto OProp = CastField<FObjectProperty>(Property))
 	{
@@ -97,8 +109,21 @@ uint16 SpudPropertyUtil::GetPropertyDataType(const FProperty* Prop)
 	}
 	else if (CastField<FObjectProperty>(ActualProp))
 	{
-		// Object properties just have a string, which is either a name or a GUID, both strings
-		Ret = SpudTypeInfo<UObject*>::EnumType;
+		// Could be:
+		// 1. An Actor ref
+		// 2. A nested UObject
+		
+		// Actor ref properties just have a string, which is either a name or a GUID, both strings
+		// Nested UObjects are a ClassID (uint32)
+		if (IsActorObjectProperty(ActualProp))
+		{
+			Ret = SpudTypeInfo<AActor*>::EnumType;
+		}
+		else
+		{
+			Ret = SpudTypeInfo<UObject*>::EnumType;			
+		}
+
 	}
 	else
 	{
@@ -364,29 +389,54 @@ FString SpudPropertyUtil::WriteActorRefPropertyData(FObjectProperty* OProp, AAct
 	return RefString;
 }
 
-bool SpudPropertyUtil::TryWriteActorRefPropertyData(FProperty* Property, uint32 PrefixID, const void* Data,
+uint32 SpudPropertyUtil::WriteNestedUObjectPropertyData(FObjectProperty* OProp, UObject* UObj, uint32 PrefixID, const void* Data,
+	bool bIsArrayElement, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta,
+	FArchive& Out)
+{
+	if (!bIsArrayElement)
+		RegisterProperty(OProp, PrefixID, ClassDef, PropertyOffsets, Meta, Out);
+
+	uint32 ClassID;
+	// We already have the Actor so no need to get property value
+	if (UObj)
+	{
+		// UObjects (not actor refs) are just stored as the class (as an ID)
+		ClassID = Meta.FindOrAddClassIDFromName(GetClassName(UObj));
+		// Nested properties are stored like UStructs, as value types, except that we may need to re-construct them
+		// Note that we use the full name not the ClassID 
+	}
+	else
+		ClassID = SPUDDATA_CLASSID_NONE;
+	
+	Out << ClassID;
+	return ClassID;
+}
+
+bool SpudPropertyUtil::TryWriteUObjectPropertyData(FProperty* Property, uint32 PrefixID, const void* Data,
 	bool bIsArrayElement, int Depth, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets,
 	FSpudClassMetadata& Meta, FArchive& Out)
 {
 	if (const auto OProp = CastField<FObjectProperty>(Property))
 	{
-		auto Obj = OProp->GetObjectPropertyValue(Data);
-		// Nullrefs are OK, but if valid we need to check it's an Actor
-		// Pre-check the type of object		
-		auto Actor = Cast<AActor>(Obj);
-		if (Obj && !Actor)
-		{
-			// We shouldn't get here if it's a non-actor (and thus stored in place), we should have cascaded earlier
-			// Therefore this is an error here
-			UE_LOG(LogSpudProps, Error, TEXT("Property %s is an object reference, but refers to a non-Actor object which is not supported."), *OProp->GetName())
-			return false;
-		}
-		
+		const auto Obj = OProp->GetObjectPropertyValue(Data);
 		const FString Prefix = FString::ChrN(Depth, '-');
-		// Enums as 16-bit numbers, that should be large enough!
-		const FString Val = WriteActorRefPropertyData(OProp, Actor, PrefixID, Data, bIsArrayElement, ClassDef,
-		                                              PropertyOffsets, Meta, Out);
-		UE_LOG(LogSpudProps, Verbose, TEXT("|%s %s = %s"), *Prefix, *OProp->GetNameCPP(), *ToString(Val));
+
+		// Nullrefs are OK, but if valid we need to check it's an Actor
+		if (IsActorObjectProperty(Property))
+		{
+			const auto Actor = Cast<AActor>(Obj);			
+			const FString Val = WriteActorRefPropertyData(OProp, Actor, PrefixID, Data, bIsArrayElement, ClassDef,
+														PropertyOffsets, Meta, Out);
+			UE_LOG(LogSpudProps, Verbose, TEXT("|%s %s = %s"), *Prefix, *OProp->GetNameCPP(), *ToString(Val));
+		}
+		else
+		{
+			// non-actor UObject
+			// We store non-Actor UObjects as just the class name, so they can be instantiated if need be
+			const uint32 Val = WriteNestedUObjectPropertyData(OProp, Obj, PrefixID, Data, bIsArrayElement, ClassDef,
+														PropertyOffsets, Meta, Out);
+			UE_LOG(LogSpudProps, Verbose, TEXT("|%s %s = %s"), *Prefix, *OProp->GetNameCPP(), *ToString(Val));
+		}
 		return true;
 	}
 	return false;
@@ -457,16 +507,61 @@ FString SpudPropertyUtil::ReadActorRefPropertyData(FObjectProperty* OProp, void*
 	return RefString;
 }
 
-bool SpudPropertyUtil::TryReadActorRefPropertyData(FProperty* Prop, void* Data,
-	const FSpudPropertyDef& StoredProperty, const RuntimeObjectMap* RuntimeObjects, ULevel* Level, FArchive& In)
+FString SpudPropertyUtil::ReadNestedUObjectPropertyData(FObjectProperty* OProp, void* Data,
+														const RuntimeObjectMap* RuntimeObjects,
+														ULevel* Level, const FSpudClassMetadata& Meta,
+														FArchive& In)
+{
+	uint32 ClassID;
+	In << ClassID;
+
+	UObject* Object = nullptr;
+	FString Ret = "NULL";
+	if (ClassID != SPUDDATA_CLASSID_NONE)
+	{
+		// We replace the instance in all cases, to ensure that state is correct
+		const FString ClassName = Meta.GetClassNameFromID(ClassID);
+
+		const FSoftClassPath CP(ClassName);
+		const auto Class = CP.TryLoadClass<UObject>();
+
+		if (!Class)
+		{
+			UE_LOG(LogSpudProps, Error, TEXT("Cannot respawn instance of %s, class not found"), *ClassName);
+			return Ret;
+		}
+
+		Object = NewObject<UObject>(OProp->GetOwnerUObject(), Class);
+		Ret = ClassName;
+	}
+	// Set value even if null, to correctly restore
+	OProp->SetObjectPropertyValue(Data, Object);
+
+	return Ret;
+}
+
+
+bool SpudPropertyUtil::TryReadUObjectPropertyData(FProperty* Prop, void* Data,
+	const FSpudPropertyDef& StoredProperty, const RuntimeObjectMap* RuntimeObjects, ULevel* Level,
+	const FSpudClassMetadata& Meta, FArchive& In)
 {
 	auto OProp = CastField<FObjectProperty>(Prop);
 	if (OProp && StoredPropertyTypeMatchesRuntime(Prop, StoredProperty, true)) // we ignore array flag since we could be processing inner
 	{
-		// Enums as 16-bit numbers, that should be large enough!
-		const FString Val = ReadActorRefPropertyData(OProp, Data, RuntimeObjects, Level, In);
-		UE_LOG(LogSpudProps, Verbose, TEXT(" READ %s = %s"), *Prop->GetNameCPP(), *Val);
+
+		// Nullrefs are OK, but if valid we need to check it's an Actor
+		if (IsActorObjectProperty(Prop))
+		{
+			const FString Val = ReadActorRefPropertyData(OProp, Data, RuntimeObjects, Level, In);
+			UE_LOG(LogSpudProps, Verbose, TEXT(" READ %s = %s"), *Prop->GetNameCPP(), *Val);
+		}
+		else
+		{
+			const FString Val = ReadNestedUObjectPropertyData(OProp, Data, RuntimeObjects, Level, Meta, In);
+			UE_LOG(LogSpudProps, Verbose, TEXT(" READ %s = %s"), *Prop->GetNameCPP(), *Val);
+		}
 		return true;
+			
 	}
 	return false;
 	
@@ -548,15 +643,6 @@ void SpudPropertyUtil::StoreContainerProperty(FProperty* Property, const UObject
 			bUpdateOK = true;
 		}
 	}
-	else if (IsNonActorObjectProperty(Property))
-	{
-		// Nested non-actor objects are recursed like custom structs
-		// Visitor will cascade
-		const FString Prefix = FString::ChrN(Depth, '-');
-		UE_LOG(LogSpudProps, Verbose, TEXT("|%s %s:"), *Prefix, *Property->GetNameCPP());
-		bUpdateOK = true;
-		
-	}
 	else 
 	{
 		bUpdateOK =
@@ -574,7 +660,7 @@ void SpudPropertyUtil::StoreContainerProperty(FProperty* Property, const UObject
             TryWritePropertyData<FStrProperty,		FString>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
             TryWritePropertyData<FNameProperty,		FName>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
             TryWriteEnumPropertyData(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-            TryWriteActorRefPropertyData(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out);;
+            TryWriteUObjectPropertyData(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out);;
 		
 	}
 	if (!bUpdateOK)
@@ -587,16 +673,17 @@ void SpudPropertyUtil::StoreContainerProperty(FProperty* Property, const UObject
 void SpudPropertyUtil::RestoreProperty(UObject* RootObject, FProperty* Property, void* ContainerPtr,
                                              const FSpudPropertyDef& StoredProperty,
                                              const RuntimeObjectMap* RuntimeObjects,
+                                             const FSpudClassMetadata& Meta,
                                              FMemoryReader& DataIn)
 {
 	// Arrays supported, but not maps / sets yet
 	if (const auto AProp = CastField<FArrayProperty>(Property))
 	{
-		RestoreArrayProperty(RootObject, AProp, ContainerPtr, StoredProperty, RuntimeObjects, DataIn);
+		RestoreArrayProperty(RootObject, AProp, ContainerPtr, StoredProperty, RuntimeObjects, Meta, DataIn);
 	}
 	else
 	{
-		RestoreContainerProperty(RootObject,Property, ContainerPtr, StoredProperty, RuntimeObjects, DataIn);
+		RestoreContainerProperty(RootObject,Property, ContainerPtr, StoredProperty, RuntimeObjects, Meta, DataIn);
 	}
 }
 
@@ -604,6 +691,7 @@ void SpudPropertyUtil::RestoreProperty(UObject* RootObject, FProperty* Property,
 void SpudPropertyUtil::RestoreArrayProperty(UObject* RootObject, FArrayProperty* const AProp,
                                                   void* ContainerPtr, const FSpudPropertyDef& StoredProperty,
                                                   const RuntimeObjectMap* RuntimeObjects,
+                                                  const FSpudClassMetadata& Meta,
                                                   FMemoryReader& DataIn)
 {
 
@@ -619,7 +707,7 @@ void SpudPropertyUtil::RestoreArrayProperty(UObject* RootObject, FArrayProperty*
 	for (int ArrayElem = 0; ArrayElem < NumElems; ++ArrayElem)
 	{
 		void *ElemPtr = ArrayHelper.GetRawPtr(ArrayElem);
-		RestoreContainerProperty(RootObject, AProp->Inner, ElemPtr, StoredProperty, RuntimeObjects, DataIn);
+		RestoreContainerProperty(RootObject, AProp->Inner, ElemPtr, StoredProperty, RuntimeObjects, Meta, DataIn);
 	}
 	
 }
@@ -627,6 +715,7 @@ void SpudPropertyUtil::RestoreArrayProperty(UObject* RootObject, FArrayProperty*
 void SpudPropertyUtil::RestoreContainerProperty(UObject* RootObject, FProperty* const Property,
                                                       void* ContainerPtr, const FSpudPropertyDef& StoredProperty,
                                                       const RuntimeObjectMap* RuntimeObjects,
+                                                      const FSpudClassMetadata& Meta,
                                                       FMemoryReader& DataIn)
 {
 	// Get pointer to data within container, must be from original property in the case of arrays
@@ -650,12 +739,6 @@ void SpudPropertyUtil::RestoreContainerProperty(UObject* RootObject, FProperty* 
 			bUpdateOK = true;
 		}
 	}
-	else if (IsNonActorObjectProperty(Property))
-	{
-		// Nested non-actor objects are ok, recursed like structs
-		// Visitor will cascade
-		bUpdateOK = true;		
-	}
 	else 
 	{
 		bUpdateOK =
@@ -677,9 +760,11 @@ void SpudPropertyUtil::RestoreContainerProperty(UObject* RootObject, FProperty* 
 		if (!bUpdateOK)
 		{
 			// Actors can refer to each other
-			auto Actor = Cast<AActor>(RootObject);
-			if (Actor)				
-				bUpdateOK = TryReadActorRefPropertyData(Property, DataPtr, StoredProperty, RuntimeObjects, Actor->GetLevel(), DataIn);
+			
+			ULevel* Level = nullptr;
+			if (auto Actor = Cast<AActor>(RootObject))
+				Level = Actor->GetLevel();
+			bUpdateOK = TryReadUObjectPropertyData(Property, DataPtr, StoredProperty, RuntimeObjects, Level, Meta, DataIn);
 		}
 		
 	}
@@ -877,6 +962,16 @@ FString SpudPropertyUtil::GetGlobalObjectID(const UObject* Obj)
 		return Guid.ToString(SPUDDATA_GUID_KEY_FORMAT);
 	else
 		return Obj->GetFName().ToString();	
+}
+
+FString SpudPropertyUtil::GetClassName(const UObject* Obj)
+{
+	// Full class name allows for re-spawning
+	// E.g. /Game/Blueprints/Class.Blah_C
+	if (Obj)
+		return Obj->GetClass()->GetPathName();
+	
+	return FString();
 }
 
 

@@ -28,11 +28,17 @@ template <> struct SpudTypeInfo<SpudAnyEnum>
 	static const ESpudStorageType EnumType = ESST_UInt16;
 	using StorageType = uint16;
 };
-// UObject references need a special case, stored as FStrings
-template <> struct SpudTypeInfo<UObject*>
+// Actor references need a special case, stored as FStrings
+template <> struct SpudTypeInfo<AActor*>
 {
 	static const ESpudStorageType EnumType = ESST_String;
 	using StorageType = FString;
+};
+// Nested UObjects are stored as a ClassID
+template <> struct SpudTypeInfo<UObject*>
+{
+	static const ESpudStorageType EnumType = ESST_UInt32;
+	using StorageType = uint32;
 };
 /// Now the simpler types where StorageType == input type 
 template <> const ESpudStorageType SpudTypeInfo<uint8>::EnumType = ESST_UInt8;
@@ -120,8 +126,10 @@ public:
 
 	static bool IsCustomStructProperty(const FProperty* Property);
 
+	/// Whether a property is an actor reference
+	static bool IsActorObjectProperty(const FProperty* Property);
 	/// Whether a property is an object reference, but not an actor (stored nested like structs on the assumption it always exists)
-	static bool IsNonActorObjectProperty(FProperty* Property);
+	static bool IsNonActorObjectProperty(const FProperty* Property);
 
 	static uint16 GetPropertyDataType(const FProperty* Prop);
 
@@ -174,17 +182,17 @@ public:
 	typedef TMap<FGuid, UObject*> RuntimeObjectMap;
 	
 	static void RestoreProperty(UObject* RootObject, FProperty* Property, void* ContainerPtr,
-	                                  const FSpudPropertyDef& StoredProperty,
-	                                  const RuntimeObjectMap* RuntimeObjects,
-	                                  FMemoryReader& DataIn);
+	                            const FSpudPropertyDef& StoredProperty,
+	                            const RuntimeObjectMap* RuntimeObjects,
+	                            const FSpudClassMetadata& Meta, FMemoryReader& DataIn);
 	static void RestoreArrayProperty(UObject* RootObject, FArrayProperty* const AProp, void* ContainerPtr,
 	                                 const FSpudPropertyDef& StoredProperty,
 	                                 const RuntimeObjectMap* RuntimeObjects,
-	                                 FMemoryReader& DataIn);
+	                                 const FSpudClassMetadata& Meta, FMemoryReader& DataIn);
 	static void RestoreContainerProperty(UObject* RootObject, FProperty* const Property,
 	                                     void* ContainerPtr, const FSpudPropertyDef& StoredProperty,
 	                                     const RuntimeObjectMap* RuntimeObjects,
-	                                     FMemoryReader& DataIn);
+	                                     const FSpudClassMetadata& Meta, FMemoryReader& DataIn);
 
 
 	/// Utility function for checking whether iterating through the properties on a UObject results in the same
@@ -249,10 +257,13 @@ protected:
 	                                     int Depth, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets,
 	                                     FSpudClassMetadata& Meta,
 	                                     FArchive& Out);
-	static FString WriteActorRefPropertyData(::FObjectProperty* OProp, ::AActor* Actor, FPlatformTypes::uint32 PrefixID, const void* Data,
-	                                         bool bIsArrayElement, ::FSpudClassDef& ClassDef,
+	static FString WriteActorRefPropertyData(FObjectProperty* OProp, AActor* Actor, FPlatformTypes::uint32 PrefixID, const void* Data,
+	                                         bool bIsArrayElement, FSpudClassDef& ClassDef,
 	                                         TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FArchive& Out);
-	static bool TryWriteActorRefPropertyData(FProperty* Property, uint32 PrefixID, const void* Data, bool bIsArrayElement,
+	static uint32 WriteNestedUObjectPropertyData(FObjectProperty* OProp, UObject* UObj, FPlatformTypes::uint32 PrefixID, const void* Data,
+											bool bIsArrayElement, FSpudClassDef& ClassDef,
+											TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FArchive& Out);
+	static bool TryWriteUObjectPropertyData(FProperty* Property, uint32 PrefixID, const void* Data, bool bIsArrayElement,
 	                                       int Depth, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta,
 	                                       FArchive& Out);
 
@@ -335,9 +346,11 @@ protected:
 	static bool TryReadEnumPropertyData(FProperty* Prop, void* Data, const FSpudPropertyDef& StoredProperty,
 	                                    FArchive& In);
 	static FString ReadActorRefPropertyData(::FObjectProperty* OProp, void* Data, const RuntimeObjectMap* RuntimeObjects, ULevel* Level, FArchive& In);
-	static bool TryReadActorRefPropertyData(::FProperty* Prop, void* Data, const ::FSpudPropertyDef& StoredProperty,
+	static FString ReadNestedUObjectPropertyData(::FObjectProperty* OProp, void* Data, const RuntimeObjectMap* RuntimeObjects,
+		ULevel* Level, const FSpudClassMetadata& Meta, FArchive& In);
+	static bool TryReadUObjectPropertyData(::FProperty* Prop, void* Data, const ::FSpudPropertyDef& StoredProperty,
 	                                        const RuntimeObjectMap* RuntimeObjects,
-	                                        ULevel* Level, FArchive& In);
+	                                        ULevel* Level, const FSpudClassMetadata& Meta, FArchive& In);
 public:
 
 	// Low-level functions, use with caution
@@ -384,5 +397,8 @@ public:
 	static FString GetLevelActorName(const AActor* Actor);
 	/// Get the identifier to use for a global object 
 	static FString GetGlobalObjectID(const UObject* Obj);
+	/// Get the class name of an object 
+	static FString GetClassName(const UObject* Obj);
+
 
 };
