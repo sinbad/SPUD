@@ -253,8 +253,11 @@ bool SpudPropertyUtil::VisitPersistentProperties(UObject* RootObject, const UStr
 
 				const int NewDepth = Depth + 1;
 				const auto StructPtr = ContainerPtr ? SProp->ContainerPtrToValuePtr<void>(ContainerPtr) : nullptr;
+
+				Visitor.StartNestedStruct(RootObject, SProp, NewPrefixID, NewDepth);
 				if (!VisitPersistentProperties(RootObject, SProp->Struct, NewPrefixID, StructPtr, true, NewDepth, Visitor))
 					return false;				
+				Visitor.EndNestedStruct(RootObject, SProp, NewPrefixID, NewDepth);
 			}
 		}
 		else if (const auto OProp = CastField<FObjectProperty>(Property))
@@ -262,10 +265,12 @@ bool SpudPropertyUtil::VisitPersistentProperties(UObject* RootObject, const UStr
 			if (IsNonActorObjectProperty(Property))
 			{
 				const void* DataPtr = ContainerPtr ? Property->ContainerPtrToValuePtr<void>(ContainerPtr) : nullptr;
-				const auto Obj = DataPtr ? OProp->GetObjectPropertyValue(DataPtr) : nullptr;
 
+				const auto Obj = DataPtr ? OProp->GetObjectPropertyValue(DataPtr) : nullptr;
+				// Obj may be null which would mean we don't cascade, but that's OK
+				// The null value will have been written / read in the VisitProperty call above
 				if (IsValid(Obj))
-				{
+				{					
 					// Non-actor UObjects are treated as nested values like structs
 					const uint32 NewPrefixID = Visitor.GetNestedPrefix(OProp, PrefixID);
 					// Should never have no prefix, if none abort
@@ -273,8 +278,10 @@ bool SpudPropertyUtil::VisitPersistentProperties(UObject* RootObject, const UStr
 						continue;
 			
 					const int NewDepth = Depth + 1;
+					Visitor.StartNestedUObject(RootObject, OProp, NewPrefixID, NewDepth, Obj);
 					if (!VisitPersistentProperties(RootObject, Obj->GetClass(), NewPrefixID, Obj, true, NewDepth, Visitor))
 						return false;
+					Visitor.EndNestedUObject(RootObject, OProp, NewPrefixID, NewDepth, Obj);
 				}				
 			}
 		}
@@ -399,7 +406,7 @@ uint32 SpudPropertyUtil::WriteNestedUObjectPropertyData(FObjectProperty* OProp, 
 	uint32 ClassID;
 	// We already have the Actor so no need to get property value
 	if (UObj)
-	{
+	{		
 		// UObjects (not actor refs) are just stored as the class (as an ID)
 		ClassID = Meta.FindOrAddClassIDFromName(GetClassName(UObj));
 		// Nested properties are stored like UStructs, as value types, except that we may need to re-construct them

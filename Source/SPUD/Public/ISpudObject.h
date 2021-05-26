@@ -61,18 +61,21 @@ public:
 	// I fixed this mainly by making USpudState not a USaveGame and doing everything manually instead, no
 	// Serialize() methods.
 	
-	/// Called just before this object and its SaveGame properties are persisted into a game state
+	/// Called just before this object and its SaveGame properties are persisted into a game state.
+	/// This is called for root saved objects and nested UObjects
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
     void SpudPreStore(const USpudState* State);
 	
 	/// Called just after all the automatic property data has been written to the state for this object, but before the
 	/// record is sealed. This is the place you can write any custom data you need that you can't expose in a UPROPERTY
 	/// for some reason. Use methods on USpudStateCustomData to write custom data.
-	/// You are in charge of making sure you write/read the same data in the finalise methods
+	/// You are in charge of making sure you write/read the same data in the finalise methods.
+	/// This is only called for root objects (Actors and global objects), not nested UObjects, which cannot store custom data
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
     void SpudStoreCustomData(const USpudState* State, USpudStateCustomData* CustomData);
 
 	/// Called just after this object and its SaveGame properties have been persisted (no further state can be written for this object)
+	/// This is called for root objects and nested UObjects
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
     void SpudPostStore(const USpudState* State);
 
@@ -81,10 +84,12 @@ public:
 	/// benefit of having the actual object available. At this point you should probably only be modifying USpudState,
 	/// to make it compatible, because the normal restore will still happen after this. See SpudPostRestoreDataModelUpgrade
 	/// if you want to alter things afterwards.
+	/// This is only called for root objects (actors and global objects), not nested UObjects
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
     void SpudPreRestoreDataModelUpgrade(USpudState* State, int32 StoredVersion, int32 CurrentVersion);
 	
 	/// Called just before this object's state is populated from a persistent state
+	/// This is called for root objects and nested UObjects
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
     void SpudPreRestore(const USpudState* State);
 	
@@ -92,6 +97,7 @@ public:
 	/// record is finished. This is the place you can read any custom data you wrote during
 	/// for some reason. Use methods on USpudStateCustomData to write custom data.
 	/// You are in charge of making sure you write/read the same data in the finalise methods
+	/// This is only called for root objects (actors and global objects), not nested UObjects
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
     void SpudRestoreCustomData(USpudState* State, USpudStateCustomData* CustomData);
 
@@ -99,10 +105,12 @@ public:
 	/// This is an alternative to calling UpgradeAllSaveGames on USpudSubsystem, you can upgrade on demand with the
 	/// benefit of having the actual object available. At this point the normal restore process has occurred but you
 	/// can do some post-restore things specific to the data model being changed.
+	/// This is only called for root objects (actors and global objects), not nested UObjects
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
     void SpudPostRestoreDataModelUpgrade(const USpudState* State, int32 StoredVersion, int32 CurrentVersion);
 
 	/// Called just after the state for this object has been fully restored.
+	/// This is called for root objects and nested UObjects
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD")
     void SpudPostRestore(const USpudState* State);
 

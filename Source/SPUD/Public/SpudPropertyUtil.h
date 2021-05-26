@@ -102,6 +102,41 @@ public:
 		* nested properties will be skipped.
 		 */
 		virtual uint32 GetNestedPrefix(FProperty* Prop, uint32 CurrentPrefixID) = 0;
+
+		/**
+		 * Called just before descending into a struct 
+		 * @param RootObject The root object being traversed
+		 * @param SProp The property of the struct
+		 * @param PrefixID The prefix ID for members of the struct
+		 * @param Depth The depth for members of the struct
+		 */
+		virtual void StartNestedStruct(UObject* RootObject, FStructProperty* SProp, uint32 PrefixID, int Depth) {}
+		/**
+		 * Called just after all the members of a struct have been visited 
+		 * @param RootObject The root object being traversed
+		 * @param SProp The property of the struct
+		 * @param PrefixID The prefix ID for members of the struct
+		 * @param Depth The depth for members of the struct
+		 */
+		virtual void EndNestedStruct(UObject* RootObject, FStructProperty* SProp, uint32 PrefixID, int Depth) {}
+		/**
+		* Called just before descending into a UObject 
+		* @param RootObject The root object being traversed
+		* @param OProp The property of the object
+		* @param PrefixID The prefix ID for members of the object
+		* @param Depth The depth for members of the object
+		* @param NestedObject Pointer to the nested object, may be null
+		*/
+		virtual void StartNestedUObject(UObject* RootObject, FObjectProperty* OProp, uint32 PrefixID, int Depth, UObject* NestedObject) {}
+		/**
+		* Called just after all members of a nested UObject have been visited 
+		* @param RootObject The root object being traversed
+		* @param OProp The property of the object
+		* @param PrefixID The prefix ID for members of the object
+		* @param Depth The depth for members of the object
+		* @param NestedObject Pointer to the nested object, may be null
+		*/
+		virtual void EndNestedUObject(UObject* RootObject, FObjectProperty* OProp, uint32 PrefixID, int Depth, UObject* NestedObject) {}
 	};
 
 	/**

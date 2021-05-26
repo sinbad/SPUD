@@ -61,8 +61,10 @@ void USpudState::StoreLevel(ULevel* Level, bool bRelease, bool bBlocking)
 }
 
 USpudState::StorePropertyVisitor::StorePropertyVisitor(
+	USpudState* Parent,
 	FSpudClassDef& InClassDef, TArray<uint32>& InPropertyOffsets,
 	FSpudClassMetadata& InMeta, FMemoryWriter& InOut):
+	ParentState(Parent),
 	ClassDef(InClassDef),
 	PropertyOffsets(InPropertyOffsets),
 	Meta(InMeta),
@@ -91,6 +93,27 @@ uint32 USpudState::StorePropertyVisitor::GetNestedPrefix(
 {
 	// When updating we generate new prefix IDs as needed
 	return SpudPropertyUtil::FindOrAddNestedPrefixID(CurrentPrefixID, Prop, Meta);
+}
+
+
+void USpudState::StorePropertyVisitor::StartNestedUObject(UObject* RootObject, FObjectProperty* OProp, uint32 PrefixID,
+	int Depth, UObject* NestedObject)
+{
+	if (NestedObject && NestedObject->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass()))
+	{
+		ISpudObjectCallback::Execute_SpudPreStore(NestedObject, ParentState);
+	}
+
+}
+
+void USpudState::StorePropertyVisitor::EndNestedUObject(UObject* RootObject, FObjectProperty* OProp, uint32 PrefixID,
+	int Depth, UObject* NestedObject)
+{
+	if (NestedObject && NestedObject->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass()))
+	{
+		// We don't allow custom data in nested UObjects, only root objects
+		ISpudObjectCallback::Execute_SpudPostStore(NestedObject, ParentState);
+	}
 }
 
 void USpudState::WriteCoreActorData(AActor* Actor, FArchive& Out) const
@@ -326,7 +349,7 @@ void USpudState::StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
 		FMemoryWriter PropertyWriter(PropData);
 
 		// visit all properties and write out
-		StorePropertyVisitor Visitor(ClassDef, PropOffsets, Meta, PropertyWriter);
+		StorePropertyVisitor Visitor(this, ClassDef, PropOffsets, Meta, PropertyWriter);
 		SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor);
 		
 		if (bIsCallback)
@@ -685,7 +708,7 @@ void USpudState::RestoreObjectPropertiesFast(UObject* Obj, const FSpudPropertyDa
 	const auto StoredPropertyIterator = ClassDef->Properties.CreateConstIterator();
 
 	FMemoryReader In(FromData.Data);
-	RestoreFastPropertyVisitor Visitor(StoredPropertyIterator, In, *ClassDef, Meta, RuntimeObjects);
+	RestoreFastPropertyVisitor Visitor(this, StoredPropertyIterator, In, *ClassDef, Meta, RuntimeObjects);
 	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor);
 	
 }
@@ -698,7 +721,7 @@ void USpudState::RestoreObjectPropertiesSlow(UObject* Obj, const FSpudPropertyDa
 	UE_LOG(LogSpudState, Verbose, TEXT(" |- SLOW path, %d properties"), ClassDef->Properties.Num());
 
 	FMemoryReader In(FromData.Data);
-	RestoreSlowPropertyVisitor Visitor(In, *ClassDef, Meta, RuntimeObjects);
+	RestoreSlowPropertyVisitor Visitor(this, In, *ClassDef, Meta, RuntimeObjects);
 	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor);
 }
 
@@ -710,8 +733,27 @@ uint32 USpudState::RestorePropertyVisitor::GetNestedPrefix(FProperty* Prop, uint
 }
 
 
+void USpudState::RestorePropertyVisitor::StartNestedUObject(UObject* RootObject, FObjectProperty* OProp,
+	uint32 PrefixID, int Depth, UObject* NestedObject)
+{
+	if (NestedObject && NestedObject->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass()))
+	{
+		ISpudObjectCallback::Execute_SpudPreRestore(NestedObject, ParentState);
+	}
+}
+
+void USpudState::RestorePropertyVisitor::EndNestedUObject(UObject* RootObject, FObjectProperty* OProp, uint32 PrefixID,
+	int Depth, UObject* NestedObject)
+{
+	if (NestedObject && NestedObject->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass()))
+	{
+		// We don't allow custom data in nested UObjects, only root objects
+		ISpudObjectCallback::Execute_SpudPostStore(NestedObject, ParentState);
+	}
+}
+
 bool USpudState::RestoreFastPropertyVisitor::VisitProperty(UObject* RootObject, FProperty* Property,
-	uint32 CurrentPrefixID, void* ContainerPtr, int Depth)
+                                                           uint32 CurrentPrefixID, void* ContainerPtr, int Depth)
 {
 	// Fast path can just iterate both sides of properties because stored properties are in the same order
 	if (StoredPropertyIterator)
@@ -896,7 +938,7 @@ void USpudState::StoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelDat
 	WriteCoreActorData(Actor, CoreDataWriter);
 
 	// Now properties, visit all and write out
-	StorePropertyVisitor Visitor(ClassDef, *pOffsets, Meta, PropertyWriter);
+	StorePropertyVisitor Visitor(this, ClassDef, *pOffsets, Meta, PropertyWriter);
 	SpudPropertyUtil::VisitPersistentProperties(Actor, Visitor);
 
 	if (bIsCallback)
