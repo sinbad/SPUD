@@ -719,9 +719,9 @@ bool USpudState::RestoreFastPropertyVisitor::VisitProperty(UObject* RootObject, 
 		auto& StoredProperty = *StoredPropertyIterator;
 		SpudPropertyUtil::RestoreProperty(RootObject, Property, ContainerPtr, StoredProperty, RuntimeObjects, Meta, DataIn);
 
-		// We DON'T increment the property iterator for custom structs and nested UObjects, since they don't have any values of their own
+		// We DON'T increment the property iterator for custom structs, since they don't have any values of their own
 		// It's their nested properties that have the values, they're only context
-		if (!SpudPropertyUtil::IsCustomStructProperty(Property) && !SpudPropertyUtil::IsNonActorObjectProperty(Property))
+		if (!SpudPropertyUtil::IsCustomStructProperty(Property))
 			++StoredPropertyIterator;
 
 		return true;
