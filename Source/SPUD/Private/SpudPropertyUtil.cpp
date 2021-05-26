@@ -284,7 +284,9 @@ bool SpudPropertyUtil::VisitPersistentProperties(UObject* RootObject, const UStr
 			
 					const int NewDepth = Depth + 1;
 					Visitor.StartNestedUObject(RootObject, OProp, NewPrefixID, NewDepth, Obj);
-					if (!VisitPersistentProperties(RootObject, Obj->GetClass(), NewPrefixID, Obj, true, NewDepth, Visitor))
+					// Unlike structs, "IsChildOfSaveGame" must be false because we don't want to include everything,
+					// only fields marked as SaveGame on the UObject					
+					if (!VisitPersistentProperties(RootObject, Obj->GetClass(), NewPrefixID, Obj, false, NewDepth, Visitor))
 						return false;
 					Visitor.EndNestedUObject(RootObject, OProp, NewPrefixID, NewDepth, Obj);
 				}				
