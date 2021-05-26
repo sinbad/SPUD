@@ -29,12 +29,15 @@ The following property types are supported, either as single entries, or
 * Rotator (FRotator)
 * Transform (FTransform)
 * Guid (FGuid)
-* Object Reference (Any type of object)
+* Actor references
+
+The following property types are supported, but **not as arrays**:
+
+* Custom UStructs
+* Nested UObject instances (null preserving, will re-instantiate based on property type)
 
 Maps and sets are not supported. 
 
-In addition, any other struct is supported, including custom structs - but 
-**not as arrays**. 
 
 ## Upgrading Properties
 

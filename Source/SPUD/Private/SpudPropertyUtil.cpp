@@ -36,6 +36,11 @@ bool SpudPropertyUtil::IsValidArrayType(FArrayProperty* AProp)
 		if (!IsBuiltInStructProperty(SProp))
 			return false;
 	}
+	else if (IsNonActorObjectProperty(AProp->Inner))
+	{
+		// Same problem with nested UObjects
+		return false;
+	}
 	return true;
 
 }
