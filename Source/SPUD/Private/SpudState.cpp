@@ -61,8 +61,10 @@ void USpudState::StoreLevel(ULevel* Level, bool bRelease, bool bBlocking)
 }
 
 USpudState::StorePropertyVisitor::StorePropertyVisitor(
+	USpudState* Parent,
 	FSpudClassDef& InClassDef, TArray<uint32>& InPropertyOffsets,
 	FSpudClassMetadata& InMeta, FMemoryWriter& InOut):
+	ParentState(Parent),
 	ClassDef(InClassDef),
 	PropertyOffsets(InPropertyOffsets),
 	Meta(InMeta),
@@ -81,7 +83,7 @@ bool USpudState::StorePropertyVisitor::VisitProperty(UObject* RootObject, FPrope
 void USpudState::StorePropertyVisitor::UnsupportedProperty(UObject* RootObject,
     FProperty* Property, uint32 CurrentPrefixID, int Depth)
 {
-	UE_LOG(LogSpudState, Error, TEXT("Property %s/%s is marked for save but is an unsupported type, ignoring. E.g. Arrays of custom structs are not supported."),
+	UE_LOG(LogSpudState, Error, TEXT("Property %s/%s is marked for save but is an unsupported type, ignoring. E.g. Arrays of custom structs or nested UObjects (other than actor refs) are not supported."),
         *RootObject->GetName(), *Property->GetName());
 	
 }
@@ -91,6 +93,27 @@ uint32 USpudState::StorePropertyVisitor::GetNestedPrefix(
 {
 	// When updating we generate new prefix IDs as needed
 	return SpudPropertyUtil::FindOrAddNestedPrefixID(CurrentPrefixID, Prop, Meta);
+}
+
+
+void USpudState::StorePropertyVisitor::StartNestedUObject(UObject* RootObject, FObjectProperty* OProp, uint32 PrefixID,
+	int Depth, UObject* NestedObject)
+{
+	if (NestedObject && NestedObject->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass()))
+	{
+		ISpudObjectCallback::Execute_SpudPreStore(NestedObject, ParentState);
+	}
+
+}
+
+void USpudState::StorePropertyVisitor::EndNestedUObject(UObject* RootObject, FObjectProperty* OProp, uint32 PrefixID,
+	int Depth, UObject* NestedObject)
+{
+	if (NestedObject && NestedObject->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass()))
+	{
+		// We don't allow custom data in nested UObjects, only root objects
+		ISpudObjectCallback::Execute_SpudPostStore(NestedObject, ParentState);
+	}
 }
 
 void USpudState::WriteCoreActorData(AActor* Actor, FArchive& Out) const
@@ -214,13 +237,6 @@ FSpudNamedObjectData* USpudState::GetLevelActorData(const AActor* Actor, FSpudSa
 	return Ret;
 }
 
-FString USpudState::GetClassName(const UObject* Obj)
-{
-	// Full class name allows for re-spawning
-	// E.g. /Game/Blueprints/Class.Blah_C
-	return Obj->GetClass()->GetPathName();
-}
-
 FSpudSpawnedActorData* USpudState::GetSpawnedActorData(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData, bool AutoCreate)
 {
 	// For automatically spawned singleton objects such as GameModes, Pawns you should create a SpudGuid
@@ -253,7 +269,7 @@ FSpudSpawnedActorData* USpudState::GetSpawnedActorData(AActor* Actor, FSpudSaveD
 	{
 		Ret = &LevelData->SpawnedActors.Contents.Emplace(GuidStr);
 		Ret->Guid = Guid;
-		const FString ClassName = GetClassName(Actor); 
+		const FString ClassName = SpudPropertyUtil::GetClassName(Actor); 
 		Ret->ClassID = LevelData->Metadata.FindOrAddClassIDFromName(ClassName);
 	}
 	
@@ -317,7 +333,7 @@ void USpudState::StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
 	if (Data)
 	{
 		FSpudClassMetadata& Meta = SaveData.GlobalData.Metadata;
-		const FString& ClassName = GetClassName(Obj);
+		const FString& ClassName = SpudPropertyUtil::GetClassName(Obj);
 		auto& ClassDef = Meta.FindOrAddClassDef(ClassName);
 		auto& PropOffsets = Data->Properties.PropertyOffsets;
 		
@@ -333,7 +349,7 @@ void USpudState::StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
 		FMemoryWriter PropertyWriter(PropData);
 
 		// visit all properties and write out
-		StorePropertyVisitor Visitor(ClassDef, PropOffsets, Meta, PropertyWriter);
+		StorePropertyVisitor Visitor(this, ClassDef, PropOffsets, Meta, PropertyWriter);
 		SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor);
 		
 		if (bIsCallback)
@@ -662,11 +678,11 @@ void USpudState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& F
 
 void USpudState::RestoreObjectProperties(UObject* Obj, const FSpudPropertyData& FromData, const FSpudClassMetadata& Meta, const TMap<FGuid, UObject*>* RuntimeObjects)
 {
-	const auto ClassName = GetClassName(Obj);
+	const auto ClassName = SpudPropertyUtil::GetClassName(Obj);
 	const auto ClassDef = Meta.GetClassDef(ClassName);
 	if (!ClassDef)
 	{
-		UE_LOG(LogSpudState, Error, TEXT("Unable to find ClassDef for: %s %s"), *GetClassName(Obj));
+		UE_LOG(LogSpudState, Error, TEXT("Unable to find ClassDef for: %s %s"), *SpudPropertyUtil::GetClassName(Obj));
 		return;
 	}
 
@@ -692,7 +708,7 @@ void USpudState::RestoreObjectPropertiesFast(UObject* Obj, const FSpudPropertyDa
 	const auto StoredPropertyIterator = ClassDef->Properties.CreateConstIterator();
 
 	FMemoryReader In(FromData.Data);
-	RestoreFastPropertyVisitor Visitor(StoredPropertyIterator, In, *ClassDef, Meta, RuntimeObjects);
+	RestoreFastPropertyVisitor Visitor(this, StoredPropertyIterator, In, *ClassDef, Meta, RuntimeObjects);
 	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor);
 	
 }
@@ -705,7 +721,7 @@ void USpudState::RestoreObjectPropertiesSlow(UObject* Obj, const FSpudPropertyDa
 	UE_LOG(LogSpudState, Verbose, TEXT(" |- SLOW path, %d properties"), ClassDef->Properties.Num());
 
 	FMemoryReader In(FromData.Data);
-	RestoreSlowPropertyVisitor Visitor(In, *ClassDef, Meta, RuntimeObjects);
+	RestoreSlowPropertyVisitor Visitor(this, In, *ClassDef, Meta, RuntimeObjects);
 	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor);
 }
 
@@ -717,14 +733,33 @@ uint32 USpudState::RestorePropertyVisitor::GetNestedPrefix(FProperty* Prop, uint
 }
 
 
+void USpudState::RestorePropertyVisitor::StartNestedUObject(UObject* RootObject, FObjectProperty* OProp,
+	uint32 PrefixID, int Depth, UObject* NestedObject)
+{
+	if (NestedObject && NestedObject->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass()))
+	{
+		ISpudObjectCallback::Execute_SpudPreRestore(NestedObject, ParentState);
+	}
+}
+
+void USpudState::RestorePropertyVisitor::EndNestedUObject(UObject* RootObject, FObjectProperty* OProp, uint32 PrefixID,
+	int Depth, UObject* NestedObject)
+{
+	if (NestedObject && NestedObject->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass()))
+	{
+		// We don't allow custom data in nested UObjects, only root objects
+		ISpudObjectCallback::Execute_SpudPostStore(NestedObject, ParentState);
+	}
+}
+
 bool USpudState::RestoreFastPropertyVisitor::VisitProperty(UObject* RootObject, FProperty* Property,
-	uint32 CurrentPrefixID, void* ContainerPtr, int Depth)
+                                                           uint32 CurrentPrefixID, void* ContainerPtr, int Depth)
 {
 	// Fast path can just iterate both sides of properties because stored properties are in the same order
 	if (StoredPropertyIterator)
 	{
 		auto& StoredProperty = *StoredPropertyIterator;
-		SpudPropertyUtil::RestoreProperty(RootObject, Property, ContainerPtr, StoredProperty, RuntimeObjects, DataIn);
+		SpudPropertyUtil::RestoreProperty(RootObject, Property, ContainerPtr, StoredProperty, RuntimeObjects, Meta, DataIn);
 
 		// We DON'T increment the property iterator for custom structs, since they don't have any values of their own
 		// It's their nested properties that have the values, they're only context
@@ -776,7 +811,7 @@ bool USpudState::RestoreSlowPropertyVisitor::VisitProperty(UObject* RootObject, 
 	}
 	auto& StoredProperty = ClassDef.Properties[*PropertyIndexPtr];
 	
-	SpudPropertyUtil::RestoreProperty(RootObject, Property, ContainerPtr, StoredProperty, RuntimeObjects, DataIn);
+	SpudPropertyUtil::RestoreProperty(RootObject, Property, ContainerPtr, StoredProperty, RuntimeObjects, Meta, DataIn);
 	return true;
 }
 
@@ -849,7 +884,7 @@ void USpudState::StoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelDat
 	TArray<uint8>* pDestPropertyData = nullptr;
 	TArray<uint8>* pDestCustomData = nullptr;
 	FSpudClassMetadata& Meta = LevelData->Metadata;
-	FSpudClassDef& ClassDef = Meta.FindOrAddClassDef(GetClassName(Actor));
+	FSpudClassDef& ClassDef = Meta.FindOrAddClassDef(SpudPropertyUtil::GetClassName(Actor));
 	TArray<uint32>* pOffsets = nullptr;
 	if (bRespawn)
 	{
@@ -903,7 +938,7 @@ void USpudState::StoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelDat
 	WriteCoreActorData(Actor, CoreDataWriter);
 
 	// Now properties, visit all and write out
-	StorePropertyVisitor Visitor(ClassDef, *pOffsets, Meta, PropertyWriter);
+	StorePropertyVisitor Visitor(this, ClassDef, *pOffsets, Meta, PropertyWriter);
 	SpudPropertyUtil::VisitPersistentProperties(Actor, Visitor);
 
 	if (bIsCallback)

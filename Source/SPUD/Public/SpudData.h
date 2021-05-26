@@ -37,6 +37,7 @@ extern int32 GCurrentUserDataModelVersion;
 #define SPUDDATA_INDEX_NONE 0xFFFFFFFF
 #define SPUDDATA_PROPERTYID_NONE 0xFFFFFFFF
 #define SPUDDATA_PREFIXID_NONE 0xFFFFFFFF
+#define SPUDDATA_CLASSID_NONE 0xFFFFFFFF
 
 // None of the structs in this file are exposed to Blueprints. They are theoretically available to external code
 // via C++ but honestly external code should just use the API on USpudSubsystem, or USpudState at a push (save upgrading)
@@ -65,7 +66,7 @@ extern int32 GCurrentUserDataModelVersion;
 
 enum SPUD_API ESpudStorageType // (stored as uint16 but not using enum class to make bitwise ops easier)
 {
-	// All of these are serilized as per their underlying types
+	// All of these are serialised as per their underlying types
 	ESST_UInt8 = 0,
     ESST_UInt16 = 1,
     ESST_UInt32 = 2,

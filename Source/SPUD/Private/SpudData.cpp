@@ -559,7 +559,12 @@ const FString& FSpudClassMetadata::GetClassNameFromID(uint32 ID) const
 }
 uint32 FSpudClassMetadata::FindOrAddClassIDFromName(const FString& Name)
 {
-	return ClassNameIndex.FindOrAddIndex(Name);
+	uint32 Ret = ClassNameIndex.FindOrAddIndex(Name);
+
+	if (Ret == SPUDDATA_CLASSID_NONE)
+		UE_LOG(LogSpudData, Fatal, TEXT("Too many classes (seriously, how did you manage this? 4M classes? Woah)"))
+	
+	return Ret;
 }
 uint32 FSpudClassMetadata::GetClassIDFromName(const FString& Name) const
 {

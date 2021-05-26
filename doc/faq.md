@@ -132,8 +132,8 @@ a large or even infinite drop, then you might need to tweak this a bit.
 ## Cross-references across streaming level boundaries
 
 Persistent object cross-references are supported as saved state. However, 
-they can only reference objects in the same level, because you cannot guarantee
-that both levels are loaded at once.
+they can only reference objects in the same level, or in the Persistent level, 
+because you cannot guarantee which levels are loaded at once.
 
 If objects needs to cross streaming level boundaries then you might consider
 putting them in the Persistent Level instead of the streamed level. However, 
