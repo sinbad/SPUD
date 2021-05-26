@@ -531,25 +531,35 @@ FString SpudPropertyUtil::ReadNestedUObjectPropertyData(FObjectProperty* OProp, 
 
 	UObject* Object = nullptr;
 	FString Ret = "NULL";
-	if (ClassID != SPUDDATA_CLASSID_NONE)
+	if (ClassID == SPUDDATA_CLASSID_NONE)
 	{
-		// We replace the instance in all cases, to ensure that state is correct
-		const FString ClassName = Meta.GetClassNameFromID(ClassID);
-
-		const FSoftClassPath CP(ClassName);
-		const auto Class = CP.TryLoadClass<UObject>();
-
-		if (!Class)
-		{
-			UE_LOG(LogSpudProps, Error, TEXT("Cannot respawn instance of %s, class not found"), *ClassName);
-			return Ret;
-		}
-
-		Object = NewObject<UObject>(OProp->GetOwnerUObject(), Class);
-		Ret = ClassName;
+		// If stored data said it should be null, set it
+		OProp->SetObjectPropertyValue(Data, nullptr);
 	}
-	// Set value even if null, to correctly restore
-	OProp->SetObjectPropertyValue(Data, Object);
+	else
+	{
+		// If stored data is non-null, instantiate if needed
+		// Only instantiate if null, to allow user code to instantiate subclasses of property type if required
+		if (!IsValid(OProp->GetObjectPropertyValue(Data)))
+		{
+			const FString ClassName = Meta.GetClassNameFromID(ClassID);
+
+			const FSoftClassPath CP(ClassName);
+			const auto Class = CP.TryLoadClass<UObject>();
+
+			if (!Class)
+			{
+				UE_LOG(LogSpudProps, Error, TEXT("Cannot respawn instance of %s, class not found"), *ClassName);
+				return Ret;
+			}
+
+			Object = NewObject<UObject>(OProp->GetOwnerUObject(), Class);
+			OProp->SetObjectPropertyValue(Data, Object);
+			Ret = ClassName;
+		}
+		// Otherwise, we leave the existing instance there
+		// Nested properties will be re-populated as before during cascade
+	}
 
 	return Ret;
 }
