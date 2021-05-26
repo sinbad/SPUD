@@ -65,7 +65,7 @@ extern int32 GCurrentUserDataModelVersion;
 
 enum SPUD_API ESpudStorageType // (stored as uint16 but not using enum class to make bitwise ops easier)
 {
-	// All of these are serilized as per their underlying types
+	// All of these are serialised as per their underlying types
 	ESST_UInt8 = 0,
     ESST_UInt16 = 1,
     ESST_UInt32 = 2,
