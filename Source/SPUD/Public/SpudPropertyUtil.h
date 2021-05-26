@@ -295,7 +295,7 @@ protected:
 	static FString WriteActorRefPropertyData(FObjectProperty* OProp, AActor* Actor, FPlatformTypes::uint32 PrefixID, const void* Data,
 	                                         bool bIsArrayElement, FSpudClassDef& ClassDef,
 	                                         TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FArchive& Out);
-	static uint32 WriteNestedUObjectPropertyData(FObjectProperty* OProp, UObject* UObj, FPlatformTypes::uint32 PrefixID, const void* Data,
+	static FString WriteNestedUObjectPropertyData(FObjectProperty* OProp, UObject* UObj, FPlatformTypes::uint32 PrefixID, const void* Data,
 											bool bIsArrayElement, FSpudClassDef& ClassDef,
 											TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FArchive& Out);
 	static bool TryWriteUObjectPropertyData(FProperty* Property, uint32 PrefixID, const void* Data, bool bIsArrayElement,

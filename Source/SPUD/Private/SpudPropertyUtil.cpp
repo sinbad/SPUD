@@ -396,7 +396,7 @@ FString SpudPropertyUtil::WriteActorRefPropertyData(FObjectProperty* OProp, AAct
 	return RefString;
 }
 
-uint32 SpudPropertyUtil::WriteNestedUObjectPropertyData(FObjectProperty* OProp, UObject* UObj, uint32 PrefixID, const void* Data,
+FString SpudPropertyUtil::WriteNestedUObjectPropertyData(FObjectProperty* OProp, UObject* UObj, uint32 PrefixID, const void* Data,
 	bool bIsArrayElement, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta,
 	FArchive& Out)
 {
@@ -404,11 +404,13 @@ uint32 SpudPropertyUtil::WriteNestedUObjectPropertyData(FObjectProperty* OProp, 
 		RegisterProperty(OProp, PrefixID, ClassDef, PropertyOffsets, Meta, Out);
 
 	uint32 ClassID;
+	FString Ret = "NULL";
 	// We already have the Actor so no need to get property value
 	if (UObj)
 	{		
 		// UObjects (not actor refs) are just stored as the class (as an ID)
-		ClassID = Meta.FindOrAddClassIDFromName(GetClassName(UObj));
+		Ret = GetClassName(UObj);
+		ClassID = Meta.FindOrAddClassIDFromName(Ret);
 		// Nested properties are stored like UStructs, as value types, except that we may need to re-construct them
 		// Note that we use the full name not the ClassID 
 	}
@@ -416,7 +418,7 @@ uint32 SpudPropertyUtil::WriteNestedUObjectPropertyData(FObjectProperty* OProp, 
 		ClassID = SPUDDATA_CLASSID_NONE;
 	
 	Out << ClassID;
-	return ClassID;
+	return Ret;
 }
 
 bool SpudPropertyUtil::TryWriteUObjectPropertyData(FProperty* Property, uint32 PrefixID, const void* Data,
@@ -440,9 +442,9 @@ bool SpudPropertyUtil::TryWriteUObjectPropertyData(FProperty* Property, uint32 P
 		{
 			// non-actor UObject
 			// We store non-Actor UObjects as just the class name, so they can be instantiated if need be
-			const uint32 Val = WriteNestedUObjectPropertyData(OProp, Obj, PrefixID, Data, bIsArrayElement, ClassDef,
+			const FString Val = WriteNestedUObjectPropertyData(OProp, Obj, PrefixID, Data, bIsArrayElement, ClassDef,
 														PropertyOffsets, Meta, Out);
-			UE_LOG(LogSpudProps, Verbose, TEXT("|%s %s = %s"), *Prefix, *OProp->GetNameCPP(), *ToString(Val));
+			UE_LOG(LogSpudProps, Verbose, TEXT("|%s %s = %s"), *Prefix, *OProp->GetNameCPP(), *Val);
 		}
 		return true;
 	}
