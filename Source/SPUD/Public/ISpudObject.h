@@ -28,7 +28,7 @@ class SPUD_API ISpudObject
 
 public:
 	/// Return whether this object should be respawned on load if it was detected as a runtime-created object
-	/// The default is to respawn all runtime objects except for Pawns, GameModes, GameStates and Characters which are assumed to be created automatically.
+	/// The default is to respawn all runtime objects except for Pawns, GameModes, GameStates, PlayerStates and Characters which are assumed to be created automatically.
 	/// You can override this if you want this for things like player pawns, game modes which are marked as runtime created, but
 	/// are created automatically at level start so should not be created by the load process.
 	/// Instead you should give these classes PersistenceGuid properties with predefined values so they can be populated.

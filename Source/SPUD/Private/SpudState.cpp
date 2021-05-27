@@ -11,6 +11,7 @@
 #include "GameFramework/MovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "ImageUtils.h"
+#include "GameFramework/PlayerState.h"
 
 DEFINE_LOG_CATEGORY(LogSpudState)
 
@@ -511,7 +512,8 @@ bool USpudState::ShouldRespawnRuntimeActor(const AActor* Actor) const
 		return !Actor->IsA(AGameModeBase::StaticClass()) &&
             !Actor->IsA(AGameStateBase::StaticClass()) &&
             !Actor->IsA(APawn::StaticClass()) &&
-            !Actor->IsA(ACharacter::StaticClass());
+            !Actor->IsA(ACharacter::StaticClass()) &&
+            !Actor->IsA(APlayerState::StaticClass());
 	case ESpudRespawnMode::AlwaysRespawn:
 		return true;
 	case ESpudRespawnMode::NeverRespawn:

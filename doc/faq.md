@@ -51,6 +51,13 @@ This is not a SPUD bug, it's just the way UE's physics are. You'd get the same
 result if you loaded your level and applied the same forces, each time things
 would play out slightly differently.
 
+## I have a runtime actor which is spawned automatically so SPUD shouldn't respawn it
+
+If it's a subclass of Pawns, GameModes, GameStates, PlayerStates and Characters then
+SPUD will automatically figure out it doesn't have to respawn them. For anything
+else, implement the `GetSpudRespawnMode` method on `ISpudObject` to change
+respawn behaviour.
+
 ## Player pawn falls through the level before it's streamed in!
 
 On spawning or loading a game, assuming your player pawn implements ISpudObject
