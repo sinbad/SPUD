@@ -31,7 +31,8 @@ public:
 	/// The default is to respawn all runtime objects except for Pawns, GameModes, GameStates, PlayerStates and Characters which are assumed to be created automatically.
 	/// You can override this if you want this for things like player pawns, game modes which are marked as runtime created, but
 	/// are created automatically at level start so should not be created by the load process.
-	/// Instead you should give these classes PersistenceGuid properties with predefined values so they can be populated.
+	/// Instead these objects will be identified by their names, much like level objects, and you should ensure that
+	/// they always have the same names between save & load. 
 	/// This can only be changed in C++ implementations and not Blueprints since they don't support this default impl
     virtual ESpudRespawnMode GetSpudRespawnMode() const { return ESpudRespawnMode::Default; }
 	
