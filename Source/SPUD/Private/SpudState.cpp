@@ -450,8 +450,8 @@ void USpudState::RestoreActor(AActor* Actor)
 
 
 AActor* USpudState::RespawnActor(const FSpudSpawnedActorData& SpawnedActor,
-                                           const FSpudClassMetadata& Meta,
-                                           ULevel* Level)
+                                 const FSpudClassMetadata& Meta,
+                                 ULevel* Level)
 {
 	const FString ClassName = Meta.GetClassNameFromID(SpawnedActor.ClassID);
 	const FSoftClassPath CP(ClassName);
