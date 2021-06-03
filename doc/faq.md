@@ -35,6 +35,12 @@ However in 4.26 everything seemed to start working in Standalone so YMMV.
 
 To be safe, use PIE, or package the game.
 
+## Screenshots aren't saved when I save a game!
+
+This seems to be caused by a weird UE bug: if you have Widgets open in the Editor, screenshot
+requests will always time out, resulting in a blank screenshot. Close all your Widget blueprints
+in the editor to resolve this.
+
 ## Seamless travel doesn't save data in UE 4.25
 
 Unfortunately the events needed to detect when seamless travel is starting were only
