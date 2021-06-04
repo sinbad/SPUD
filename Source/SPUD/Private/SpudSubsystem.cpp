@@ -815,7 +815,31 @@ void USpudSubsystem::OnActorDestroyed(AActor* Actor)
 	}
 }
 
-TArray<USpudSaveGameInfo*> USpudSubsystem::GetSaveGameList(bool bIncludeQuickSave, bool bIncludeAutoSave)
+struct FSaveSorter
+{
+	ESpudSaveSorting Sorting;
+	
+	FSaveSorter(ESpudSaveSorting S) : Sorting(S) {}
+	
+	FORCEINLINE bool operator()(const USpudSaveGameInfo& A, const USpudSaveGameInfo& B ) const
+	{
+		switch (Sorting)
+		{
+		default:
+		case ESpudSaveSorting::None:
+			return false;
+		case ESpudSaveSorting::MostRecent:
+			// Reverse ordering
+			return A.Timestamp > B.Timestamp;
+		case ESpudSaveSorting::SlotName:
+			return A.SlotName.Compare(B.SlotName, ESearchCase::IgnoreCase) < 0;
+		case ESpudSaveSorting::Title:
+			return A.Title.CompareToCaseIgnored(B.Title) < 0;
+		}
+	}
+};
+
+TArray<USpudSaveGameInfo*> USpudSubsystem::GetSaveGameList(bool bIncludeQuickSave, bool bIncludeAutoSave, ESpudSaveSorting Sorting)
 {
 
 	TArray<FString> SaveFiles;
@@ -835,6 +859,11 @@ TArray<USpudSaveGameInfo*> USpudSubsystem::GetSaveGameList(bool bIncludeQuickSav
 		auto Info = GetSaveGameInfo(SlotName);
 		if (Info)
 			Ret.Add(Info);
+	}
+
+	if (Sorting != ESpudSaveSorting::None)
+	{
+		Ret.Sort(FSaveSorter(Sorting));
 	}
 
 	return Ret;

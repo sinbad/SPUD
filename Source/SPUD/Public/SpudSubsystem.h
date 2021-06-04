@@ -44,6 +44,19 @@ enum class ESpudSystemState : uint8
     SavingGame
 };
 
+UENUM(BlueprintType)
+enum class ESpudSaveSorting : uint8
+{
+	/// No sort, ordering is dependent on file system retrieval 
+	None,
+	/// Sort by latest save first
+	MostRecent,
+	/// Sort by slot name, case-insensitive
+	SlotName,
+	/// Sort by title, case-insensitive
+	Title
+};
+
 /// Subsystem which controls our save games, and also the active game's persistent state (for streaming levels)
 UCLASS(Config=Engine)
 class SPUD_API USpudSubsystem : public UGameInstanceSubsystem, public FTickableGameObject
@@ -334,7 +347,7 @@ public:
 
 	/// Get the list of the save games with metadata
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
-	TArray<USpudSaveGameInfo*> GetSaveGameList(bool bIncludeQuickSave = true, bool bIncludeAutoSave = true);
+	TArray<USpudSaveGameInfo*> GetSaveGameList(bool bIncludeQuickSave = true, bool bIncludeAutoSave = true, ESpudSaveSorting Sorting = ESpudSaveSorting::None);
 
 	/// Get info about the latest save game
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
