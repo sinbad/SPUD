@@ -25,6 +25,11 @@
 			"Name": "SPUDEditor",
 			"Type": "Editor",
 			"LoadingPhase": "PostEngineInit"
+		},
+		{
+			"Name": "SPUDTest",
+			"Type": "DeveloperTool",
+			"LoadingPhase": "Default"
 		}
 		
 	]	
