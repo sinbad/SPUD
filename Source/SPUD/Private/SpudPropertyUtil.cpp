@@ -265,33 +265,9 @@ bool SpudPropertyUtil::VisitPersistentProperties(UObject* RootObject, const UStr
 				Visitor.EndNestedStruct(RootObject, SProp, NewPrefixID, NewDepth);
 			}
 		}
-		else if (const auto OProp = CastField<FObjectProperty>(Property))
-		{
-			if (IsNonActorObjectProperty(Property))
-			{
-				const void* DataPtr = ContainerPtr ? Property->ContainerPtrToValuePtr<void>(ContainerPtr) : nullptr;
 
-				const auto Obj = DataPtr ? OProp->GetObjectPropertyValue(DataPtr) : nullptr;
-				// Obj may be null which would mean we don't cascade, but that's OK
-				// The null value will have been written / read in the VisitProperty call above
-				if (IsValid(Obj))
-				{					
-					// Non-actor UObjects are treated as nested values like structs
-					const uint32 NewPrefixID = Visitor.GetNestedPrefix(OProp, PrefixID);
-					// Should never have no prefix, if none abort
-					if (NewPrefixID == SPUDDATA_PREFIXID_NONE)
-						continue;
-			
-					const int NewDepth = Depth + 1;
-					Visitor.StartNestedUObject(RootObject, OProp, NewPrefixID, NewDepth, Obj);
-					// Unlike structs, "IsChildOfSaveGame" must be false because we don't want to include everything,
-					// only fields marked as SaveGame on the UObject					
-					if (!VisitPersistentProperties(RootObject, Obj->GetClass(), NewPrefixID, Obj, false, NewDepth, Visitor))
-						return false;
-					Visitor.EndNestedUObject(RootObject, OProp, NewPrefixID, NewDepth, Obj);
-				}				
-			}
-		}
+		// We no longer cascade into UObjects here, since they are separate types
+		// They will be cascaded into by visitors because whether / how you cascade depends on the runtime instance type (or null)
 	}
 
 	return true;
@@ -415,16 +391,16 @@ FString SpudPropertyUtil::WriteNestedUObjectPropertyData(FObjectProperty* OProp,
 	// We already have the Actor so no need to get property value
 	if (UObj)
 	{		
-		// UObjects (not actor refs) are just stored as the class (as an ID)
+		// UObjects (not actor refs) first store the class (as an ID)
 		Ret = GetClassName(UObj);
 		ClassID = Meta.FindOrAddClassIDFromName(Ret);
-		// Nested properties are stored like UStructs, as value types, except that we may need to re-construct them
-		// Note that we use the full name not the ClassID 
 	}
-	else
+	else // null
 		ClassID = SPUDDATA_CLASSID_NONE;
 	
 	Out << ClassID;
+
+	// Note that we ONLY write the class (or null) here. Actual property data is cascaded separately
 	return Ret;
 }
 
@@ -448,7 +424,6 @@ bool SpudPropertyUtil::TryWriteUObjectPropertyData(FProperty* Property, uint32 P
 		else
 		{
 			// non-actor UObject
-			// We store non-Actor UObjects as just the class name, so they can be instantiated if need be
 			const FString Val = WriteNestedUObjectPropertyData(OProp, Obj, PrefixID, Data, bIsArrayElement, ClassDef,
 														PropertyOffsets, Meta, Out);
 			UE_LOG(LogSpudProps, Verbose, TEXT("|%s %s = %s"), *Prefix, *OProp->GetNameCPP(), *Val);
@@ -864,7 +839,17 @@ bool SpudPropertyUtil::StoredMatchesRuntimePropertyVisitor::VisitProperty(UObjec
 		bMatches = false;
 		return false;
 	}
+
 	auto& StoredProperty = *StoredPropertyIterator++;
+
+	if (StoredProperty.DataType == SpudTypeInfo<UObject*>::EnumType)
+	{
+		// This is an odd case. We embed nested UObject properties inside the parent like a struct, but
+		// when checking the runtime class, there is no instance associated with it so we can't cascade
+		// Also because a UObject property can hold a subclass with extra properties, there may be more properties
+		// in the data than in the UClass of the property type. So, to get around this we don't cascade during the
+	}
+	
 
 	// Wrong struct nesting (ID comes from stored record of prefix matched with struct name on parent call)
 	if (CurrentPrefixID != StoredProperty.PrefixID)

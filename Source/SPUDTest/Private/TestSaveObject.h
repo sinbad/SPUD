@@ -22,10 +22,10 @@ class SPUDTEST_API UTestNestedUObject : public UObject
 	GENERATED_BODY()
 public:
 	UPROPERTY(SaveGame)
-	FString StringVal;
+	FString NestedStringVal;
 
 	UPROPERTY(SaveGame)
-	int IntVal;
+	int NestedIntVal;
 	
 };
 

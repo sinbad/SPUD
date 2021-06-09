@@ -94,10 +94,6 @@ protected:
 		virtual void UnsupportedProperty(UObject* RootObject, FProperty* Property, uint32 CurrentPrefixID,
 			int Depth) override;
 		virtual uint32 GetNestedPrefix(FProperty* Prop, uint32 CurrentPrefixID) override;
-		virtual void StartNestedUObject(UObject* RootObject, FObjectProperty* OProp, uint32 PrefixID, int Depth,
-			UObject* NestedObject) override;
-		virtual void EndNestedUObject(UObject* RootObject, FObjectProperty* OProp, uint32 PrefixID, int Depth,
-			UObject* NestedObject) override;
 	};
 
 	FSpudSaveData::TLevelDataPtr GetLevelData(const FString& LevelName, bool AutoCreate);
@@ -111,6 +107,7 @@ protected:
 	void StoreLevelActorDestroyed(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData);
 	void StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data);
 	void StoreObjectProperties(UObject* Obj, FSpudPropertyData& Properties, FSpudClassMetadata& Meta);
+	void StoreObjectProperties(UObject* Obj, uint32 PrefixID, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FMemoryWriter& Out);
 
 	// Actually restores the world, on the assumption that it's already loaded into the correct map
 	void RestoreLoadedWorld(UWorld* World, bool bSingleLevel, const FString& OnlyLevelName = "");
@@ -126,10 +123,11 @@ protected:
 	void RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& FromData);
 	void RestoreObjectProperties(UObject* Obj, const FSpudPropertyData& FromData, const FSpudClassMetadata& Meta,
 	                             const TMap<FGuid, UObject*>* RuntimeObjects);
-	void RestoreObjectPropertiesFast(UObject* Obj, const FSpudPropertyData& FromData,
+	void RestoreObjectProperties(UObject* Obj, FMemoryReader& In, const FSpudClassMetadata& Meta, const TMap<FGuid, UObject*>* RuntimeObjects);
+	void RestoreObjectPropertiesFast(UObject* Obj, FMemoryReader& In,
 	                                 const FSpudClassMetadata& Meta, const FSpudClassDef*
 	                                 ClassDef, const TMap<FGuid, UObject*>* RuntimeObjects);
-	void RestoreObjectPropertiesSlow(UObject* Obj, const FSpudPropertyData& FromData,
+	void RestoreObjectPropertiesSlow(UObject* Obj, FMemoryReader& In,
 	                                 const FSpudClassMetadata& Meta,
 	                                 const FSpudClassDef* ClassDef, const TMap<FGuid, UObject*>* RuntimeObjects);
 
@@ -146,10 +144,7 @@ protected:
 			ParentState(Parent), ClassDef(InClassDef), Meta(InMeta), RuntimeObjects(InRuntimeObjects), DataIn(InDataIn) {}
 
 		virtual uint32 GetNestedPrefix(FProperty* Prop, uint32 CurrentPrefixID) override;
-		virtual void StartNestedUObject(UObject* RootObject, FObjectProperty* OProp, uint32 PrefixID, int Depth,
-			UObject* NestedObject) override;
-		virtual void EndNestedUObject(UObject* RootObject, FObjectProperty* OProp, uint32 PrefixID, int Depth,
-			UObject* NestedObject) override;
+		virtual void RestoreNestedUObjectIfNeeded(UObject* RootObject, FProperty* Property, uint32 CurrentPrefixID, void* ContainerPtr);
 	};
 
 

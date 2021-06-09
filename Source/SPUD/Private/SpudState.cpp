@@ -78,6 +78,39 @@ bool USpudState::StorePropertyVisitor::VisitProperty(UObject* RootObject, FPrope
                                                                     int Depth)
 {
 	SpudPropertyUtil::StoreProperty(RootObject, Property, CurrentPrefixID, ContainerPtr, Depth, ClassDef, PropertyOffsets, Meta, Out);
+
+	// Special case nested UObjects - we cascade if not null, but based on the runtime type (this is why visitor does not cascade,
+	// since it only has the static type and in the case of nulls wouldn't know what to do)
+	if (SpudPropertyUtil::IsNonActorObjectProperty(Property))
+	{
+		if (const auto OProp = CastField<FObjectProperty>(Property))
+		{
+			const void* DataPtr = Property->ContainerPtrToValuePtr<void>(ContainerPtr);
+			const auto Obj = OProp->GetObjectPropertyValue(DataPtr);
+
+			if (Obj)
+			{
+				const bool IsCallback = Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass());
+
+				if (IsCallback)
+				{
+					ISpudObjectCallback::Execute_SpudPreStore(Obj, ParentState);
+				}
+				const uint32 NewPrefixID = GetNestedPrefix(Property, CurrentPrefixID);
+				ParentState->StoreObjectProperties(Obj, NewPrefixID, PropertyOffsets, Meta, Out);
+
+				if (IsCallback)
+				{
+					// No custom data callbacks for nested UObjects, only root ones
+					// This is because nested UObjects don't get their own data package, and could be null sometimes etc,
+					// could interfere with data packing in nasty ways
+					// I *could* store UObjects in their own data wrappers but that becomes cumbersome so don't for now
+					ISpudObjectCallback::Execute_SpudPostStore(Obj, ParentState);					
+				}
+			}
+		}	
+	}
+	
 	return true;
 }
 
@@ -96,26 +129,6 @@ uint32 USpudState::StorePropertyVisitor::GetNestedPrefix(
 	return SpudPropertyUtil::FindOrAddNestedPrefixID(CurrentPrefixID, Prop, Meta);
 }
 
-
-void USpudState::StorePropertyVisitor::StartNestedUObject(UObject* RootObject, FObjectProperty* OProp, uint32 PrefixID,
-	int Depth, UObject* NestedObject)
-{
-	if (NestedObject && NestedObject->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass()))
-	{
-		ISpudObjectCallback::Execute_SpudPreStore(NestedObject, ParentState);
-	}
-
-}
-
-void USpudState::StorePropertyVisitor::EndNestedUObject(UObject* RootObject, FObjectProperty* OProp, uint32 PrefixID,
-	int Depth, UObject* NestedObject)
-{
-	if (NestedObject && NestedObject->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass()))
-	{
-		// We don't allow custom data in nested UObjects, only root objects
-		ISpudObjectCallback::Execute_SpudPostStore(NestedObject, ParentState);
-	}
-}
 
 void USpudState::WriteCoreActorData(AActor* Actor, FArchive& Out) const
 {
@@ -360,19 +373,25 @@ void USpudState::StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
 
 void USpudState::StoreObjectProperties(UObject* Obj, FSpudPropertyData& Properties, FSpudClassMetadata& Meta)
 {
-	const FString& ClassName = SpudPropertyUtil::GetClassName(Obj);
-	auto& ClassDef = Meta.FindOrAddClassDef(ClassName);
 	auto& PropOffsets = Properties.PropertyOffsets;
 		
 	auto& PropData = Properties.Data;
-
 	PropData.Empty();
 	FMemoryWriter PropertyWriter(PropData);
 
+	StoreObjectProperties(Obj, SPUDDATA_PREFIXID_NONE, PropOffsets, Meta, PropertyWriter);	
+}
+
+
+void USpudState::StoreObjectProperties(UObject* Obj, uint32 PrefixID, TArray<uint32>& PropOffsets,
+	FSpudClassMetadata& Meta, FMemoryWriter& Out)
+{
+	const FString& ClassName = SpudPropertyUtil::GetClassName(Obj);
+	auto& ClassDef = Meta.FindOrAddClassDef(ClassName);
+
 	// visit all properties and write out
-	StorePropertyVisitor Visitor(this, ClassDef, PropOffsets, Meta, PropertyWriter);
+	StorePropertyVisitor Visitor(this, ClassDef, PropOffsets, Meta, Out);
 	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor);
-	
 }
 
 void USpudState::RestoreLevel(UWorld* World, const FString& LevelName)
@@ -685,6 +704,15 @@ void USpudState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& F
 
 void USpudState::RestoreObjectProperties(UObject* Obj, const FSpudPropertyData& FromData, const FSpudClassMetadata& Meta, const TMap<FGuid, UObject*>* RuntimeObjects)
 {
+	FMemoryReader In(FromData.Data);
+	RestoreObjectProperties(Obj, In, Meta, RuntimeObjects);
+
+}
+
+
+void USpudState::RestoreObjectProperties(UObject* Obj, FMemoryReader& In, const FSpudClassMetadata& Meta,
+	const TMap<FGuid, UObject*>* RuntimeObjects)
+{
 	const auto ClassName = SpudPropertyUtil::GetClassName(Obj);
 	const auto ClassDef = Meta.GetClassDef(ClassName);
 	if (!ClassDef)
@@ -700,34 +728,31 @@ void USpudState::RestoreObjectProperties(UObject* Obj, const FSpudPropertyData& 
 	UE_LOG(LogSpudState, Verbose, TEXT(" |- Class: %s"), *ClassDef->ClassName);
 
 	if (bUseFastPath)
-		RestoreObjectPropertiesFast(Obj, FromData, Meta, ClassDef, RuntimeObjects);
+		RestoreObjectPropertiesFast(Obj, In, Meta, ClassDef, RuntimeObjects);
 	else
-		RestoreObjectPropertiesSlow(Obj, FromData, Meta, ClassDef, RuntimeObjects);
+		RestoreObjectPropertiesSlow(Obj, In, Meta, ClassDef, RuntimeObjects);
 }
 
-
-void USpudState::RestoreObjectPropertiesFast(UObject* Obj, const FSpudPropertyData& FromData,
-                                                       const FSpudClassMetadata& Meta,
-                                                       const FSpudClassDef* ClassDef,
-                                                       const TMap<FGuid, UObject*>* RuntimeObjects)
+void USpudState::RestoreObjectPropertiesFast(UObject* Obj, FMemoryReader& In,
+                                             const FSpudClassMetadata& Meta,
+                                             const FSpudClassDef* ClassDef,
+                                             const TMap<FGuid, UObject*>* RuntimeObjects)
 {
 	UE_LOG(LogSpudState, Verbose, TEXT(" |- FAST path, %d properties"), ClassDef->Properties.Num());
 	const auto StoredPropertyIterator = ClassDef->Properties.CreateConstIterator();
 
-	FMemoryReader In(FromData.Data);
 	RestoreFastPropertyVisitor Visitor(this, StoredPropertyIterator, In, *ClassDef, Meta, RuntimeObjects);
 	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor);
 	
 }
 
-void USpudState::RestoreObjectPropertiesSlow(UObject* Obj, const FSpudPropertyData& FromData,
+void USpudState::RestoreObjectPropertiesSlow(UObject* Obj, FMemoryReader& In,
                                                        const FSpudClassMetadata& Meta,
                                                        const FSpudClassDef* ClassDef,
                                                        const TMap<FGuid, UObject*>* RuntimeObjects)
 {
 	UE_LOG(LogSpudState, Verbose, TEXT(" |- SLOW path, %d properties"), ClassDef->Properties.Num());
 
-	FMemoryReader In(FromData.Data);
 	RestoreSlowPropertyVisitor Visitor(this, In, *ClassDef, Meta, RuntimeObjects);
 	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor);
 }
@@ -739,24 +764,40 @@ uint32 USpudState::RestorePropertyVisitor::GetNestedPrefix(FProperty* Prop, uint
 	return SpudPropertyUtil::GetNestedPrefixID(CurrentPrefixID, Prop, Meta);
 }
 
-
-void USpudState::RestorePropertyVisitor::StartNestedUObject(UObject* RootObject, FObjectProperty* OProp,
-	uint32 PrefixID, int Depth, UObject* NestedObject)
+void USpudState::RestorePropertyVisitor::RestoreNestedUObjectIfNeeded(UObject* RootObject, FProperty* Property,
+														uint32 CurrentPrefixID, void* ContainerPtr)
 {
-	if (NestedObject && NestedObject->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass()))
+	if (SpudPropertyUtil::IsNonActorObjectProperty(Property))
 	{
-		ISpudObjectCallback::Execute_SpudPreRestore(NestedObject, ParentState);
-	}
-}
+		if (const auto OProp = CastField<FObjectProperty>(Property))
+		{
+			const void* DataPtr = Property->ContainerPtrToValuePtr<void>(ContainerPtr);
+			const auto Obj = OProp->GetObjectPropertyValue(DataPtr);
 
-void USpudState::RestorePropertyVisitor::EndNestedUObject(UObject* RootObject, FObjectProperty* OProp, uint32 PrefixID,
-	int Depth, UObject* NestedObject)
-{
-	if (NestedObject && NestedObject->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass()))
-	{
-		// We don't allow custom data in nested UObjects, only root objects
-		ISpudObjectCallback::Execute_SpudPostStore(NestedObject, ParentState);
-	}
+			// By this point, the restore will have created the instance if the data was non-null, since the
+			// property before this contains the class (or null)
+			if (Obj)
+			{
+				const bool IsCallback = Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass());
+
+				if (IsCallback)
+				{
+					ISpudObjectCallback::Execute_SpudPreRestore(Obj, ParentState);
+				}
+				const uint32 NewPrefixID = GetNestedPrefix(Property, CurrentPrefixID);
+				ParentState->RestoreObjectProperties(Obj, DataIn, Meta, RuntimeObjects);
+
+				if (IsCallback)
+				{
+					// No custom data callbacks for nested UObjects, only root ones
+					// This is because nested UObjects don't get their own data package, and could be null sometimes etc,
+					// could interfere with data packing in nasty ways
+					// I *could* store UObjects in their own data wrappers but that becomes cumbersome so don't for now
+					ISpudObjectCallback::Execute_SpudPostRestore(Obj, ParentState);					
+				}
+			}
+		}
+	}	
 }
 
 bool USpudState::RestoreFastPropertyVisitor::VisitProperty(UObject* RootObject, FProperty* Property,
@@ -772,6 +813,8 @@ bool USpudState::RestoreFastPropertyVisitor::VisitProperty(UObject* RootObject, 
 		// It's their nested properties that have the values, they're only context
 		if (!SpudPropertyUtil::IsCustomStructProperty(Property))
 			++StoredPropertyIterator;
+
+		RestoreNestedUObjectIfNeeded(RootObject, Property, CurrentPrefixID, ContainerPtr);
 
 		return true;
 	}

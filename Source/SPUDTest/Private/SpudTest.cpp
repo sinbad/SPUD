@@ -26,8 +26,8 @@ void PopulateAllTypes(T& Obj)
 	Obj.NameVal = FName("SpudNameTest");
 	Obj.StringVal = "A string test for SPUD";
 	Obj.UObjectVal = NewObject<UTestNestedUObject>();
-	Obj.UObjectVal->IntVal = 96;
-	Obj.UObjectVal->StringVal = "A string inside a nested UObject";
+	Obj.UObjectVal->NestedIntVal = 96;
+	Obj.UObjectVal->NestedStringVal = "A string inside a nested UObject";
 
 	Obj.IntArray.Add(136);
 	Obj.IntArray.Add(-31913);
@@ -133,8 +133,8 @@ void CheckAllTypes(FAutomationTestBase* Test, const FString& Prefix, const T& Ac
 	Test->TestNotNull(Prefix + "UObject shouldn't be null", Actual.UObjectVal);
 	if (Actual.UObjectVal)
 	{
-		Test->TestEqual(Prefix + "UObject String should match", Actual.UObjectVal->StringVal, Expected.UObjectVal->StringVal);
-		Test->TestEqual(Prefix + "UObject Int should match", Actual.UObjectVal->IntVal, Expected.UObjectVal->IntVal);
+		Test->TestEqual(Prefix + "UObject String should match", Actual.UObjectVal->NestedStringVal, Expected.UObjectVal->NestedStringVal);
+		Test->TestEqual(Prefix + "UObject Int should match", Actual.UObjectVal->NestedIntVal, Expected.UObjectVal->NestedIntVal);
 		
 	}
 
