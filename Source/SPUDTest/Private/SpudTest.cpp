@@ -228,3 +228,27 @@ bool FTestRequireSlowPath::RunTest(const FString& Parameters)
 
 	return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTestStructs, "SPUDTest.Structs",
+								EAutomationTestFlags::EditorContext |
+								EAutomationTestFlags::ClientContext |
+								EAutomationTestFlags::ProductFilter)
+
+bool FTestStructs::RunTest(const FString& Parameters)
+{
+	auto SavedObj = NewObject<UTestSaveObjectStructs>();
+
+	PopulateAllTypes(SavedObj->SimpleStruct);
+	PopulateAllTypes(SavedObj->NestedStruct.Nested);
+
+	auto State = NewObject<USpudState>();
+	State->StoreGlobalObject(SavedObj, "StructTest");
+	
+	auto LoadedObj = NewObject<UTestSaveObjectStructs>();
+	State->RestoreGlobalObject(LoadedObj, "StructTest");
+
+	CheckAllTypes(this, "SimpleStruct|", LoadedObj->SimpleStruct, SavedObj->SimpleStruct);
+	CheckAllTypes(this, "NestedStruct|", LoadedObj->NestedStruct.Nested, SavedObj->NestedStruct.Nested);
+
+	return true;
+}
