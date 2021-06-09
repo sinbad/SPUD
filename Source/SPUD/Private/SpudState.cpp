@@ -862,6 +862,9 @@ bool USpudState::RestoreSlowPropertyVisitor::VisitProperty(UObject* RootObject, 
 	auto& StoredProperty = ClassDef.Properties[*PropertyIndexPtr];
 	
 	SpudPropertyUtil::RestoreProperty(RootObject, Property, ContainerPtr, StoredProperty, RuntimeObjects, Meta, DataIn);
+
+	RestoreNestedUObjectIfNeeded(RootObject, Property, CurrentPrefixID, ContainerPtr);
+	
 	return true;
 }
 
