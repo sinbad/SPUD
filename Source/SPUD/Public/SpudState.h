@@ -353,6 +353,9 @@ public:
 	/// This only reads the minimum needed to describe the save file and doesn't load any other data.
 	static bool LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInfo);
 
+	bool bTestRequireSlowPath = false;
+	bool bTestRequireFastPath = false;
+	
 };
 
 /// Custom data that can be stored alongside properties for a UObject to handle anything else

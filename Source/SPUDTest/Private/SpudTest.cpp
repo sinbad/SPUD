@@ -170,12 +170,58 @@ bool FTestBasicAllTypes::RunTest(const FString& Parameters)
 
 	PopulateAllTypes(*SavedObj);
 
+	auto State = NewObject<USpudState>();
+	State->StoreGlobalObject(SavedObj, "TestObject");
 
+	auto LoadedObj = NewObject<UTestSaveObjectBasic>();
+	State->RestoreGlobalObject(LoadedObj, "TestObject");
+
+	CheckAllTypes(this, "BasicObject|", *LoadedObj, *SavedObj);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTestRequireFastPath, "SPUDTest.FastPath",
+								EAutomationTestFlags::EditorContext |
+								EAutomationTestFlags::ClientContext |
+								EAutomationTestFlags::ProductFilter)
+
+bool FTestRequireFastPath::RunTest(const FString& Parameters)
+{
+	auto SavedObj = NewObject<UTestSaveObjectBasic>();
+
+
+	PopulateAllTypes(*SavedObj);
 
 	auto State = NewObject<USpudState>();
 	State->StoreGlobalObject(SavedObj, "TestObject");
 
 	auto LoadedObj = NewObject<UTestSaveObjectBasic>();
+	State->bTestRequireFastPath = true;
+	State->RestoreGlobalObject(LoadedObj, "TestObject");
+
+	CheckAllTypes(this, "BasicObject|", *LoadedObj, *SavedObj);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTestRequireSlowPath, "SPUDTest.SlowPath",
+								EAutomationTestFlags::EditorContext |
+								EAutomationTestFlags::ClientContext |
+								EAutomationTestFlags::ProductFilter)
+
+bool FTestRequireSlowPath::RunTest(const FString& Parameters)
+{
+	auto SavedObj = NewObject<UTestSaveObjectBasic>();
+
+
+	PopulateAllTypes(*SavedObj);
+
+	auto State = NewObject<USpudState>();
+	State->StoreGlobalObject(SavedObj, "TestObject");
+
+	auto LoadedObj = NewObject<UTestSaveObjectBasic>();
+	State->bTestRequireSlowPath = true;
 	State->RestoreGlobalObject(LoadedObj, "TestObject");
 
 	CheckAllTypes(this, "BasicObject|", *LoadedObj, *SavedObj);

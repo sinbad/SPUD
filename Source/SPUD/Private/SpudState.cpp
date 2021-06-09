@@ -731,10 +731,19 @@ void USpudState::RestoreObjectProperties(UObject* Obj, FMemoryReader& In, const 
 
 	// We can use the "fast" path if the stored definition of the class properties exactly matches the runtime order
 	// ClassDef caches the result of this across the context of one loaded file
-	const bool bUseFastPath = ClassDef->MatchesRuntimeClass(Meta);	
+	bool bUseFastPath = ClassDef->MatchesRuntimeClass(Meta);	
 
 	UE_LOG(LogSpudState, Verbose, TEXT("%s Class: %s"), *SpudPropertyUtil::GetLogPrefix(StartDepth), *ClassDef->ClassName);
 
+	if (!bUseFastPath && bTestRequireFastPath)
+	{
+		UE_LOG(LogSpudState, Error, TEXT("Test required the use of the fast path but slow path was used for %s"), *ClassName);
+	}
+	// force use of slow path for testing if needed
+	if (bTestRequireSlowPath)
+		bUseFastPath = false;
+	
+	
 	if (bUseFastPath)
 		RestoreObjectPropertiesFast(Obj, In, Meta, ClassDef, RuntimeObjects, StartDepth);
 	else
