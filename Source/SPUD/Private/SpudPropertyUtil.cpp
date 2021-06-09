@@ -870,7 +870,7 @@ bool SpudPropertyUtil::StoredMatchesRuntimePropertyVisitor::VisitProperty(UObjec
 	if (CurrentPrefixID != StoredProperty.PrefixID)
 	{
 		UE_LOG(LogSpudProps, Verbose, TEXT("StoredClassDefMatchesRuntime: Prefix mismatch %s/%s: %d != %d"),
-		       *RuntimeProperty->GetClass()->GetName(), *RuntimeProperty->GetNameCPP(), StoredProperty.PrefixID != CurrentPrefixID);
+		       *RuntimeProperty->GetClass()->GetName(), *RuntimeProperty->GetNameCPP(), StoredProperty.PrefixID, CurrentPrefixID);
 		bMatches = false;
 		return false; // causes caller to early-out
 	}
