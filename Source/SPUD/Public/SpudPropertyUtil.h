@@ -181,7 +181,7 @@ public:
                           & Meta, FArchive& Out);
 
 	/// Visit all properties of a UObject
-	static void VisitPersistentProperties(UObject* RootObject, PropertyVisitor& Visitor);
+	static void VisitPersistentProperties(UObject* RootObject, PropertyVisitor& Visitor, int StartDepth = 0);
 	/// Visit all properties of a class definition, with no instance
 	static void VisitPersistentProperties(const UStruct* Definition, PropertyVisitor& Visitor);
 	
@@ -201,15 +201,18 @@ public:
 	static void RestoreProperty(UObject* RootObject, FProperty* Property, void* ContainerPtr,
 	                            const FSpudPropertyDef& StoredProperty,
 	                            const RuntimeObjectMap* RuntimeObjects,
-	                            const FSpudClassMetadata& Meta, FMemoryReader& DataIn);
+	                            const FSpudClassMetadata& Meta,
+	                            int Depth, FMemoryReader& DataIn);
 	static void RestoreArrayProperty(UObject* RootObject, FArrayProperty* const AProp, void* ContainerPtr,
 	                                 const FSpudPropertyDef& StoredProperty,
 	                                 const RuntimeObjectMap* RuntimeObjects,
-	                                 const FSpudClassMetadata& Meta, FMemoryReader& DataIn);
+	                                 const FSpudClassMetadata& Meta,
+	                                 int Depth, FMemoryReader& DataIn);
 	static void RestoreContainerProperty(UObject* RootObject, FProperty* const Property,
 	                                     void* ContainerPtr, const FSpudPropertyDef& StoredProperty,
 	                                     const RuntimeObjectMap* RuntimeObjects,
-	                                     const FSpudClassMetadata& Meta, FMemoryReader& DataIn);
+	                                     const FSpudClassMetadata& Meta,
+	                                     int Depth, FMemoryReader& DataIn);
 
 
 	/// Utility function for checking whether iterating through the properties on a UObject results in the same
@@ -257,9 +260,8 @@ protected:
     {
     	if (auto IProp = CastField<PropType>(Prop))
     	{
-	        const FString Prefix = FString::ChrN(Depth, '-');
     		auto Val = WritePropertyData<PropType, ValueType>(IProp, PrefixID, Data, bIsArrayElement, ClassDef, PropertyOffsets, Meta, Out);
-			UE_LOG(LogSpudProps, Verbose, TEXT("|%s %s = %s"), *Prefix, *Prop->GetNameCPP(), *ToString(Val));
+			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(Prop, Depth), *ToString(Val));
     		return true;
     	}
     	return false;
@@ -303,9 +305,8 @@ protected:
     	{
     		if (!bIsArrayElement)
     			RegisterProperty(Prop, PrefixID, ClassDef, PropertyOffsets, Meta, Out);
-	        const FString Prefix = FString::ChrN(Depth, '-');
     		ValueType Val = WriteStructPropertyData<ValueType>(Prop, PrefixID, Data, Out);
-    		UE_LOG(LogSpudProps, Verbose, TEXT("|%s %s = %s"), *Prefix, *Prop->GetNameCPP(), *ToString(&Val));
+    		UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(Prop, Depth), *ToString(&Val));
     		return true;
     	}
     	return false;
@@ -334,26 +335,26 @@ protected:
 
 
 	template <typename ValueType>
-    static bool TryReadBuiltinStructPropertyData(FStructProperty* Prop, void* Data, const FSpudPropertyDef& StoredProperty, FArchive& In)
+    static bool TryReadBuiltinStructPropertyData(FStructProperty* Prop, void* Data, const FSpudPropertyDef& StoredProperty, int Depth, FArchive& In)
 	{
 		// Check runtime property and stored match 
 		if (Prop->Struct == TBaseStructure<ValueType>::Get() &&
 			StoredPropertyTypeMatchesRuntime(Prop, StoredProperty, true)) // we ignore array flag since we could be processing inner
 		{
 			ValueType Val = ReadStructPropertyData<ValueType>(Prop, Data, In);
-    		UE_LOG(LogSpudProps, Verbose, TEXT(" |- %s = %s"), *Prop->GetNameCPP(), *ToString(&Val));
+    		UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(Prop, Depth), *ToString(&Val));
 			return true;
 		}
 		return false;
 	}
 	template <class PropType, typename ValueType>
-    static bool TryReadPropertyData(FProperty* Prop, void* Data, const FSpudPropertyDef& StoredProperty, FArchive& In)
+    static bool TryReadPropertyData(FProperty* Prop, void* Data, const FSpudPropertyDef& StoredProperty, int Depth, FArchive& In)
 	{
 		auto IProp = CastField<PropType>(Prop);
 		if (IProp && StoredPropertyTypeMatchesRuntime(Prop, StoredProperty, true)) // we ignore array flag since we could be processing inner
 		{
 			auto Val = ReadPropertyData<PropType, ValueType>(IProp, Data, In);
-    		UE_LOG(LogSpudProps, Verbose, TEXT(" |- %s = %s"), *Prop->GetNameCPP(), *ToString(Val));
+    		UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(Prop, Depth), *ToString(Val));
 			return true;
 		}
 		return false;   
@@ -361,13 +362,14 @@ protected:
 
 	static uint16 ReadEnumPropertyData(FEnumProperty* EProp, void* Data, FArchive& In);
 	static bool TryReadEnumPropertyData(FProperty* Prop, void* Data, const FSpudPropertyDef& StoredProperty,
-	                                    FArchive& In);
+	                                    int Depth, FArchive& In);
 	static FString ReadActorRefPropertyData(::FObjectProperty* OProp, void* Data, const RuntimeObjectMap* RuntimeObjects, ULevel* Level, FArchive& In);
 	static FString ReadNestedUObjectPropertyData(::FObjectProperty* OProp, void* Data, const RuntimeObjectMap* RuntimeObjects,
 		ULevel* Level, const FSpudClassMetadata& Meta, FArchive& In);
 	static bool TryReadUObjectPropertyData(::FProperty* Prop, void* Data, const ::FSpudPropertyDef& StoredProperty,
 	                                        const RuntimeObjectMap* RuntimeObjects,
-	                                        ULevel* Level, const FSpudClassMetadata& Meta, FArchive& In);
+	                                        ULevel* Level, const FSpudClassMetadata& Meta, int Depth, FArchive& In);
+
 public:
 
 	// Low-level functions, use with caution
@@ -417,5 +419,7 @@ public:
 	/// Get the class name of an object 
 	static FString GetClassName(const UObject* Obj);
 
+	static FString GetLogPrefix(int Depth);
+	static FString GetLogPrefix(const FProperty* Property, int Depth);
 
 };

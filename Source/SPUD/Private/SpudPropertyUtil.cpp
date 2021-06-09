@@ -211,10 +211,10 @@ void SpudPropertyUtil::RegisterProperty(FProperty* Prop, uint32 PrefixID, FSpudC
 	return RegisterProperty(Meta.FindOrAddPropertyIDFromProperty(Prop), PrefixID, GetPropertyDataType(Prop), ClassDef, PropertyOffsets, Out);
 }
 
-void SpudPropertyUtil::VisitPersistentProperties(UObject* RootObject, PropertyVisitor& Visitor)
+void SpudPropertyUtil::VisitPersistentProperties(UObject* RootObject, PropertyVisitor& Visitor, int StartDepth)
 {
 	VisitPersistentProperties(RootObject, RootObject->GetClass(), SPUDDATA_PREFIXID_NONE, RootObject,
-	                          false, 0, Visitor);
+	                          false, StartDepth, Visitor);
 }
 
 void SpudPropertyUtil::VisitPersistentProperties(const UStruct* Definition, PropertyVisitor& Visitor)
@@ -294,11 +294,10 @@ bool SpudPropertyUtil::TryWriteEnumPropertyData(FProperty* Property, uint32 Pref
 {
 	if (const auto EProp = CastField<FEnumProperty>(Property))
 	{
-		const FString Prefix = FString::ChrN(Depth, '-');
 		// Enums as 16-bit numbers, that should be large enough!
 		const uint16 Val = WriteEnumPropertyData(EProp, PrefixID, Data, bIsArrayElement, ClassDef, PropertyOffsets,
 		                                         Meta, Out);
-		UE_LOG(LogSpudProps, Verbose, TEXT("|%s %s = %s"), *Prefix, *EProp->GetNameCPP(), *ToString(Val));
+		UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(Property, Depth), *ToString(Val));
 		return true;
 	}
 	return false;
@@ -315,7 +314,8 @@ uint16 SpudPropertyUtil::ReadEnumPropertyData(FEnumProperty* EProp, void* Data, 
 }
 
 bool SpudPropertyUtil::TryReadEnumPropertyData(FProperty* Prop, void* Data,
-                                                     const FSpudPropertyDef& StoredProperty, FArchive& In)
+                                                     const FSpudPropertyDef& StoredProperty,
+                                                     int Depth, FArchive& In)
 {
 	auto EProp = CastField<FEnumProperty>(Prop);
 	if (EProp && StoredPropertyTypeMatchesRuntime(Prop, StoredProperty, true))
@@ -323,7 +323,7 @@ bool SpudPropertyUtil::TryReadEnumPropertyData(FProperty* Prop, void* Data,
 	{
 		// Enums as 16-bit numbers, that should be large enough!
 		const uint16 Val = ReadEnumPropertyData(EProp, Data, In);
-		UE_LOG(LogSpudProps, Verbose, TEXT(" READ %s = %s"), *Prop->GetNameCPP(), *ToString(Val));
+		UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(Prop, Depth), *ToString(Val));
 		return true;
 	}
 	return false;
@@ -411,7 +411,6 @@ bool SpudPropertyUtil::TryWriteUObjectPropertyData(FProperty* Property, uint32 P
 	if (const auto OProp = CastField<FObjectProperty>(Property))
 	{
 		const auto Obj = OProp->GetObjectPropertyValue(Data);
-		const FString Prefix = FString::ChrN(Depth, '-');
 
 		// Nullrefs are OK, but if valid we need to check it's an Actor
 		if (IsActorObjectProperty(Property))
@@ -419,14 +418,14 @@ bool SpudPropertyUtil::TryWriteUObjectPropertyData(FProperty* Property, uint32 P
 			const auto Actor = Cast<AActor>(Obj);			
 			const FString Val = WriteActorRefPropertyData(OProp, Actor, PrefixID, Data, bIsArrayElement, ClassDef,
 														PropertyOffsets, Meta, Out);
-			UE_LOG(LogSpudProps, Verbose, TEXT("|%s %s = %s"), *Prefix, *OProp->GetNameCPP(), *ToString(Val));
+			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(OProp, Depth), *ToString(Val));
 		}
 		else
 		{
 			// non-actor UObject
 			const FString Val = WriteNestedUObjectPropertyData(OProp, Obj, PrefixID, Data, bIsArrayElement, ClassDef,
 														PropertyOffsets, Meta, Out);
-			UE_LOG(LogSpudProps, Verbose, TEXT("|%s %s = %s"), *Prefix, *OProp->GetNameCPP(), *Val);
+			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(OProp, Depth), *Val);
 		}
 		return true;
 	}
@@ -544,7 +543,7 @@ FString SpudPropertyUtil::ReadNestedUObjectPropertyData(FObjectProperty* OProp, 
 
 bool SpudPropertyUtil::TryReadUObjectPropertyData(FProperty* Prop, void* Data,
 	const FSpudPropertyDef& StoredProperty, const RuntimeObjectMap* RuntimeObjects, ULevel* Level,
-	const FSpudClassMetadata& Meta, FArchive& In)
+	const FSpudClassMetadata& Meta, int Depth, FArchive& In)
 {
 	auto OProp = CastField<FObjectProperty>(Prop);
 	if (OProp && StoredPropertyTypeMatchesRuntime(Prop, StoredProperty, true)) // we ignore array flag since we could be processing inner
@@ -554,12 +553,12 @@ bool SpudPropertyUtil::TryReadUObjectPropertyData(FProperty* Prop, void* Data,
 		if (IsActorObjectProperty(Prop))
 		{
 			const FString Val = ReadActorRefPropertyData(OProp, Data, RuntimeObjects, Level, In);
-			UE_LOG(LogSpudProps, Verbose, TEXT(" READ %s = %s"), *Prop->GetNameCPP(), *Val);
+			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(Prop, Depth), *Val);
 		}
 		else
 		{
 			const FString Val = ReadNestedUObjectPropertyData(OProp, Data, RuntimeObjects, Level, Meta, In);
-			UE_LOG(LogSpudProps, Verbose, TEXT(" READ %s = %s"), *Prop->GetNameCPP(), *Val);
+			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(Prop, Depth), *Val);
 		}
 		return true;
 			
@@ -639,8 +638,7 @@ void SpudPropertyUtil::StoreContainerProperty(FProperty* Property, const UObject
 			// We assume that nested custom structs are ok
 			// We don't cascade here any more, visitor does it
 			// Just log fo consistency
-			const FString Prefix = FString::ChrN(Depth, '-');
-			UE_LOG(LogSpudProps, Verbose, TEXT("|%s %s:"), *Prefix, *Property->GetNameCPP());
+			UE_LOG(LogSpudProps, Verbose, TEXT("%s:"), *GetLogPrefix(Property, Depth));
 			bUpdateOK = true;
 		}
 	}
@@ -675,16 +673,17 @@ void SpudPropertyUtil::RestoreProperty(UObject* RootObject, FProperty* Property,
                                              const FSpudPropertyDef& StoredProperty,
                                              const RuntimeObjectMap* RuntimeObjects,
                                              const FSpudClassMetadata& Meta,
+                                             int Depth,
                                              FMemoryReader& DataIn)
 {
 	// Arrays supported, but not maps / sets yet
 	if (const auto AProp = CastField<FArrayProperty>(Property))
 	{
-		RestoreArrayProperty(RootObject, AProp, ContainerPtr, StoredProperty, RuntimeObjects, Meta, DataIn);
+		RestoreArrayProperty(RootObject, AProp, ContainerPtr, StoredProperty, RuntimeObjects, Meta, Depth, DataIn);
 	}
 	else
 	{
-		RestoreContainerProperty(RootObject,Property, ContainerPtr, StoredProperty, RuntimeObjects, Meta, DataIn);
+		RestoreContainerProperty(RootObject,Property, ContainerPtr, StoredProperty, RuntimeObjects, Meta, Depth, DataIn);
 	}
 }
 
@@ -693,6 +692,7 @@ void SpudPropertyUtil::RestoreArrayProperty(UObject* RootObject, FArrayProperty*
                                                   void* ContainerPtr, const FSpudPropertyDef& StoredProperty,
                                                   const RuntimeObjectMap* RuntimeObjects,
                                                   const FSpudClassMetadata& Meta,
+                                                  int Depth,
                                                   FMemoryReader& DataIn)
 {
 
@@ -708,7 +708,7 @@ void SpudPropertyUtil::RestoreArrayProperty(UObject* RootObject, FArrayProperty*
 	for (int ArrayElem = 0; ArrayElem < NumElems; ++ArrayElem)
 	{
 		void *ElemPtr = ArrayHelper.GetRawPtr(ArrayElem);
-		RestoreContainerProperty(RootObject, AProp->Inner, ElemPtr, StoredProperty, RuntimeObjects, Meta, DataIn);
+		RestoreContainerProperty(RootObject, AProp->Inner, ElemPtr, StoredProperty, RuntimeObjects, Meta, Depth, DataIn);
 	}
 	
 }
@@ -717,6 +717,7 @@ void SpudPropertyUtil::RestoreContainerProperty(UObject* RootObject, FProperty* 
                                                       void* ContainerPtr, const FSpudPropertyDef& StoredProperty,
                                                       const RuntimeObjectMap* RuntimeObjects,
                                                       const FSpudClassMetadata& Meta,
+                                                      int Depth,
                                                       FMemoryReader& DataIn)
 {
 	// Get pointer to data within container, must be from original property in the case of arrays
@@ -728,10 +729,10 @@ void SpudPropertyUtil::RestoreContainerProperty(UObject* RootObject, FProperty* 
 		{
 			// Builtin structs
 			bUpdateOK =
-                TryReadBuiltinStructPropertyData<FVector>(SProp, DataPtr, StoredProperty, DataIn) ||
-                TryReadBuiltinStructPropertyData<FRotator>(SProp, DataPtr, StoredProperty, DataIn) ||
-                TryReadBuiltinStructPropertyData<FTransform>(SProp, DataPtr, StoredProperty, DataIn) ||
-                TryReadBuiltinStructPropertyData<FGuid>(SProp, DataPtr, StoredProperty, DataIn);
+                TryReadBuiltinStructPropertyData<FVector>(SProp, DataPtr, StoredProperty, Depth, DataIn) ||
+                TryReadBuiltinStructPropertyData<FRotator>(SProp, DataPtr, StoredProperty, Depth, DataIn) ||
+                TryReadBuiltinStructPropertyData<FTransform>(SProp, DataPtr, StoredProperty, Depth, DataIn) ||
+                TryReadBuiltinStructPropertyData<FGuid>(SProp, DataPtr, StoredProperty, Depth, DataIn);
 		}
 		else
 		{
@@ -743,20 +744,20 @@ void SpudPropertyUtil::RestoreContainerProperty(UObject* RootObject, FProperty* 
 	else 
 	{
 		bUpdateOK =
-            TryReadPropertyData<FBoolProperty,		bool>(Property, DataPtr, StoredProperty, DataIn) ||
-            TryReadPropertyData<FByteProperty,		uint8>(Property, DataPtr, StoredProperty, DataIn) ||
-            TryReadPropertyData<FUInt16Property,	uint16>(Property, DataPtr, StoredProperty, DataIn) ||
-            TryReadPropertyData<FUInt32Property,	uint32>(Property, DataPtr, StoredProperty, DataIn) ||
-            TryReadPropertyData<FUInt64Property,	uint64>(Property, DataPtr, StoredProperty, DataIn) ||
-            TryReadPropertyData<FInt8Property,		int8>(Property, DataPtr, StoredProperty, DataIn) ||
-            TryReadPropertyData<FInt16Property,	int16>(Property, DataPtr, StoredProperty, DataIn) ||
-            TryReadPropertyData<FIntProperty,		int>(Property, DataPtr, StoredProperty, DataIn) ||
-            TryReadPropertyData<FInt64Property,	int64>(Property, DataPtr, StoredProperty, DataIn) ||
-            TryReadPropertyData<FFloatProperty,	float>(Property, DataPtr, StoredProperty, DataIn) ||
-            TryReadPropertyData<FDoubleProperty,	double>(Property, DataPtr, StoredProperty, DataIn) ||
-            TryReadPropertyData<FStrProperty,		FString>(Property, DataPtr, StoredProperty, DataIn) ||
-            TryReadPropertyData<FNameProperty,		FName>(Property, DataPtr, StoredProperty, DataIn) ||
-            TryReadEnumPropertyData(Property, DataPtr, StoredProperty, DataIn);
+            TryReadPropertyData<FBoolProperty,		bool>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+            TryReadPropertyData<FByteProperty,		uint8>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+            TryReadPropertyData<FUInt16Property,	uint16>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+            TryReadPropertyData<FUInt32Property,	uint32>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+            TryReadPropertyData<FUInt64Property,	uint64>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+            TryReadPropertyData<FInt8Property,		int8>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+            TryReadPropertyData<FInt16Property,	int16>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+            TryReadPropertyData<FIntProperty,		int>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+            TryReadPropertyData<FInt64Property,	int64>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+            TryReadPropertyData<FFloatProperty,	float>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+            TryReadPropertyData<FDoubleProperty,	double>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+            TryReadPropertyData<FStrProperty,		FString>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+            TryReadPropertyData<FNameProperty,		FName>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+            TryReadEnumPropertyData(Property, DataPtr, StoredProperty, Depth, DataIn);
 
 		if (!bUpdateOK)
 		{
@@ -765,7 +766,7 @@ void SpudPropertyUtil::RestoreContainerProperty(UObject* RootObject, FProperty* 
 			ULevel* Level = nullptr;
 			if (auto Actor = Cast<AActor>(RootObject))
 				Level = Actor->GetLevel();
-			bUpdateOK = TryReadUObjectPropertyData(Property, DataPtr, StoredProperty, RuntimeObjects, Level, Meta, DataIn);
+			bUpdateOK = TryReadUObjectPropertyData(Property, DataPtr, StoredProperty, RuntimeObjects, Level, Meta, Depth, DataIn);
 		}
 		
 	}

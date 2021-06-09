@@ -79,6 +79,15 @@ bool USpudState::StorePropertyVisitor::VisitProperty(UObject* RootObject, FPrope
 {
 	SpudPropertyUtil::StoreProperty(RootObject, Property, CurrentPrefixID, ContainerPtr, Depth, ClassDef, PropertyOffsets, Meta, Out);
 
+	StoreNestedUObjectIfNeeded(RootObject, Property, CurrentPrefixID, ContainerPtr, Depth);
+	
+	return true;
+}
+
+
+void USpudState::StorePropertyVisitor::StoreNestedUObjectIfNeeded(UObject* RootObject, FProperty* Property,
+	uint32 CurrentPrefixID, void* ContainerPtr, int Depth)
+{
 	// Special case nested UObjects - we cascade if not null, but based on the runtime type (this is why visitor does not cascade,
 	// since it only has the static type and in the case of nulls wouldn't know what to do)
 	if (SpudPropertyUtil::IsNonActorObjectProperty(Property))
@@ -97,7 +106,7 @@ bool USpudState::StorePropertyVisitor::VisitProperty(UObject* RootObject, FPrope
 					ISpudObjectCallback::Execute_SpudPreStore(Obj, ParentState);
 				}
 				const uint32 NewPrefixID = GetNestedPrefix(Property, CurrentPrefixID);
-				ParentState->StoreObjectProperties(Obj, NewPrefixID, PropertyOffsets, Meta, Out);
+				ParentState->StoreObjectProperties(Obj, NewPrefixID, PropertyOffsets, Meta, Out, Depth+1);
 
 				if (IsCallback)
 				{
@@ -110,12 +119,10 @@ bool USpudState::StorePropertyVisitor::VisitProperty(UObject* RootObject, FPrope
 			}
 		}	
 	}
-	
-	return true;
 }
 
 void USpudState::StorePropertyVisitor::UnsupportedProperty(UObject* RootObject,
-    FProperty* Property, uint32 CurrentPrefixID, int Depth)
+                                                           FProperty* Property, uint32 CurrentPrefixID, int Depth)
 {
 	UE_LOG(LogSpudState, Error, TEXT("Property %s/%s is marked for save but is an unsupported type, ignoring. E.g. Arrays of custom structs or UObjects (other than actor refs) are not supported."),
         *RootObject->GetName(), *Property->GetName());
@@ -371,7 +378,7 @@ void USpudState::StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
 }
 
 
-void USpudState::StoreObjectProperties(UObject* Obj, FSpudPropertyData& Properties, FSpudClassMetadata& Meta)
+void USpudState::StoreObjectProperties(UObject* Obj, FSpudPropertyData& Properties, FSpudClassMetadata& Meta, int StartDepth)
 {
 	auto& PropOffsets = Properties.PropertyOffsets;
 		
@@ -379,19 +386,19 @@ void USpudState::StoreObjectProperties(UObject* Obj, FSpudPropertyData& Properti
 	PropData.Empty();
 	FMemoryWriter PropertyWriter(PropData);
 
-	StoreObjectProperties(Obj, SPUDDATA_PREFIXID_NONE, PropOffsets, Meta, PropertyWriter);	
+	StoreObjectProperties(Obj, SPUDDATA_PREFIXID_NONE, PropOffsets, Meta, PropertyWriter, StartDepth);	
 }
 
 
 void USpudState::StoreObjectProperties(UObject* Obj, uint32 PrefixID, TArray<uint32>& PropOffsets,
-	FSpudClassMetadata& Meta, FMemoryWriter& Out)
+	FSpudClassMetadata& Meta, FMemoryWriter& Out, int StartDepth)
 {
 	const FString& ClassName = SpudPropertyUtil::GetClassName(Obj);
 	auto& ClassDef = Meta.FindOrAddClassDef(ClassName);
 
 	// visit all properties and write out
 	StorePropertyVisitor Visitor(this, ClassDef, PropOffsets, Meta, Out);
-	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor);
+	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor, StartDepth);
 }
 
 void USpudState::RestoreLevel(UWorld* World, const FString& LevelName)
@@ -702,16 +709,17 @@ void USpudState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& F
 	}
 }
 
-void USpudState::RestoreObjectProperties(UObject* Obj, const FSpudPropertyData& FromData, const FSpudClassMetadata& Meta, const TMap<FGuid, UObject*>* RuntimeObjects)
+void USpudState::RestoreObjectProperties(UObject* Obj, const FSpudPropertyData& FromData, const FSpudClassMetadata& Meta,
+	const TMap<FGuid, UObject*>* RuntimeObjects, int StartDepth)
 {
 	FMemoryReader In(FromData.Data);
-	RestoreObjectProperties(Obj, In, Meta, RuntimeObjects);
+	RestoreObjectProperties(Obj, In, Meta, RuntimeObjects, StartDepth);
 
 }
 
 
 void USpudState::RestoreObjectProperties(UObject* Obj, FMemoryReader& In, const FSpudClassMetadata& Meta,
-	const TMap<FGuid, UObject*>* RuntimeObjects)
+	const TMap<FGuid, UObject*>* RuntimeObjects, int StartDepth)
 {
 	const auto ClassName = SpudPropertyUtil::GetClassName(Obj);
 	const auto ClassDef = Meta.GetClassDef(ClassName);
@@ -725,36 +733,38 @@ void USpudState::RestoreObjectProperties(UObject* Obj, FMemoryReader& In, const 
 	// ClassDef caches the result of this across the context of one loaded file
 	const bool bUseFastPath = ClassDef->MatchesRuntimeClass(Meta);	
 
-	UE_LOG(LogSpudState, Verbose, TEXT(" |- Class: %s"), *ClassDef->ClassName);
+	UE_LOG(LogSpudState, Verbose, TEXT("%s Class: %s"), *SpudPropertyUtil::GetLogPrefix(StartDepth), *ClassDef->ClassName);
 
 	if (bUseFastPath)
-		RestoreObjectPropertiesFast(Obj, In, Meta, ClassDef, RuntimeObjects);
+		RestoreObjectPropertiesFast(Obj, In, Meta, ClassDef, RuntimeObjects, StartDepth);
 	else
-		RestoreObjectPropertiesSlow(Obj, In, Meta, ClassDef, RuntimeObjects);
+		RestoreObjectPropertiesSlow(Obj, In, Meta, ClassDef, RuntimeObjects, StartDepth);
 }
 
 void USpudState::RestoreObjectPropertiesFast(UObject* Obj, FMemoryReader& In,
                                              const FSpudClassMetadata& Meta,
                                              const FSpudClassDef* ClassDef,
-                                             const TMap<FGuid, UObject*>* RuntimeObjects)
+                                             const TMap<FGuid, UObject*>* RuntimeObjects,
+                                             int StartDepth)
 {
-	UE_LOG(LogSpudState, Verbose, TEXT(" |- FAST path, %d properties"), ClassDef->Properties.Num());
+	UE_LOG(LogSpudState, Verbose, TEXT("%s FAST path, %d properties"), *SpudPropertyUtil::GetLogPrefix(StartDepth), ClassDef->Properties.Num());
 	const auto StoredPropertyIterator = ClassDef->Properties.CreateConstIterator();
 
 	RestoreFastPropertyVisitor Visitor(this, StoredPropertyIterator, In, *ClassDef, Meta, RuntimeObjects);
-	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor);
+	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor, StartDepth);
 	
 }
 
 void USpudState::RestoreObjectPropertiesSlow(UObject* Obj, FMemoryReader& In,
                                                        const FSpudClassMetadata& Meta,
                                                        const FSpudClassDef* ClassDef,
-                                                       const TMap<FGuid, UObject*>* RuntimeObjects)
+                                                       const TMap<FGuid, UObject*>* RuntimeObjects,
+                                                       int StartDepth)
 {
-	UE_LOG(LogSpudState, Verbose, TEXT(" |- SLOW path, %d properties"), ClassDef->Properties.Num());
+	UE_LOG(LogSpudState, Verbose, TEXT("%s SLOW path, %d properties"), *SpudPropertyUtil::GetLogPrefix(StartDepth), ClassDef->Properties.Num());
 
 	RestoreSlowPropertyVisitor Visitor(this, In, *ClassDef, Meta, RuntimeObjects);
-	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor);
+	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor, StartDepth);
 }
 
 
@@ -765,7 +775,7 @@ uint32 USpudState::RestorePropertyVisitor::GetNestedPrefix(FProperty* Prop, uint
 }
 
 void USpudState::RestorePropertyVisitor::RestoreNestedUObjectIfNeeded(UObject* RootObject, FProperty* Property,
-														uint32 CurrentPrefixID, void* ContainerPtr)
+														uint32 CurrentPrefixID, void* ContainerPtr, int Depth)
 {
 	if (SpudPropertyUtil::IsNonActorObjectProperty(Property))
 	{
@@ -785,7 +795,7 @@ void USpudState::RestorePropertyVisitor::RestoreNestedUObjectIfNeeded(UObject* R
 					ISpudObjectCallback::Execute_SpudPreRestore(Obj, ParentState);
 				}
 				const uint32 NewPrefixID = GetNestedPrefix(Property, CurrentPrefixID);
-				ParentState->RestoreObjectProperties(Obj, DataIn, Meta, RuntimeObjects);
+				ParentState->RestoreObjectProperties(Obj, DataIn, Meta, RuntimeObjects, Depth+1);
 
 				if (IsCallback)
 				{
@@ -807,14 +817,14 @@ bool USpudState::RestoreFastPropertyVisitor::VisitProperty(UObject* RootObject, 
 	if (StoredPropertyIterator)
 	{
 		auto& StoredProperty = *StoredPropertyIterator;
-		SpudPropertyUtil::RestoreProperty(RootObject, Property, ContainerPtr, StoredProperty, RuntimeObjects, Meta, DataIn);
+		SpudPropertyUtil::RestoreProperty(RootObject, Property, ContainerPtr, StoredProperty, RuntimeObjects, Meta, Depth, DataIn);
 
 		// We DON'T increment the property iterator for custom structs, since they don't have any values of their own
 		// It's their nested properties that have the values, they're only context
 		if (!SpudPropertyUtil::IsCustomStructProperty(Property))
 			++StoredPropertyIterator;
 
-		RestoreNestedUObjectIfNeeded(RootObject, Property, CurrentPrefixID, ContainerPtr);
+		RestoreNestedUObjectIfNeeded(RootObject, Property, CurrentPrefixID, ContainerPtr, Depth);
 
 		return true;
 	}
@@ -861,9 +871,9 @@ bool USpudState::RestoreSlowPropertyVisitor::VisitProperty(UObject* RootObject, 
 	}
 	auto& StoredProperty = ClassDef.Properties[*PropertyIndexPtr];
 	
-	SpudPropertyUtil::RestoreProperty(RootObject, Property, ContainerPtr, StoredProperty, RuntimeObjects, Meta, DataIn);
+	SpudPropertyUtil::RestoreProperty(RootObject, Property, ContainerPtr, StoredProperty, RuntimeObjects, Meta, Depth, DataIn);
 
-	RestoreNestedUObjectIfNeeded(RootObject, Property, CurrentPrefixID, ContainerPtr);
+	RestoreNestedUObjectIfNeeded(RootObject, Property, CurrentPrefixID, ContainerPtr, Depth);
 	
 	return true;
 }
