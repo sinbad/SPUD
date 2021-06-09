@@ -110,6 +110,7 @@ protected:
 	void StoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData);
 	void StoreLevelActorDestroyed(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData);
 	void StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data);
+	void StoreObjectProperties(UObject* Obj, FSpudPropertyData& Properties, FSpudClassMetadata& Meta);
 
 	// Actually restores the world, on the assumption that it's already loaded into the correct map
 	void RestoreLoadedWorld(UWorld* World, bool bSingleLevel, const FString& OnlyLevelName = "");

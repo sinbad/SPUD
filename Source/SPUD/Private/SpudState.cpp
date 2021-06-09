@@ -334,24 +334,14 @@ void USpudState::StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
 	if (Data)
 	{
 		FSpudClassMetadata& Meta = SaveData.GlobalData.Metadata;
-		const FString& ClassName = SpudPropertyUtil::GetClassName(Obj);
-		auto& ClassDef = Meta.FindOrAddClassDef(ClassName);
-		auto& PropOffsets = Data->Properties.PropertyOffsets;
-		
-		auto& PropData = Data->Properties.Data;
-		bool bIsCallback = Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass());
+		const bool bIsCallback = Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass());
 
 		UE_LOG(LogSpudState, Verbose, TEXT("* STORE Global object: %s"), *Obj->GetName());
 
 		if (bIsCallback)
 			ISpudObjectCallback::Execute_SpudPreStore(Obj, this);
 
-		PropData.Empty();
-		FMemoryWriter PropertyWriter(PropData);
-
-		// visit all properties and write out
-		StorePropertyVisitor Visitor(this, ClassDef, PropOffsets, Meta, PropertyWriter);
-		SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor);
+		StoreObjectProperties(Obj, Data->Properties, Meta);
 		
 		if (bIsCallback)
 		{
@@ -365,8 +355,23 @@ void USpudState::StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
 		}
 		
 	}
+}
 
-	
+
+void USpudState::StoreObjectProperties(UObject* Obj, FSpudPropertyData& Properties, FSpudClassMetadata& Meta)
+{
+	const FString& ClassName = SpudPropertyUtil::GetClassName(Obj);
+	auto& ClassDef = Meta.FindOrAddClassDef(ClassName);
+	auto& PropOffsets = Properties.PropertyOffsets;
+		
+	auto& PropData = Properties.Data;
+
+	PropData.Empty();
+	FMemoryWriter PropertyWriter(PropData);
+
+	// visit all properties and write out
+	StorePropertyVisitor Visitor(this, ClassDef, PropOffsets, Meta, PropertyWriter);
+	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor);
 	
 }
 
@@ -883,20 +888,17 @@ void USpudState::StoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelDat
 	FGuid Guid;
 
 	TArray<uint8>* pDestCoreData = nullptr;
-	TArray<uint8>* pDestPropertyData = nullptr;
+	FSpudPropertyData* pDestProperties = nullptr;
 	TArray<uint8>* pDestCustomData = nullptr;
 	FSpudClassMetadata& Meta = LevelData->Metadata;
-	FSpudClassDef& ClassDef = Meta.FindOrAddClassDef(SpudPropertyUtil::GetClassName(Actor));
-	TArray<uint32>* pOffsets = nullptr;
 	if (bRespawn)
 	{
 		auto ActorData = GetSpawnedActorData(Actor, LevelData, true);
 		if (ActorData)
 		{
 			pDestCoreData = &ActorData->CoreData.Data;
-			pDestPropertyData = &ActorData->Properties.Data;
+			pDestProperties = &ActorData->Properties;
 			pDestCustomData = &ActorData->CustomData.Data;
-			pOffsets = &ActorData->Properties.PropertyOffsets;
 			Guid = ActorData->Guid;
 			Name = SpudPropertyUtil::GetLevelActorName(Actor);
 		}
@@ -907,14 +909,13 @@ void USpudState::StoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelDat
 		if (ActorData)
 		{
 			pDestCoreData = &ActorData->CoreData.Data;
-			pDestPropertyData = &ActorData->Properties.Data;
+			pDestProperties = &ActorData->Properties;
 			pDestCustomData = &ActorData->CustomData.Data;
-			pOffsets = &ActorData->Properties.PropertyOffsets;
 			Name = ActorData->Name;
 		}
 	}
 
-	if (!pDestPropertyData || !pOffsets)
+	if (!pDestProperties)
 	{
 		// Something went wrong, we'll assume the detail has been logged elsewhere
 		return;	
@@ -925,9 +926,6 @@ void USpudState::StoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelDat
 		UE_LOG(LogSpudState, Verbose, TEXT("* STORE Runtime Actor: %s (%s)"), *Guid.ToString(EGuidFormats::DigitsWithHyphens), *Name)
 	else
 		UE_LOG(LogSpudState, Verbose, TEXT("* STORE Level Actor: %s/%s"), *LevelData->Name, *Name);
-
-	pDestPropertyData->Empty();
-	FMemoryWriter PropertyWriter(*pDestPropertyData);
 
 	bool bIsCallback = Actor->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass());
 
@@ -940,8 +938,7 @@ void USpudState::StoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelDat
 	WriteCoreActorData(Actor, CoreDataWriter);
 
 	// Now properties, visit all and write out
-	StorePropertyVisitor Visitor(this, ClassDef, *pOffsets, Meta, PropertyWriter);
-	SpudPropertyUtil::VisitPersistentProperties(Actor, Visitor);
+	StoreObjectProperties(Actor, *pDestProperties, Meta);
 
 	if (bIsCallback)
 	{
