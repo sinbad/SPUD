@@ -988,9 +988,9 @@ void USpudState::StoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelDat
 	
 
 	if (bRespawn)
-		UE_LOG(LogSpudState, Verbose, TEXT("* STORE Runtime Actor: %s (%s)"), *Guid.ToString(EGuidFormats::DigitsWithHyphens), *Name)
+		UE_LOG(LogSpudState, Verbose, TEXT(" * STORE Runtime Actor: %s (%s)"), *Guid.ToString(EGuidFormats::DigitsWithHyphens), *Name)
 	else
-		UE_LOG(LogSpudState, Verbose, TEXT("* STORE Level Actor: %s/%s"), *LevelData->Name, *Name);
+		UE_LOG(LogSpudState, Verbose, TEXT(" * STORE Level Actor: %s/%s"), *LevelData->Name, *Name);
 
 	bool bIsCallback = Actor->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass());
 

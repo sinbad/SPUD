@@ -986,4 +986,17 @@ FString SpudPropertyUtil::GetClassName(const UObject* Obj)
 	return FString();
 }
 
+FString SpudPropertyUtil::GetLogPrefix(int Depth)
+{
+	const FString Prefix = FString::ChrN(Depth, '-');
+	return FString::Printf(TEXT(" |%s"), *Prefix);
+}
+
+FString SpudPropertyUtil::GetLogPrefix(const FProperty* Property, int Depth)
+{
+	const FString Prefix = FString::ChrN(Depth, '-');
+
+	return FString::Printf(TEXT(" |%s %s"), *Prefix, *Property->GetNameCPP());
+}
+
 
