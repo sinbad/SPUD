@@ -494,13 +494,14 @@ void USpudSubsystem::AddRequestForStreamingLevel(UObject* Requester, FName Level
 		return;
 
 	auto && Request = LevelRequests.FindOrAdd(LevelName);
+	const int PrevRequesters = Request.Requesters.Num();
 	Request.Requesters.AddUnique(Requester);
 	if (Request.bPendingUnload)
 	{
 		Request.bPendingUnload = false; // no load required, just flip the unload flag
 		Request.LastRequestExpiredTime = 0;
 	}
-	else if (Request.Requesters.Num() == 1)
+	else if (PrevRequesters == 0)
 	{
 		// Load on the first request only		
 		LoadStreamLevel(LevelName, BlockingLoad);		

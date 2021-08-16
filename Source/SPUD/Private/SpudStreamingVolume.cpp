@@ -119,7 +119,7 @@ void ASpudStreamingVolume::AddRelevantActor(AActor* Actor)
 
 	// Shouldn't need to listen in to actor destruction, that will trigger end overlap
 
-	if (RelevantActorsInVolume.Num() > OldNum)
+	if (OldNum == 0)
 	{
 		auto PS = GetSpudSubsystem(GetWorld());
 		if (PS)
