@@ -2,9 +2,7 @@
 
 ## What UE versions are supported?
 
-Recommended: UE 4.26.1+
-
-UE 4.25.4 also works, with some caveats (see below).
+UE 4.26.1+
 
 ## It's not working in Play In Editor (PIE) mode!
 
@@ -40,12 +38,6 @@ To be safe, use PIE, or package the game.
 This seems to be caused by a weird UE bug: if you have Widgets open in the Editor, screenshot
 requests will always time out, resulting in a blank screenshot. Close all your Widget blueprints
 in the editor to resolve this.
-
-## Seamless travel doesn't save data in UE 4.25
-
-Unfortunately the events needed to detect when seamless travel is starting were only
-added in UE 4.26. If you want to use seamless travel in UE 4.25, you'll have to call `USpudSubsystem::PreLoadMap`
-yourself just before travelling.
 
 ## Physics doesn't play out the same way every time I load!
 
