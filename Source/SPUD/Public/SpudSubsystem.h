@@ -222,6 +222,9 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
+	void HandleLevelUnloaded(ULevel* Level);
+	void HandleLevelLoaded(FName LevelName);
+		
 	UFUNCTION(BlueprintPure)
 	bool IsLoadingGame() const { return CurrentState == ESpudSystemState::LoadingGame; }
 

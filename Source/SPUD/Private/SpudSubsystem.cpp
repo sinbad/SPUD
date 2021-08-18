@@ -622,20 +622,7 @@ void USpudSubsystem::PostLoadStreamLevel(int32 LinkID)
 			StreamLevel->SetShouldBeVisible(true);
 		}		
 
-		// Defer the restore to the game thread, streaming calls happen in loading thread?
-		// However, quickly ping the state to force it to pre-load the leveldata
-		// that way the loading occurs in this thread, less latency
-		GetActiveState()->PreLoadLevelData(LevelName.ToString());			
-
-		AsyncTask(ENamedThreads::GameThread, [this, LevelName]()
-        {
-			// But also add a slight delay so we get a tick in between so physics works
-			FTimerHandle H;
-			GetWorld()->GetTimerManager().SetTimer(H, [this, LevelName]()
-			{
-				PostLoadStreamLevelGameThread(LevelName);				
-			}, 0.01, false);
-        });		
+		HandleLevelLoaded(LevelName);
 	}
 	else
 	{
@@ -680,22 +667,15 @@ void USpudSubsystem::UnloadStreamLevel(FName LevelName)
 
 	if (StreamLevel)
 	{
-		PreUnloadStreamingLevel.Broadcast(LevelName);
 		ULevel* Level = StreamLevel->GetLoadedLevel();
 		if (!Level)
 		{
 			// Already unloaded
 			return;
 		}
-		UnsubscribeLevelObjectEvents(Level);
-	
-		if (CurrentState != ESpudSystemState::LoadingGame)
-		{
-			// save the state, if not loading game
-			// when loading game we will unload the current level and streaming and don't want to restore the active state from that
-			// After storing, the level data is released so doesn't take up memory any more
-			StoreLevel(Level, true, false);
-		}
+		PreUnloadStreamingLevel.Broadcast(LevelName);
+
+		HandleLevelUnloaded(Level);
 		
 		// Now unload
 		FScopeLock PendingUnloadLock(&LevelsPendingUnloadMutex);
@@ -940,6 +920,37 @@ FString USpudSubsystem::GetActiveGameFolder()
 FString USpudSubsystem::GetActiveGameFilePath(const FString& Name)
 {
 	return FString::Printf(TEXT("%sSaveGames/%s.sav"), *GetActiveGameFolder(), *Name);
+}
+
+void USpudSubsystem::HandleLevelUnloaded(ULevel* Level)
+{
+	UnsubscribeLevelObjectEvents(Level);
+
+	if (CurrentState != ESpudSystemState::LoadingGame)
+	{
+		// save the state, if not loading game
+		// when loading game we will unload the current level and streaming and don't want to restore the active state from that
+		// After storing, the level data is released so doesn't take up memory any more
+		StoreLevel(Level, true, false);
+	}
+}
+
+void USpudSubsystem::HandleLevelLoaded(FName LevelName)
+{
+	// Defer the restore to the game thread, streaming calls happen in loading thread?
+	// However, quickly ping the state to force it to pre-load the leveldata
+	// that way the loading occurs in this thread, less latency
+	GetActiveState()->PreLoadLevelData(LevelName.ToString());			
+
+	AsyncTask(ENamedThreads::GameThread, [this, LevelName]()
+    {
+		// But also add a slight delay so we get a tick in between so physics works
+		FTimerHandle H;
+		GetWorld()->GetTimerManager().SetTimer(H, [this, LevelName]()
+		{
+			PostLoadStreamLevelGameThread(LevelName);				
+		}, 0.01, false);
+    });		
 }
 
 
