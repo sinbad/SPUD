@@ -211,6 +211,9 @@ protected:
 	void LoadComplete(const FString& SlotName, bool bSuccess);
 	void SaveComplete(const FString& SlotName, bool bSuccess);
 
+	void HandleLevelLoaded(FName LevelName);
+	void HandleLevelUnloaded(ULevel* Level);
+
 	void LoadStreamLevel(FName LevelName, bool Blocking);
 	void StartUnloadTimer();
 	void StopUnloadTimer();
@@ -432,6 +435,24 @@ public:
 	/// Useful for when parsing through saves to check if something is a manual save or not
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     bool IsAutoSave(const FString& SlotName);
+
+	/**
+	 * Notify @see USpudSubsystem that a level was loaded externally. By default, SPUD uses its custom
+	 * @see ASpudStreamingVolume instances for notification of level streaming events. This method provides
+	 * an interface to use other methods of loading streaming levels.
+	 * @param LevelName The level that was loaded.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+	void NotifyLevelLoadedExternally(FName LevelName);
+
+	/**
+	 * Notify @see USpudSubsystem that a level was unloaded externally. By default, SPUD uses its custom
+	 * @see ASpudStreamingVolume instances for notification of level streaming events. This method provides
+	 * an interface to use other methods of unloading streaming levels.
+	 * @param Level The level that was unloaded.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+	void NotifyLevelUnloadedExternally(ULevel* Level);
 
 	static FString GetSaveGameDirectory();
 	static FString GetSaveGameFilePath(const FString& SlotName);
