@@ -440,7 +440,7 @@ public:
 	 * Notify @see USpudSubsystem that a level was loaded externally. By default, SPUD uses its custom
 	 * @see ASpudStreamingVolume instances for notification of level streaming events. This method provides
 	 * an interface to use other methods of loading streaming levels.
-	 * @param Level The level that was loaded.
+	 * @param LevelName The level that was loaded.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	void NotifyLevelLoadedExternally(FName LevelName);
