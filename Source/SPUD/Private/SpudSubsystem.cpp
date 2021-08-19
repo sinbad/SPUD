@@ -21,10 +21,7 @@ void USpudSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	OnPostLoadMapHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &USpudSubsystem::OnPostLoadMap);
 	OnPreLoadMapHandle = FCoreUObjectDelegates::PreLoadMap.AddUObject(this, &USpudSubsystem::OnPreLoadMap);
 	
-#if ENGINE_MINOR_VERSION >= 26
-	// Seamless travel is only supported on 4.26+ since event is only present there
 	OnSeamlessTravelHandle = FWorldDelegates::OnSeamlessTravelTransition.AddUObject(this, &USpudSubsystem::OnSeamlessTravelTransition);
-#endif
 	
 #if WITH_EDITORONLY_DATA
 	// The one problem we have is that in PIE mode, PostLoadMap doesn't get fired for the current map you're on
@@ -43,9 +40,7 @@ void USpudSubsystem::Deinitialize()
 {
 	FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(OnPostLoadMapHandle);
 	FCoreUObjectDelegates::PreLoadMap.Remove(OnPreLoadMapHandle);
-#if ENGINE_MINOR_VERSION >= 26
 	FWorldDelegates::OnSeamlessTravelTransition.Remove(OnSeamlessTravelHandle);
-#endif
 }
 
 
@@ -165,7 +160,6 @@ void USpudSubsystem::OnPreLoadMap(const FString& MapName)
 
 void USpudSubsystem::OnSeamlessTravelTransition(UWorld* World)
 {
-	// note: this only gets called on 4.26+
 	if (IsValid(World))
 	{
 		FString MapName = UGameplayStatics::GetCurrentLevelName(World);
