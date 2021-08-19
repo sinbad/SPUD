@@ -2,8 +2,10 @@
 #include "EngineUtils.h"
 #include "SpudState.h"
 #include "Engine/LevelStreaming.h"
+#include "Engine/LocalPlayer.h"
 #include "Kismet/GameplayStatics.h"
 #include "ImageUtils.h"
+#include "TimerManager.h"
 
 DEFINE_LOG_CATEGORY(LogSpudSubsystem)
 

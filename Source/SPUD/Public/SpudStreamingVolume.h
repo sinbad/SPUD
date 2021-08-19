@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameFramework/Volume.h"
 #include "SpudStreamingVolume.generated.h"
 
 /// Drop-in replacement for ALevelStreamingVolume which has a number of advantages:

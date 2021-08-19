@@ -5,6 +5,7 @@
 #include "SpudCustomSaveInfo.h"
 #include "SpudState.h"
 #include "Subsystems/GameInstanceSubsystem.h"
+#include "Tickable.h"
 
 #include "SpudSubsystem.generated.h"
 
