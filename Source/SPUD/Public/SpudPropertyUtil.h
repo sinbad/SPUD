@@ -1,6 +1,9 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "SpudData.h"
+#include "GameFramework/Actor.h"
+#include "Serialization/MemoryReader.h"
+#include "Serialization/MemoryWriter.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSpudProps, Verbose, Verbose);
 

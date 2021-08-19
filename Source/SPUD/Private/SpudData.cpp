@@ -1,6 +1,9 @@
 #include "SpudData.h"
 
 #include <algorithm>
+#include "Async/Async.h"
+#include "HAL/FileManager.h"
+#include "Misc/Paths.h"
 
 #include "SpudPropertyUtil.h"
 
