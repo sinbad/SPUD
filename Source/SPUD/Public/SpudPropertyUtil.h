@@ -43,6 +43,12 @@ template <> struct SpudTypeInfo<UObject*>
 	static const ESpudStorageType EnumType = ESST_UInt32;
 	using StorageType = uint32;
 };
+// TSubclassOfs are stored as a ClassID
+template <> struct SpudTypeInfo<UClass*>
+{
+	static const ESpudStorageType EnumType = ESST_UInt32;
+	using StorageType = uint32;
+};
 /// Now the simpler types where StorageType == input type 
 template <> const ESpudStorageType SpudTypeInfo<uint8>::EnumType = ESST_UInt8;
 template <> const ESpudStorageType SpudTypeInfo<uint16>::EnumType = ESST_UInt16;
@@ -150,7 +156,8 @@ public:
 	static bool IsActorObjectProperty(const FProperty* Property);
 	/// Whether a property is an object reference, but not an actor (stored nested like structs on the assumption it always exists)
 	static bool IsNonActorObjectProperty(const FProperty* Property);
-
+	// Whether a property is a TSubclassOf property
+	static bool IsSubclassOfProperty(const FProperty* Property);
 	static uint16 GetPropertyDataType(const FProperty* Prop);
 
 	class StoredMatchesRuntimePropertyVisitor : public SpudPropertyUtil::PropertyVisitor
@@ -285,9 +292,12 @@ protected:
 	static FString WriteNestedUObjectPropertyData(FObjectProperty* OProp, UObject* UObj, FPlatformTypes::uint32 PrefixID, const void* Data,
 											bool bIsArrayElement, FSpudClassDef& ClassDef,
 											TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FArchive& Out);
+	static FString WriteSubclassOfPropertyData(FClassProperty* CProp, UClass* Class, uint32 PrefixID, const void* Data,
+											bool bIsArrayElement, FSpudClassDef& ClassDef,
+											TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FArchive& Out);
 	static bool TryWriteUObjectPropertyData(FProperty* Property, uint32 PrefixID, const void* Data, bool bIsArrayElement,
-	                                       int Depth, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta,
-	                                       FArchive& Out);
+	                                        int Depth, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta,
+	                                        FArchive& Out);
 
 	
 	template<typename ValueType>
@@ -368,6 +378,8 @@ protected:
 	                                    int Depth, FArchive& In);
 	static FString ReadActorRefPropertyData(::FObjectProperty* OProp, void* Data, const RuntimeObjectMap* RuntimeObjects, ULevel* Level, FArchive& In);
 	static FString ReadNestedUObjectPropertyData(::FObjectProperty* OProp, void* Data, const RuntimeObjectMap* RuntimeObjects,
+		ULevel* Level, const FSpudClassMetadata& Meta, FArchive& In);
+	static FString ReadSubclassOfPropertyData(::FObjectProperty* OProp, void* Data, const RuntimeObjectMap* RuntimeObjects,
 		ULevel* Level, const FSpudClassMetadata& Meta, FArchive& In);
 	static bool TryReadUObjectPropertyData(::FProperty* Prop, void* Data, const ::FSpudPropertyDef& StoredProperty,
 	                                        const RuntimeObjectMap* RuntimeObjects,

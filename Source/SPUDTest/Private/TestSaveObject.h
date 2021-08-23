@@ -81,6 +81,9 @@ public:
 	UPROPERTY(SaveGame)
 	UTestNestedUObject* UObjectVal;
 
+	UPROPERTY(SaveGame)
+	TSubclassOf<AActor> ActorSubclass;
+	
 	// sadly we can't test actor refs easily here; test example world does that though
 
 	// Arrays of the above
@@ -186,6 +189,9 @@ public:
 
 	UPROPERTY(SaveGame)
 	UTestNestedUObject* UObjectVal;
+
+	UPROPERTY(SaveGame)
+	TSubclassOf<AActor> ActorSubclass;
 
 	// sadly we can't test actor refs easily here; test example world does that though
 

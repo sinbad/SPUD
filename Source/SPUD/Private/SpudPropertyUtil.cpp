@@ -87,6 +87,11 @@ bool SpudPropertyUtil::IsNonActorObjectProperty(const FProperty* Property)
 	return false;
 }
 
+bool SpudPropertyUtil::IsSubclassOfProperty(const FProperty* Property)
+{
+	return CastField<FClassProperty>(Property) != nullptr;
+}
+
 uint16 SpudPropertyUtil::GetPropertyDataType(const FProperty* Prop)
 {
 	bool bIsArray = false;
@@ -117,12 +122,17 @@ uint16 SpudPropertyUtil::GetPropertyDataType(const FProperty* Prop)
 		// Could be:
 		// 1. An Actor ref
 		// 2. A nested UObject
+		// 3. TSubclassOf<>
 		
 		// Actor ref properties just have a string, which is either a name or a GUID, both strings
-		// Nested UObjects are a ClassID (uint32)
+		// Nested UObjects and TSubclassOf are a ClassID (uint32)
 		if (IsActorObjectProperty(ActualProp))
 		{
 			Ret = SpudTypeInfo<AActor*>::EnumType;
+		}
+		else if (IsSubclassOfProperty(ActualProp))
+		{
+			Ret = SpudTypeInfo<UClass*>::EnumType;
 		}
 		else
 		{
@@ -404,9 +414,32 @@ FString SpudPropertyUtil::WriteNestedUObjectPropertyData(FObjectProperty* OProp,
 	return Ret;
 }
 
+FString SpudPropertyUtil::WriteSubclassOfPropertyData(FClassProperty* CProp, UClass* Class, uint32 PrefixID, const void* Data,
+	bool bIsArrayElement, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta,
+	FArchive& Out)
+{
+	if (!bIsArrayElement)
+		RegisterProperty(CProp, PrefixID, ClassDef, PropertyOffsets, Meta, Out);
+
+	uint32 ClassID;
+	FString Ret = "NULL";
+	if (Class)
+	{		
+		// We only need to store the class ID
+		Ret = Class->GetPathName();
+		ClassID = Meta.FindOrAddClassIDFromName(Ret);
+	}
+	else // null
+		ClassID = SPUDDATA_CLASSID_NONE;
+	
+	Out << ClassID;
+
+	return Ret;
+}
+
 bool SpudPropertyUtil::TryWriteUObjectPropertyData(FProperty* Property, uint32 PrefixID, const void* Data,
-	bool bIsArrayElement, int Depth, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets,
-	FSpudClassMetadata& Meta, FArchive& Out)
+                                                   bool bIsArrayElement, int Depth, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets,
+                                                   FSpudClassMetadata& Meta, FArchive& Out)
 {
 	if (const auto OProp = CastField<FObjectProperty>(Property))
 	{
@@ -419,6 +452,13 @@ bool SpudPropertyUtil::TryWriteUObjectPropertyData(FProperty* Property, uint32 P
 			const FString Val = WriteActorRefPropertyData(OProp, Actor, PrefixID, Data, bIsArrayElement, ClassDef,
 														PropertyOffsets, Meta, Out);
 			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(OProp, Depth), *ToString(Val));
+		}
+		else if (auto CProp = CastField<FClassProperty>(OProp))
+		{
+			const auto RuntimeClass = Cast<UClass>(Obj);
+			const FString Val = WriteSubclassOfPropertyData(CProp, RuntimeClass, PrefixID, Data, bIsArrayElement, ClassDef,
+														PropertyOffsets, Meta, Out);
+			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(OProp, Depth), *Val);
 		}
 		else
 		{
@@ -540,10 +580,45 @@ FString SpudPropertyUtil::ReadNestedUObjectPropertyData(FObjectProperty* OProp, 
 	return Ret;
 }
 
+FString SpudPropertyUtil::ReadSubclassOfPropertyData(FObjectProperty* OProp, void* Data,
+	const RuntimeObjectMap* RuntimeObjects, ULevel* Level, const FSpudClassMetadata& Meta, FArchive& In)
+{
+	// TSubclassOf is just a class ID
+	uint32 ClassID;
+	In << ClassID;
+
+	FString Ret = "NULL";
+	if (ClassID == SPUDDATA_CLASSID_NONE)
+	{
+		// If stored data said it should be null, set it
+		OProp->SetObjectPropertyValue(Data, nullptr);
+	}
+	else
+	{
+		const FString ClassName = Meta.GetClassNameFromID(ClassID);
+
+		const FSoftClassPath CP(ClassName);
+		const auto Class = CP.TryLoadClass<UObject>();
+
+		if (!Class)
+		{
+			UE_LOG(LogSpudProps, Error, TEXT("Cannot find class %s"), *ClassName);
+			return Ret;
+		}
+
+		// For a FClassProperty, the object value is the class instance
+		OProp->SetObjectPropertyValue(Data, Class);
+		Ret = ClassName;
+	}
+
+	return Ret;
+	
+}
+
 
 bool SpudPropertyUtil::TryReadUObjectPropertyData(FProperty* Prop, void* Data,
-	const FSpudPropertyDef& StoredProperty, const RuntimeObjectMap* RuntimeObjects, ULevel* Level,
-	const FSpudClassMetadata& Meta, int Depth, FArchive& In)
+                                                  const FSpudPropertyDef& StoredProperty, const RuntimeObjectMap* RuntimeObjects, ULevel* Level,
+                                                  const FSpudClassMetadata& Meta, int Depth, FArchive& In)
 {
 	auto OProp = CastField<FObjectProperty>(Prop);
 	if (OProp && StoredPropertyTypeMatchesRuntime(Prop, StoredProperty, true)) // we ignore array flag since we could be processing inner
@@ -553,6 +628,11 @@ bool SpudPropertyUtil::TryReadUObjectPropertyData(FProperty* Prop, void* Data,
 		if (IsActorObjectProperty(Prop))
 		{
 			const FString Val = ReadActorRefPropertyData(OProp, Data, RuntimeObjects, Level, In);
+			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(Prop, Depth), *Val);
+		}
+		else if (auto CProp = CastField<FClassProperty>(OProp))
+		{
+			const FString Val = ReadSubclassOfPropertyData(OProp, Data, RuntimeObjects, Level, Meta, In);
 			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(Prop, Depth), *Val);
 		}
 		else
