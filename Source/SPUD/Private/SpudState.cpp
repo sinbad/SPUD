@@ -90,7 +90,7 @@ void USpudState::StorePropertyVisitor::StoreNestedUObjectIfNeeded(UObject* RootO
 {
 	// Special case nested UObjects - we cascade if not null, but based on the runtime type (this is why visitor does not cascade,
 	// since it only has the static type and in the case of nulls wouldn't know what to do)
-	if (SpudPropertyUtil::IsNonActorObjectProperty(Property))
+	if (SpudPropertyUtil::IsNestedUObjectProperty(Property))
 	{
 		if (const auto OProp = CastField<FObjectProperty>(Property))
 		{
@@ -786,7 +786,7 @@ uint32 USpudState::RestorePropertyVisitor::GetNestedPrefix(FProperty* Prop, uint
 void USpudState::RestorePropertyVisitor::RestoreNestedUObjectIfNeeded(UObject* RootObject, FProperty* Property,
 														uint32 CurrentPrefixID, void* ContainerPtr, int Depth)
 {
-	if (SpudPropertyUtil::IsNonActorObjectProperty(Property))
+	if (SpudPropertyUtil::IsNestedUObjectProperty(Property))
 	{
 		if (const auto OProp = CastField<FObjectProperty>(Property))
 		{

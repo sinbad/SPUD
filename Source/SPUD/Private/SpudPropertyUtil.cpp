@@ -36,7 +36,7 @@ bool SpudPropertyUtil::IsValidArrayType(FArrayProperty* AProp)
 		if (!IsBuiltInStructProperty(SProp))
 			return false;
 	}
-	else if (IsNonActorObjectProperty(AProp->Inner))
+	else if (IsNestedUObjectProperty(AProp->Inner))
 	{
 		// Same problem with nested UObjects
 		return false;
@@ -65,6 +65,10 @@ bool SpudPropertyUtil::IsCustomStructProperty(const FProperty* Property)
 
 bool SpudPropertyUtil::IsActorObjectProperty(const FProperty* Property)
 {
+	// Early-out on TSubclassOf which is a specialised FObjectProperty
+	if (IsSubclassOfProperty(Property))
+		return false;
+
 	if (const auto OProp = CastField<FObjectProperty>(Property))
 	{
 		if (OProp->PropertyClass && OProp->PropertyClass->IsChildOf(AActor::StaticClass()))
@@ -75,8 +79,12 @@ bool SpudPropertyUtil::IsActorObjectProperty(const FProperty* Property)
 	return false;
 }
 
-bool SpudPropertyUtil::IsNonActorObjectProperty(const FProperty* Property)
+bool SpudPropertyUtil::IsNestedUObjectProperty(const FProperty* Property)
 {
+	// Early-out on TSubclassOf which is a specialised FObjectProperty
+	if (IsSubclassOfProperty(Property))
+		return false;
+	
 	if (const auto OProp = CastField<FObjectProperty>(Property))
 	{
 		if (OProp->PropertyClass && !OProp->PropertyClass->IsChildOf(AActor::StaticClass()))

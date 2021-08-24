@@ -154,8 +154,8 @@ public:
 
 	/// Whether a property is an actor reference
 	static bool IsActorObjectProperty(const FProperty* Property);
-	/// Whether a property is an object reference, but not an actor (stored nested like structs on the assumption it always exists)
-	static bool IsNonActorObjectProperty(const FProperty* Property);
+	/// Whether a property represents a nested UObject 
+	static bool IsNestedUObjectProperty(const FProperty* Property);
 	// Whether a property is a TSubclassOf property
 	static bool IsSubclassOfProperty(const FProperty* Property);
 	static uint16 GetPropertyDataType(const FProperty* Prop);

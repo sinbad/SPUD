@@ -30,6 +30,8 @@ void PopulateAllTypes(T& Obj)
 	Obj.UObjectVal->NestedStringVal = "A string inside a nested UObject";
 
 	Obj.ActorSubclass = AStaticMeshActor::StaticClass();
+	Obj.ActorSubclassArray.Add(AStaticMeshActor::StaticClass());
+	Obj.ActorSubclassArray.Add(APointLight::StaticClass());
 
 	Obj.IntArray.Add(136);
 	Obj.IntArray.Add(-31913);
@@ -141,6 +143,11 @@ void CheckAllTypes(FAutomationTestBase* Test, const FString& Prefix, const T& Ac
 	}
 
 	Test->TestEqual(Prefix + "SubclassOf field should match", Actual.ActorSubclass.Get(), AStaticMeshActor::StaticClass());
+	if (Test->TestEqual(Prefix + "SubclassOf array should be correct size", Actual.ActorSubclassArray.Num(), 2))
+	{
+		Test->TestEqual(Prefix + "SubclassOf array 0 should match", Actual.ActorSubclassArray[0].Get(), AStaticMeshActor::StaticClass());
+		Test->TestEqual(Prefix + "SubclassOf array 1 should match", Actual.ActorSubclassArray[1].Get(), APointLight::StaticClass());
+	}
 
 	CheckArray(Test, Prefix + "IntArray|", Actual.IntArray, Expected.IntArray);
 	CheckArray(Test, Prefix + "UInt8Array|", Actual.UInt8Array, Expected.UInt8Array);

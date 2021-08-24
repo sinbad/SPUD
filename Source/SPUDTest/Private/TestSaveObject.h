@@ -84,6 +84,8 @@ public:
 	UPROPERTY(SaveGame)
 	TSubclassOf<AActor> ActorSubclass;
 	
+	UPROPERTY(SaveGame)
+	TArray< TSubclassOf<AActor> > ActorSubclassArray;
 	// sadly we can't test actor refs easily here; test example world does that though
 
 	// Arrays of the above
@@ -193,6 +195,9 @@ public:
 	UPROPERTY(SaveGame)
 	TSubclassOf<AActor> ActorSubclass;
 
+	UPROPERTY(SaveGame)
+	TArray< TSubclassOf<AActor> > ActorSubclassArray;
+	
 	// sadly we can't test actor refs easily here; test example world does that though
 
 	// Arrays of the above
