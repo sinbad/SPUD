@@ -9,7 +9,7 @@
 #include "SpudState.generated.h"
 
 
-DECLARE_LOG_CATEGORY_EXTERN(LogSpudState, Verbose, Verbose);
+SPUD_API DECLARE_LOG_CATEGORY_EXTERN(LogSpudState, Verbose, Verbose);
 
 /// Description of a save game for display in load game lists, finding latest
 /// All properties are read-only because they can only be populated via calls to save game
