@@ -99,6 +99,11 @@ void USpudState::StorePropertyVisitor::StoreNestedUObjectIfNeeded(UObject* RootO
 
 			if (Obj)
 			{
+				// Storing asset links is not supported / sensible. You should store core state instead and derive
+				// assets from that in a post-load hook, otherwise it just makes your saves fragile / bloated to store derived data
+				checkf(!Obj->IsAsset(), TEXT("Cannot store %s from property %s/%s - Storing links to assets is not supported"),
+					*Obj->GetName(), *RootObject->GetName(), *Property->GetNameCPP());
+
 				const bool IsCallback = Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass());
 
 				if (IsCallback)
