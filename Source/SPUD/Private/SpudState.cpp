@@ -1032,25 +1032,25 @@ void USpudState::StoreLevelActorDestroyed(AActor* Actor, FSpudSaveData::TLevelDa
 	LevelData->DestroyedActors.Add(SpudPropertyUtil::GetLevelActorName(Actor));
 }
 
-void USpudState::SaveToArchive(FArchive& Ar)
+void USpudState::SaveToArchive(FArchive& SPUDAr)
 {
 	// We use separate read / write in order to more clearly support chunked file format
 	// with the backwards compatibility that comes with 
-	FSpudChunkedDataArchive ChunkedAr(Ar);
+	FSpudChunkedDataArchive ChunkedAr(SPUDAr);
 	SaveData.PrepareForWrite();
 	// Use WritePaged in all cases; if all data is loaded it amounts to the same thing
 	SaveData.WriteToArchive(ChunkedAr, GetActiveGameLevelFolder());
 
 }
 
-void USpudState::LoadFromArchive(FArchive& Ar, bool bFullyLoadAllLevelData)
+void USpudState::LoadFromArchive(FArchive& SPUDAr, bool bFullyLoadAllLevelData)
 {
 	// Firstly, destroy any active game level files
 	RemoveAllActiveGameLevelFiles();
 
-	Source = Ar.GetArchiveName();
+	Source = SPUDAr.GetArchiveName();
 	
-	FSpudChunkedDataArchive ChunkedAr(Ar);
+	FSpudChunkedDataArchive ChunkedAr(SPUDAr);
 	SaveData.ReadFromArchive(ChunkedAr, bFullyLoadAllLevelData, GetActiveGameLevelFolder());
 }
 
@@ -1069,9 +1069,9 @@ void USpudState::ClearLevel(const FString& LevelName)
 	SaveData.DeleteLevelData(LevelName, GetActiveGameLevelFolder());
 }
 
-bool USpudState::LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInfo)
+bool USpudState::LoadSaveInfoFromArchive(FArchive& SPUDAr, USpudSaveGameInfo& OutInfo)
 {
-	FSpudChunkedDataArchive ChunkedAr(Ar);
+	FSpudChunkedDataArchive ChunkedAr(SPUDAr);
 	FSpudSaveInfo StorageInfo;
 	const bool Ok = FSpudSaveData::ReadSaveInfoFromArchive(ChunkedAr, StorageInfo);
 	if (Ok)

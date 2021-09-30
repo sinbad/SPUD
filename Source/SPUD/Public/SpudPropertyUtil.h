@@ -6,7 +6,7 @@
 #include "Serialization/MemoryWriter.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSpudProps, Verbose, Verbose);
-
+namespace{
 /// Type info for persistence
 /// Maps a given type to:
 /// 1. An enum value, for describing how the data is stored
@@ -66,7 +66,7 @@ template <> const ESpudStorageType SpudTypeInfo<FTransform>::EnumType = ESST_Tra
 template <> const ESpudStorageType SpudTypeInfo<FGuid>::EnumType = ESST_Guid;
 template <> const ESpudStorageType SpudTypeInfo<FString>::EnumType = ESST_String;
 template <> const ESpudStorageType SpudTypeInfo<FName>::EnumType = ESST_Name;
-
+}
 /// Utility class which does all the nuts & bolts related to property persistence without actually being stateful
 /// Also none of this is exposed to Blueprints, is completely internal to C++ persistence
 class SPUD_API SpudPropertyUtil
