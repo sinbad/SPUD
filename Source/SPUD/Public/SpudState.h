@@ -272,15 +272,15 @@ public:
 
 	/// Save all contents to an archive
 	/// This includes all paged out level data, which will be recombined
-	virtual void SaveToArchive(FArchive& Ar);
+	virtual void SaveToArchive(FArchive& SPUDAr);
 
 	/**
 	 * @brief 
-	 * @param Ar The save file archive
+	 * @param SPUDAr The save file archive
 	 * @param bFullyLoadAllLevelData If true, load all data into memory including all data for all levels. If false,
 	 * only load global data and enumerate levels, piping level data to separate disk files instead for loading individually later
 	 */
-	virtual void LoadFromArchive(FArchive& Ar, bool bFullyLoadAllLevelData);
+	virtual void LoadFromArchive(FArchive& SPUDAr, bool bFullyLoadAllLevelData);
 
 	/// Get the name of the persistent level which the player is on in this state
 	FString GetPersistentLevel() const { return SaveData.GlobalData.CurrentLevel; }
@@ -351,7 +351,7 @@ public:
 
 	/// Utility method to read *just* the information part of a save game from the start of an archive
 	/// This only reads the minimum needed to describe the save file and doesn't load any other data.
-	static bool LoadSaveInfoFromArchive(FArchive& Ar, USpudSaveGameInfo& OutInfo);
+	static bool LoadSaveInfoFromArchive(FArchive& SPUDAr, USpudSaveGameInfo& OutInfo);
 
 	bool bTestRequireSlowPath = false;
 	bool bTestRequireFastPath = false;
@@ -370,19 +370,19 @@ class SPUD_API USpudStateCustomData : public UObject
 {
 	GENERATED_BODY()
 protected:
-	FArchive *Ar;
+	FArchive *SPUDAr;
 
 public:
-	USpudStateCustomData() : Ar(nullptr) {}
+	USpudStateCustomData() : SPUDAr(nullptr) {}
 
 	void Init(FArchive* InOut)
 	{
-		Ar = InOut;
+		SPUDAr = InOut;
 	}
 
-	bool CanRead() const { return Ar && Ar->IsLoading(); }
-	bool CanWrite() const { return Ar && Ar->IsSaving(); }
-	bool AtEnd() const { return Ar && Ar->AtEnd(); }
+	bool CanRead() const { return SPUDAr && SPUDAr->IsLoading(); }
+	bool CanWrite() const { return SPUDAr && SPUDAr->IsSaving(); }
+	bool AtEnd() const { return SPUDAr && SPUDAr->AtEnd(); }
 
 	/// Write a value to the custom data
 	/// NOTE: May reformat some data types for efficiency, e.g. bool becomes uint8
@@ -395,7 +395,7 @@ public:
 			return;
 		}
 		
-		SpudPropertyUtil::WriteRaw(Value, *Ar);
+		SpudPropertyUtil::WriteRaw(Value, *SPUDAr);
 	}
 
 	/// Try to read a value from the custom data
@@ -413,7 +413,7 @@ public:
 			return false;
 		}
 		
-		SpudPropertyUtil::ReadRaw(OutValue, *Ar);
+		SpudPropertyUtil::ReadRaw(OutValue, *SPUDAr);
 		return true;
 	}
 
@@ -530,7 +530,7 @@ public:
     bool ReadByte(uint8& OutByte) { return Read(OutByte); }
 
 	/// Access the underlying archive in order to write custom data directly.
-	FArchive* GetUnderlyingArchive() const { return Ar; }
+	FArchive* GetUnderlyingArchive() const { return SPUDAr; }
 
 };
 
