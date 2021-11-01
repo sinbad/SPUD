@@ -79,7 +79,7 @@ public:
 	FString StringVal;
 
 	UPROPERTY(SaveGame)
-	UTestNestedUObject* UObjectVal;
+	UTestNestedUObject* UObjectVal = nullptr;
 
 	UPROPERTY(SaveGame)
 	TSubclassOf<AActor> ActorSubclass;
