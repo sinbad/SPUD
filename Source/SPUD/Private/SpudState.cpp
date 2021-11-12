@@ -564,6 +564,27 @@ bool USpudState::ShouldActorBeRespawnedOnRestore(AActor* Actor) const
 		ShouldRespawnRuntimeActor(Actor);
 }
 
+bool USpudState::ShouldActorTransformBeRestored(AActor* Actor) const
+{
+	// I know this cast style only supports C++ not Blueprints, but this method can only be defined in C++ anyway
+	if (auto IObj = Cast<ISpudObject>(Actor))
+	{
+		return IObj->ShouldRestoreTransform();
+	}
+	// Assume true
+	return true;
+}
+
+bool USpudState::ShouldActorVelocityBeRestored(AActor* Actor) const
+{
+	// I know this cast style only supports C++ not Blueprints, but this method can only be defined in C++ anyway
+	if (auto IObj = Cast<ISpudObject>(Actor))
+	{
+		return IObj->ShouldRestoreVelocity();
+	}
+	// Assume true
+	return true;
+}
 
 void USpudState::RestoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData, const TMap<FGuid, UObject*>* RuntimeObjects)
 {
@@ -674,29 +695,32 @@ void USpudState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& F
 		}
 
 		const auto RootComp = Actor->GetRootComponent();
-		if (RootComp && RootComp->Mobility == EComponentMobility::Movable)
+		if (RootComp && RootComp->Mobility == EComponentMobility::Movable &&
+			ShouldActorTransformBeRestored(Actor))
 		{
 			// Only set the actor transform if movable, to avoid editor warnings about static/stationary objects
 			Actor->SetActorTransform(XForm, false, nullptr, ETeleportType::ResetPhysics);
-			
-			if (Velocity.SizeSquared() > FLT_EPSILON || AngularVelocity.SizeSquared() > FLT_EPSILON)
-			{
-				const auto PrimComp = Cast<UPrimitiveComponent>(RootComp);
 
-				// note: DO NOT use IsSimulatingPhysics() since that's dependent on BodyInstance.BodySetup being valid, which
-				// it might not be at setup. We only want the *intention* to simulate physics, not whether it's currently happening
-				if (PrimComp && PrimComp->BodyInstance.bSimulatePhysics)
+			if (ShouldActorVelocityBeRestored(Actor))
+			{
+				if (Velocity.SizeSquared() > FLT_EPSILON || AngularVelocity.SizeSquared() > FLT_EPSILON)
 				{
-					PrimComp->SetAllPhysicsLinearVelocity(Velocity);
-					PrimComp->SetAllPhysicsAngularVelocityInDegrees(AngularVelocity);
-				}
-				else if (const auto	MoveComponent = Cast<UMovementComponent>(Actor->FindComponentByClass(UMovementComponent::StaticClass())))
-				{
-					MoveComponent->Velocity = Velocity;
+					const auto PrimComp = Cast<UPrimitiveComponent>(RootComp);
+
+					// note: DO NOT use IsSimulatingPhysics() since that's dependent on BodyInstance.BodySetup being valid, which
+					// it might not be at setup. We only want the *intention* to simulate physics, not whether it's currently happening
+					if (PrimComp && PrimComp->BodyInstance.bSimulatePhysics)
+					{
+						PrimComp->SetAllPhysicsLinearVelocity(Velocity);
+						PrimComp->SetAllPhysicsAngularVelocityInDegrees(AngularVelocity);
+					}
+					else if (const auto	MoveComponent = Cast<UMovementComponent>(Actor->FindComponentByClass(UMovementComponent::StaticClass())))
+					{
+						MoveComponent->Velocity = Velocity;
+					}
 				}
 			}
 		}
-
 
 		if (Pawn)
 		{

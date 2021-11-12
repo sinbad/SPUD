@@ -35,7 +35,17 @@ public:
 	/// they always have the same names between save & load. 
 	/// This can only be changed in C++ implementations and not Blueprints since they don't support this default impl
     virtual ESpudRespawnMode GetSpudRespawnMode() const { return ESpudRespawnMode::Default; }
+
+	/// Return whether this object should restore its transform from the save data, if it's Movable
+	/// You can override this to false if you want this object to always retain its level location on restore.
+	/// This can only be changed in C++ implementations and not Blueprints since they don't support this default impl
+	virtual bool ShouldRestoreTransform() const { return true; }
 	
+	/// Return whether this object should restore its velocity from the save data. Only applies if it's Movable, has opted
+	/// in to restoring transform, and has either physics sim enabled, or a movement component.
+	/// You can override this to false if you want this object to manage its own velocity on load.
+	/// This can only be changed in C++ implementations and not Blueprints since they don't support this default impl
+	virtual bool ShouldRestoreVelocity() const { return true; }
 };
 
 

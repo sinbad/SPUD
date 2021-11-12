@@ -104,6 +104,8 @@ protected:
 	FSpudNamedObjectData* GetGlobalObjectData(const FString& ID, bool AutoCreate);
 
 	bool ShouldActorBeRespawnedOnRestore(AActor* Actor) const;
+	bool ShouldActorTransformBeRestored(AActor* Actor) const;
+	bool ShouldActorVelocityBeRestored(AActor* Actor) const;
 	void StoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData);
 	void StoreLevelActorDestroyed(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData);
 	void StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data);
