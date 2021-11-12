@@ -1,11 +1,14 @@
 #include "SpudModule.h"
 
+#include "SpudGameplayTags.h"
+
 #define LOCTEXT_NAMESPACE "FSpud"
 
 DEFINE_LOG_CATEGORY(LogSpudModule)
 
 void FSpudModule::StartupModule()
 {
+	USpudGameplayTags::RegisterTags();
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
 	UE_LOG(LogSpudModule, Log, TEXT("SPUD Module Started"))
 }
