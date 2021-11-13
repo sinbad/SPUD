@@ -533,10 +533,9 @@ void USpudState::DestroyActor(const FSpudDestroyedLevelActor& DestroyedActor, UL
 bool USpudState::ShouldRespawnRuntimeActor(const AActor* Actor) const
 {
 	ESpudRespawnMode RespawnMode = ESpudRespawnMode::Default;
-	// I know this cast style only supports C++ not Blueprints, but this method can only be defined in C++ anyway
-	if (auto IObj = Cast<ISpudObject>(Actor))
+	if (Cast<ISpudObject>(Actor))
 	{
-		RespawnMode = IObj->GetSpudRespawnMode();
+		RespawnMode = ISpudObject::Execute_GetSpudRespawnMode(Actor);
 	}
 
 	switch (RespawnMode)
@@ -566,10 +565,9 @@ bool USpudState::ShouldActorBeRespawnedOnRestore(AActor* Actor) const
 
 bool USpudState::ShouldActorTransformBeRestored(AActor* Actor) const
 {
-	// I know this cast style only supports C++ not Blueprints, but this method can only be defined in C++ anyway
-	if (auto IObj = Cast<ISpudObject>(Actor))
+	if (Cast<ISpudObject>(Actor))
 	{
-		return IObj->ShouldRestoreTransform();
+		return ISpudObject::Execute_ShouldRestoreTransform(Actor);
 	}
 	// Assume true
 	return true;
@@ -577,10 +575,9 @@ bool USpudState::ShouldActorTransformBeRestored(AActor* Actor) const
 
 bool USpudState::ShouldActorVelocityBeRestored(AActor* Actor) const
 {
-	// I know this cast style only supports C++ not Blueprints, but this method can only be defined in C++ anyway
-	if (auto IObj = Cast<ISpudObject>(Actor))
+	if (Cast<ISpudObject>(Actor))
 	{
-		return IObj->ShouldRestoreVelocity();
+		return ISpudObject::Execute_ShouldRestoreVelocity(Actor);
 	}
 	// Assume true
 	return true;
