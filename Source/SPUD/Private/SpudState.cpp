@@ -533,7 +533,7 @@ void USpudState::DestroyActor(const FSpudDestroyedLevelActor& DestroyedActor, UL
 bool USpudState::ShouldRespawnRuntimeActor(const AActor* Actor) const
 {
 	ESpudRespawnMode RespawnMode = ESpudRespawnMode::Default;
-	if (Cast<ISpudObject>(Actor))
+	if (Actor->Implements<USpudObject>())
 	{
 		RespawnMode = ISpudObject::Execute_GetSpudRespawnMode(Actor);
 	}
@@ -565,7 +565,7 @@ bool USpudState::ShouldActorBeRespawnedOnRestore(AActor* Actor) const
 
 bool USpudState::ShouldActorTransformBeRestored(AActor* Actor) const
 {
-	if (Cast<ISpudObject>(Actor))
+	if (Actor->Implements<USpudObject>())
 	{
 		return ISpudObject::Execute_ShouldRestoreTransform(Actor);
 	}
@@ -575,7 +575,7 @@ bool USpudState::ShouldActorTransformBeRestored(AActor* Actor) const
 
 bool USpudState::ShouldActorVelocityBeRestored(AActor* Actor) const
 {
-	if (Cast<ISpudObject>(Actor))
+	if (Actor->Implements<USpudObject>())
 	{
 		return ISpudObject::Execute_ShouldRestoreVelocity(Actor);
 	}
