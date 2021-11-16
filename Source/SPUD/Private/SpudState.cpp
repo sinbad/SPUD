@@ -11,6 +11,8 @@
 #include "GameFramework/MovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "ImageUtils.h"
+#include "SpudGameplayTags.h"
+#include "SpudGameplayTagUtil.h"
 #include "GameFramework/PlayerState.h"
 
 DEFINE_LOG_CATEGORY(LogSpudState)
@@ -534,10 +536,19 @@ bool USpudState::ShouldRespawnRuntimeActor(const AActor* Actor) const
 {
 	ESpudRespawnMode RespawnMode = ESpudRespawnMode::Default;
 	// I know this cast style only supports C++ not Blueprints, but this method can only be defined in C++ anyway
+	// The reason we don't allow pure BP overrides is that the default implementation of the C++ interface version is not maintained
 	if (auto IObj = Cast<ISpudObject>(Actor))
 	{
 		RespawnMode = IObj->GetSpudRespawnMode();
 	}
+
+	// For pure BP classes, they can control this through gameplay tags
+	if (FSpudGameplayTagUtil::ActorHasAlwaysRespawnTag(Actor))
+		RespawnMode = ESpudRespawnMode::AlwaysRespawn;
+	else if (FSpudGameplayTagUtil::ActorHasNeverRespawnTag(Actor))
+		RespawnMode = ESpudRespawnMode::NeverRespawn;
+ 
+		
 
 	switch (RespawnMode)
 	{
@@ -567,10 +578,15 @@ bool USpudState::ShouldActorBeRespawnedOnRestore(AActor* Actor) const
 bool USpudState::ShouldActorTransformBeRestored(AActor* Actor) const
 {
 	// I know this cast style only supports C++ not Blueprints, but this method can only be defined in C++ anyway
+	// The reason we don't allow pure BP overrides is that the default implementation of the C++ interface version is not maintained
 	if (auto IObj = Cast<ISpudObject>(Actor))
 	{
 		return IObj->ShouldRestoreTransform();
 	}
+	// For pure BP classes, they can control this through gameplay tags
+	if (FSpudGameplayTagUtil::ActorHasNoRestoreTransformTag(Actor))
+		return false;
+	
 	// Assume true
 	return true;
 }
@@ -578,10 +594,15 @@ bool USpudState::ShouldActorTransformBeRestored(AActor* Actor) const
 bool USpudState::ShouldActorVelocityBeRestored(AActor* Actor) const
 {
 	// I know this cast style only supports C++ not Blueprints, but this method can only be defined in C++ anyway
+	// The reason we don't allow pure BP overrides is that the default implementation of the C++ interface version is not maintained
 	if (auto IObj = Cast<ISpudObject>(Actor))
 	{
 		return IObj->ShouldRestoreVelocity();
 	}
+	// For pure BP classes, they can control this through gameplay tags
+	if (FSpudGameplayTagUtil::ActorHasNoRestoreVelocityTag(Actor))
+		return false;
+	
 	// Assume true
 	return true;
 }

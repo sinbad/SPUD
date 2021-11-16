@@ -29,7 +29,4 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure)
 	static const FName& GetSpudNoRestoreVelocityTagName() { return NoRestoreVelocity; }
 
-	// Called by module startup
-	static void RegisterTags();
-	
 };
