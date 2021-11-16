@@ -567,7 +567,7 @@ bool USpudState::ShouldActorTransformBeRestored(AActor* Actor) const
 {
 	if (Actor->Implements<USpudObject>())
 	{
-		return ISpudObject::Execute_ShouldRestoreTransform(Actor);
+		return !ISpudObject::Execute_ShouldSkipRestoreTransform(Actor);
 	}
 	// Assume true
 	return true;
@@ -577,7 +577,7 @@ bool USpudState::ShouldActorVelocityBeRestored(AActor* Actor) const
 {
 	if (Actor->Implements<USpudObject>())
 	{
-		return ISpudObject::Execute_ShouldRestoreVelocity(Actor);
+		return !ISpudObject::Execute_ShouldSkipRestoreVelocity(Actor);
 	}
 	// Assume true
 	return true;

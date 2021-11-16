@@ -28,6 +28,11 @@ class SPUD_API ISpudObject
 	GENERATED_BODY()
 
 public:
+
+	// Note: in order to support pure Blueprint overrides on behaviour customisation methods, all overrideable
+	// methods MUST have default return state of the zero-filled data. No default implementations that return "true" for example
+	// This is because a pure Blueprint override will not pick up the C++ implementation, because it's an interface, not a base class.
+	
 	/// Return whether this object should be respawned on load if it was detected as a runtime-created object
 	/// The default is to respawn all runtime objects except for Pawns, GameModes, GameStates, PlayerStates and Characters which are assumed to be created automatically.
 	/// You can override this if you want this for things like player pawns, game modes which are marked as runtime created, but
@@ -35,18 +40,18 @@ public:
 	/// Instead these objects will be identified by their names, much like level objects, and you should ensure that
 	/// they always have the same names between save & load. 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD Interface")
-  ESpudRespawnMode GetSpudRespawnMode() const; virtual ESpudRespawnMode GetSpudRespawnMode_Implementation() const { return ESpudRespawnMode::Default; }
+	ESpudRespawnMode GetSpudRespawnMode() const; virtual ESpudRespawnMode GetSpudRespawnMode_Implementation() const { return ESpudRespawnMode::Default; }
 
-	/// Return whether this object should restore its transform from the save data, if it's Movable
-	/// You can override this to false if you want this object to always retain its level location on restore.
+	/// Return whether this object should skip the restoration of its transform from the save data, if it's Movable.
+	/// You can override this to true if you want this object to always retain its level location on restore.
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD Interface")
-	bool ShouldRestoreTransform() const; virtual bool ShouldRestoreTransform_Implementation() const { return true; }
+	bool ShouldSkipRestoreTransform() const; virtual bool ShouldSkipRestoreTransform_Implementation() const { return false; }
 
-	/// Return whether this object should restore its velocity from the save data. Only applies if it's Movable, has opted
+	/// Return whether this object should skip restoring its velocity from the save data. Only applies if it's Movable, has opted
 	/// in to restoring transform, and has either physics sim enabled, or a movement component.
-	/// You can override this to false if you want this object to manage its own velocity on load.
+	/// You can override this to true if you want this object to manage its own velocity on load.
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD Interface")
-	bool ShouldRestoreVelocity() const; virtual bool ShouldRestoreVelocity_Implementation() const { return true; }
+	bool ShouldSkipRestoreVelocity() const; virtual bool ShouldSkipRestoreVelocity_Implementation() const { return false; }
 };
 
 UINTERFACE(MinimalAPI)
