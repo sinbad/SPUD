@@ -11,7 +11,7 @@ void PopulateAllTypes(T& Obj)
 	Obj.UInt8Val = 245;
 	Obj.UInt16Val = 61234;
 	Obj.UInt32Val = 4123456789;
-	Obj.UInt64Val = 18123456789123456789;
+	Obj.UInt64Val = 18123456789123456789ull;
 	Obj.Int8Val = -123;
 	Obj.Int16Val = -32123;
 	Obj.Int32Val = -2112345678;
