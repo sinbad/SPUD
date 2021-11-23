@@ -1263,7 +1263,7 @@ bool FSpudSaveData::WriteAndReleaseLevelData(const FString& LevelName, const FSt
 		if (LevelData->Status == LDS_Loaded ||
 			// If we've queued a background write & unload but this is now requesting a blocking write, we
 			// should upgrade it and do it NOW. When the status is changed to LDS_Unloaded the background worker will ignore it
-			LevelData->Status == LDS_BackgroundWriteAndUnload && bBlocking)
+			(LevelData->Status == LDS_BackgroundWriteAndUnload && bBlocking))
 		{
 			if (bBlocking)
 			{
