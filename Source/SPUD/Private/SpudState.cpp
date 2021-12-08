@@ -500,6 +500,8 @@ AActor* USpudState::RespawnActor(const FSpudSpawnedActorData& SpawnedActor,
 	}
 	FActorSpawnParameters Params;
 	Params.OverrideLevel = Level;
+	// Need to always spawn since we're not setting position until later
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	UE_LOG(LogSpudState, Verbose, TEXT(" * Respawning actor %s of type %s"), *SpawnedActor.Guid.ToString(), *ClassName);
 
 	// Important to spawn using level's world, our GetWorld may not be valid it turns out
