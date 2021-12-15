@@ -21,6 +21,11 @@ bool SpudPropertyUtil::IsPropertySupported(FProperty* Property)
 		if (!IsValidArrayType(AProp))
 			return false;
 	}
+	else if (const auto MProp = CastField<FMapProperty>(Property))
+	{
+		if (!IsValidMapType(MProp))
+			return false;
+	}
 
 	return true;
 }
@@ -37,6 +42,36 @@ bool SpudPropertyUtil::IsValidArrayType(FArrayProperty* AProp)
 			return false;
 	}
 	else if (IsNestedUObjectProperty(AProp->Inner))
+	{
+		// Same problem with nested UObjects
+		return false;
+	}
+	return true;
+
+}
+
+bool SpudPropertyUtil::IsValidMapType(FMapProperty* MProp)
+{
+	// We cannot support arrays of custom structs
+	// This is because we're relying on iterating through the UObject's properties and looking up from the state data,
+	// and to support this with all the issues of backwards compatibility would require such detailed offset data that
+	// it would make the whole thing very unwieldy. Arrays can only be primitive types or builtin structs
+	if (const auto KProp = CastField<FStructProperty>(MProp->KeyProp))
+	{
+		if (!IsBuiltInStructProperty(KProp))
+			return false;
+	}
+	else if (IsNestedUObjectProperty(MProp->KeyProp))
+	{
+		// Same problem with nested UObjects
+		return false;
+	}
+	else if (const auto VProp = CastField<FStructProperty>(MProp->ValueProp))
+	{
+		if (!IsBuiltInStructProperty(VProp))
+			return false;
+	}
+	else if (IsNestedUObjectProperty(MProp->ValueProp))
 	{
 		// Same problem with nested UObjects
 		return false;
@@ -118,6 +153,10 @@ uint16 SpudPropertyUtil::GetPropertyDataType(const FProperty* Prop)
 	{
 		bIsArray = true;
 		ActualProp = AProp->Inner;
+	}
+	else if (const auto MProp = CastField<FMapProperty>(Prop))
+	{
+		return (GetPropertyDataType(MProp->KeyProp) * ESST_Max + GetPropertyDataType(MProp->ValueProp)) | ESST_ArrayOf;
 	}
 
 	uint16 Ret = ESST_Unknown;
@@ -777,6 +816,10 @@ void SpudPropertyUtil::StoreProperty(const UObject* RootObject,
 	{
 		StoreArrayProperty(AProp, RootObject, PrefixID, ContainerPtr, Depth, ClassDef, PropertyOffsets, Meta, Out);
 	}
+	else if (const auto MProp = CastField<FMapProperty>(Property))
+	{
+		StoreMapProperty(MProp, RootObject, PrefixID, ContainerPtr, Depth, ClassDef, PropertyOffsets, Meta, Out);
+	}
 	else
 	{
 		StoreContainerProperty(Property, RootObject, PrefixID, ContainerPtr, false, Depth, ClassDef, PropertyOffsets, Meta, Out);
@@ -816,6 +859,47 @@ void SpudPropertyUtil::StoreArrayProperty(FArrayProperty* AProp,
 		StoreContainerProperty(AProp->Inner, RootObject, PrefixID, ElemPtr, true, Depth, ClassDef, PropertyOffsets, Meta, Out);
 	}
 	
+}
+
+void SpudPropertyUtil::StoreMapProperty(FMapProperty* MProp,
+                                        const UObject* RootObject,
+                                        uint32 PrefixID,
+                                        const void* ContainerPtr,
+                                        int Depth,
+                                        TSharedPtr<FSpudClassDef> ClassDef,
+                                        TArray<uint32>& PropertyOffsets,
+                                        FSpudClassMetadata& Meta,
+                                        FMemoryWriter& Out)
+{
+	// Use helper to get number, ArrayDim doesn't seem to work?
+	const void* DataPtr = MProp->ContainerPtrToValuePtr<void>(ContainerPtr);
+	FScriptMapHelper MapHelper(MProp, DataPtr);
+	const int32 NumElements = MapHelper.Num();
+
+	if (NumElements > std::numeric_limits<uint16>::max())
+	{
+		UE_LOG(LogSpudProps, Error, TEXT("Map property %s/%s has %d elements, exceeds maximum of %d, will be truncated"),
+			*RootObject->GetName(), *MProp->GetName(), NumElements, std::numeric_limits<uint16>::max());
+	}
+
+	RegisterProperty(MProp, PrefixID, ClassDef, PropertyOffsets, Meta, Out);
+
+	// Data is count first
+	uint16 ShortElems = static_cast<uint16>(NumElements);
+	Out << ShortElems;
+	// Store types of keys and values.
+	uint16 KeyType = GetPropertyDataType(MProp->KeyProp);
+	Out << KeyType;
+	uint16 ValueType = GetPropertyDataType(MProp->ValueProp);
+	Out << ValueType;
+
+	// Then keys and values.
+	for (int MapElem = 0; MapElem < NumElements; ++MapElem)
+	{
+		void* KeyPtr = MapHelper.GetKeyPtr(MapElem);
+		StoreContainerProperty(MProp->KeyProp, RootObject, PrefixID, KeyPtr, true, Depth, ClassDef, PropertyOffsets, Meta, Out);
+		StoreContainerProperty(MProp->ValueProp, RootObject, PrefixID, KeyPtr, true, Depth, ClassDef, PropertyOffsets, Meta, Out);
+	}
 }
 
 void SpudPropertyUtil::StoreContainerProperty(FProperty* Property,
@@ -892,6 +976,10 @@ void SpudPropertyUtil::RestoreProperty(UObject* RootObject, FProperty* Property,
 	{
 		RestoreArrayProperty(RootObject, AProp, ContainerPtr, StoredProperty, RuntimeObjects, Meta, Depth, DataIn);
 	}
+	else if (const auto MProp = CastField<FMapProperty>(Property))
+	{
+		RestoreMapProperty(RootObject, MProp, ContainerPtr, StoredProperty, RuntimeObjects, Meta, Depth, DataIn);
+	}
 	else
 	{
 		RestoreContainerProperty(RootObject,Property, ContainerPtr, StoredProperty, RuntimeObjects, Meta, Depth, DataIn);
@@ -922,6 +1010,45 @@ void SpudPropertyUtil::RestoreArrayProperty(UObject* RootObject, FArrayProperty*
 		RestoreContainerProperty(RootObject, AProp->Inner, ElemPtr, StoredProperty, RuntimeObjects, Meta, Depth, DataIn);
 	}
 	
+}
+
+void SpudPropertyUtil::RestoreMapProperty(UObject* RootObject, FMapProperty* const MProp,
+                                                  void* ContainerPtr, const FSpudPropertyDef& StoredProperty,
+                                                  const RuntimeObjectMap* RuntimeObjects,
+                                                  const FSpudClassMetadata& Meta,
+                                                  int Depth,
+                                                  FMemoryReader& DataIn)
+{
+	// Map properties store the count as a uint16 first
+	uint16 NumElems;
+	DataIn << NumElems;
+
+	// Key type and value type.
+	uint16 KeyType;
+	DataIn << KeyType;
+	uint16 ValueType;
+	DataIn << ValueType;
+	const FSpudPropertyDef StoredPropertyKey(StoredProperty.PropertyID, StoredProperty.PrefixID, KeyType | ESST_ArrayOf);
+	const FSpudPropertyDef StoredPropertyValue(StoredProperty.PropertyID, StoredProperty.PrefixID, ValueType | ESST_ArrayOf);
+
+	// Initialize map with empty values.
+	void* DataPtr = MProp->ContainerPtrToValuePtr<void>(ContainerPtr);
+	FScriptMapHelper MapHelper(MProp, DataPtr);
+	MapHelper.EmptyValues(NumElems);
+	for (int MapElem = 0; MapElem < NumElems; ++MapElem)
+	{
+		MapHelper.AddDefaultValue_Invalid_NeedsRehash();
+	}
+
+	// After that, it's just like restoring a single property, just to a new location for each key and value.
+	for (int MapElem = 0; MapElem < NumElems; ++MapElem)
+	{
+		void* KeyPtr = MapHelper.GetKeyPtr(MapElem);
+		RestoreContainerProperty(RootObject, MProp->KeyProp, KeyPtr, StoredPropertyKey, RuntimeObjects, Meta, Depth, DataIn);
+		RestoreContainerProperty(RootObject, MProp->ValueProp, KeyPtr, StoredPropertyValue, RuntimeObjects, Meta, Depth, DataIn);
+	}
+
+	MapHelper.Rehash();
 }
 
 void SpudPropertyUtil::RestoreContainerProperty(UObject* RootObject, FProperty* const Property,

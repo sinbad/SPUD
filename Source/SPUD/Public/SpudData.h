@@ -88,6 +88,8 @@ enum SPUD_API ESpudStorageType // (stored as uint16 but not using enum class to 
 	ESST_String = 30,
 	ESST_Name = 31,
 	ESST_Text = 32,
+	// Max has to be higher than any other type. Used to serialize 2 types in FMap.
+	ESST_Max = 64,
 
 	/// Unknown is a placeholder fallback
 	ESST_Unknown = 0x0F00,

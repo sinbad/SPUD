@@ -224,6 +224,15 @@ public:
 	                               TArray<uint32>& PropertyOffsets,
 	                               FSpudClassMetadata& Meta,
 	                               FMemoryWriter& Out);
+	static void StoreMapProperty(FMapProperty* MProp,
+	                             const UObject* RootObject,
+	                             uint32 PrefixID,
+	                             const void* ContainerPtr,
+	                             int Depth,
+	                             TSharedPtr<FSpudClassDef> ClassDef,
+	                             TArray<uint32>& PropertyOffsets,
+	                             FSpudClassMetadata& Meta,
+	                             FMemoryWriter& Out);
 	static void StoreContainerProperty(FProperty* Property,
 	                                   const UObject* RootObject,
 	                                   uint32 PrefixID,
@@ -248,6 +257,11 @@ public:
 	                                 const RuntimeObjectMap* RuntimeObjects,
 	                                 const FSpudClassMetadata& Meta,
 	                                 int Depth, FMemoryReader& DataIn);
+	static void RestoreMapProperty(UObject* RootObject, FMapProperty* const AProp, void* ContainerPtr,
+	                               const FSpudPropertyDef& StoredProperty,
+	                               const RuntimeObjectMap* RuntimeObjects,
+	                               const FSpudClassMetadata& Meta,
+	                               int Depth, FMemoryReader& DataIn);
 	static void RestoreContainerProperty(UObject* RootObject, FProperty* const Property,
 	                                     void* ContainerPtr, const FSpudPropertyDef& StoredProperty,
 	                                     const RuntimeObjectMap* RuntimeObjects,
@@ -263,6 +277,7 @@ public:
 
 protected:
 	static bool IsValidArrayType(FArrayProperty* AProp);
+	static bool IsValidMapType(FMapProperty* MProp);
 	/// General recursive visitation of properties, returns false to early-out, object/container can be null
 	static bool VisitPersistentProperties(UObject* RootObject, const UStruct* Definition, uint32 PrefixID,
 	                                      void* ContainerPtr, bool IsChildOfSaveGame, int Depth,

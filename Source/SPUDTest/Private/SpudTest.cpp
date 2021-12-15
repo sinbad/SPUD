@@ -91,6 +91,15 @@ void PopulateAllTypes(T& Obj)
 	Obj.StringArray.Add("Yeah, best crack on eh?");	
 	Obj.TextArray.Add(FText::FromString("TextOne"));
 	Obj.TextArray.Add(FText::FromString("TextTwo"));
+
+	Obj.IntMap.Add(136, 137);
+	Obj.IntMap.Add(-31913, -31914);
+	Obj.FloatMap.Add(-3456.236, -3457.236);
+	Obj.FloatMap.Add(-1.99, -2.99);
+	Obj.IntFloatMap.Add(136, 3.99);
+	Obj.IntFloatMap.Add(138, -4.99);
+	Obj.StringVectorMap.Add("Test data is super boring to write!", FVector(1, 2, 3));
+	Obj.StringVectorMap.Add("I know, right?", FVector(3, 4, 5));
 }
 
 template<typename T>
@@ -101,7 +110,19 @@ void CheckArray(FAutomationTestBase* Test, const FString& Prefix, const TArray<T
 	{
 		Test->TestEqual(FString::Printf(TEXT("%sItem %d should match"), *Prefix, i), Actual[i], Expected[i]);
 	}
-	
+
+}
+
+template<typename K, typename V>
+void CheckMap(FAutomationTestBase* Test, const FString& Prefix, const TMap<K, V>& Actual, const TMap<K, V>& Expected)
+{
+	Test->TestEqual(Prefix + "Map Length should match", Actual.Num(), Expected.Num());
+	int i = 0;
+	for (auto& Elem : Actual)
+	{
+		Test->TestEqual(FString::Printf(TEXT("%sItem %d should match"), *Prefix, i), Elem.Value, Expected.FindRef(Elem.Key));
+		i++;
+	}
 }
 
 template<typename T>
@@ -172,6 +193,10 @@ void CheckAllTypes(FAutomationTestBase* Test, const FString& Prefix, const T& Ac
 	Test->TestEqual(Prefix + "TextArray 0 should match", Actual.TextArray[0].ToString(), Expected.TextArray[0].ToString());
 	Test->TestEqual(Prefix + "TextArray 1 should match", Actual.TextArray[1].ToString(), Expected.TextArray[1].ToString());
 
+	CheckMap(Test, Prefix + "IntMap|", Actual.IntMap, Expected.IntMap);
+	CheckMap(Test, Prefix + "FloatMap|", Actual.FloatMap, Expected.FloatMap);
+	CheckMap(Test, Prefix + "IntFloatMap|", Actual.IntFloatMap, Expected.IntFloatMap);
+	CheckMap(Test, Prefix + "StringVectorMap|", Actual.StringVectorMap, Expected.StringVectorMap);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTestBasicAllTypes, "SPUDTest.BasicAllTypes",

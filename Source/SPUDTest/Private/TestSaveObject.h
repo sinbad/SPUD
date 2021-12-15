@@ -130,6 +130,16 @@ public:
 	TArray<FText> TextArray;
 
 	// Arrays of custom structs or UObjects are not supported yet
+
+	// Maps of the above
+	UPROPERTY(SaveGame)
+	TMap<int, int> IntMap;
+	UPROPERTY(SaveGame)
+	TMap<float, float> FloatMap;
+	UPROPERTY(SaveGame)
+	TMap<int, float> IntFloatMap;
+	UPROPERTY(SaveGame)
+	TMap<FString, FVector> StringVectorMap;
 };
 
 // Test 2-level nesting
@@ -244,6 +254,16 @@ public:
 	TArray<FString> StringArray;
 	UPROPERTY(SaveGame)
 	TArray<FText> TextArray;
+
+	// Maps of the above
+	UPROPERTY(SaveGame)
+	TMap<int, int> IntMap;
+	UPROPERTY(SaveGame)
+	TMap<float, float> FloatMap;
+	UPROPERTY(SaveGame)
+	TMap<int, float> IntFloatMap;
+	UPROPERTY(SaveGame)
+	TMap<FString, FVector> StringVectorMap;
 };
 
 
