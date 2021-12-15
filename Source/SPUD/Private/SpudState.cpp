@@ -502,7 +502,7 @@ AActor* USpudState::RespawnActor(const FSpudSpawnedActorData& SpawnedActor,
 	Params.OverrideLevel = Level;
 	// Need to always spawn since we're not setting position until later
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	UE_LOG(LogSpudState, Verbose, TEXT(" * Respawning actor %s of type %s"), *SpawnedActor.Guid.ToString(), *ClassName);
+	UE_LOG(LogSpudState, Verbose, TEXT(" * Respawning actor %s of type %s"), *SpawnedActor.Guid.ToString(EGuidFormats::DigitsWithHyphens), *ClassName);
 
 	// Important to spawn using level's world, our GetWorld may not be valid it turns out
 	auto World = Level->GetWorld();
@@ -596,7 +596,7 @@ void USpudState::RestoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelD
 	if (bRespawned)
 	{
 		ActorData = GetSpawnedActorData(Actor, LevelData, false);
-		UE_LOG(LogSpudState, Verbose, TEXT(" * RESTORE Level Actor: %s"), *Actor->GetName())
+		UE_LOG(LogSpudState, Verbose, TEXT(" * RESTORE Runtime Actor: %s"), *Actor->GetName())
 	}
 	else
 	{
