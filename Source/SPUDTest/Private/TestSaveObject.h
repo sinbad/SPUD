@@ -77,6 +77,8 @@ public:
 	FName NameVal;
 	UPROPERTY(SaveGame)
 	FString StringVal;
+	UPROPERTY(SaveGame)
+	FText TextVal;
 
 	UPROPERTY(SaveGame)
 	UTestNestedUObject* UObjectVal = nullptr;
@@ -123,6 +125,8 @@ public:
 	TArray<FName> NameArray;
 	UPROPERTY(SaveGame)
 	TArray<FString> StringArray;
+	UPROPERTY(SaveGame)
+	TArray<FText> TextArray;
 
 	// Arrays of custom structs or UObjects are not supported yet
 };
@@ -188,6 +192,8 @@ public:
 	FName NameVal;
 	UPROPERTY(SaveGame)
 	FString StringVal;
+	UPROPERTY(SaveGame)
+	FText TextVal;
 
 	UPROPERTY(SaveGame)
 	UTestNestedUObject* UObjectVal;
@@ -235,6 +241,8 @@ public:
 	TArray<FName> NameArray;
 	UPROPERTY(SaveGame)
 	TArray<FString> StringArray;
+	UPROPERTY(SaveGame)
+	TArray<FText> TextArray;
 };
 
 

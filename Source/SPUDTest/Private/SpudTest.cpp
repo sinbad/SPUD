@@ -25,6 +25,7 @@ void PopulateAllTypes(T& Obj)
 	Obj.TransformVal.SetComponents(Obj.RotatorVal.Quaternion(), Obj.VectorVal, FVector(1, 2, 1));
 	Obj.NameVal = FName("SpudNameTest");
 	Obj.StringVal = "A string test for SPUD";
+	Obj.TextVal = FText::FromString("SpudTextTest");
 	Obj.UObjectVal = NewObject<UTestNestedUObject>();
 	Obj.UObjectVal->NestedIntVal = 96;
 	Obj.UObjectVal->NestedStringVal = "A string inside a nested UObject";
@@ -88,7 +89,8 @@ void PopulateAllTypes(T& Obj)
 	Obj.StringArray.Add("I know, right?");
 	Obj.StringArray.Add("Still, we're almost there now chuck");
 	Obj.StringArray.Add("Yeah, best crack on eh?");	
-	
+	Obj.TextArray.Add(FText::FromString("TextOne"));
+	Obj.TextArray.Add(FText::FromString("TextTwo"));
 }
 
 template<typename T>
@@ -133,6 +135,7 @@ void CheckAllTypes(FAutomationTestBase* Test, const FString& Prefix, const T& Ac
 	Test->TestTrue(Prefix + "TransformVal should match", Actual.TransformVal.Equals(Expected.TransformVal));
 	Test->TestEqual(Prefix + "NameVal should match", Actual.NameVal, Expected.NameVal);
 	Test->TestEqual(Prefix + "StringVal should match", Actual.StringVal, Expected.StringVal);
+	Test->TestEqual(Prefix + "TextVal should match", Actual.TextVal.ToString(), Expected.TextVal.ToString());
 
 	Test->TestNotNull(Prefix + "UObject shouldn't be null", Actual.UObjectVal);
 	if (Actual.UObjectVal)
@@ -166,6 +169,8 @@ void CheckAllTypes(FAutomationTestBase* Test, const FString& Prefix, const T& Ac
 	CheckArrayExplicitEquals(Test, Prefix + "TransformArray|", Actual.TransformArray, Expected.TransformArray);
 	CheckArray(Test, Prefix + "NameArray|", Actual.NameArray, Expected.NameArray);
 	CheckArray(Test, Prefix + "StringArray|", Actual.StringArray, Expected.StringArray);
+	Test->TestEqual(Prefix + "TextArray 0 should match", Actual.TextArray[0].ToString(), Expected.TextArray[0].ToString());
+	Test->TestEqual(Prefix + "TextArray 1 should match", Actual.TextArray[1].ToString(), Expected.TextArray[1].ToString());
 
 }
 
