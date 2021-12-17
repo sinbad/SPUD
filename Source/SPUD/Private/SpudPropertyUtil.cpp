@@ -176,6 +176,8 @@ uint16 SpudPropertyUtil::GetPropertyDataType(const FProperty* Prop)
 			Ret = SpudTypeInfo<FString>::EnumType;
 		else if (CastField<FNameProperty>(ActualProp))
 			Ret = SpudTypeInfo<FName>::EnumType;
+		else if (CastField<FTextProperty>(ActualProp))
+			Ret = SpudTypeInfo<FText>::EnumType;
 		else if (CastField<FEnumProperty>(ActualProp))
 			Ret = SpudTypeInfo<SpudAnyEnum>::EnumType;
 	}
@@ -746,6 +748,7 @@ void SpudPropertyUtil::StoreContainerProperty(FProperty* Property, const UObject
             TryWritePropertyData<FDoubleProperty,	double>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
             TryWritePropertyData<FStrProperty,		FString>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
             TryWritePropertyData<FNameProperty,		FName>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+            TryWritePropertyData<FTextProperty,		FText>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
             TryWriteEnumPropertyData(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
             TryWriteUObjectPropertyData(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out);;
 		
@@ -845,6 +848,7 @@ void SpudPropertyUtil::RestoreContainerProperty(UObject* RootObject, FProperty* 
             TryReadPropertyData<FDoubleProperty,	double>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
             TryReadPropertyData<FStrProperty,		FString>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
             TryReadPropertyData<FNameProperty,		FName>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+            TryReadPropertyData<FTextProperty,		FText>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
             TryReadEnumPropertyData(Property, DataPtr, StoredProperty, Depth, DataIn);
 
 		if (!bUpdateOK)

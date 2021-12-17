@@ -66,6 +66,7 @@ template <> const ESpudStorageType SpudTypeInfo<FTransform>::EnumType = ESST_Tra
 template <> const ESpudStorageType SpudTypeInfo<FGuid>::EnumType = ESST_Guid;
 template <> const ESpudStorageType SpudTypeInfo<FString>::EnumType = ESST_String;
 template <> const ESpudStorageType SpudTypeInfo<FName>::EnumType = ESST_Name;
+template <> const ESpudStorageType SpudTypeInfo<FText>::EnumType = ESST_Text;
 }
 /// Utility class which does all the nuts & bolts related to property persistence without actually being stateful
 /// Also none of this is exposed to Blueprints, is completely internal to C++ persistence
@@ -247,6 +248,7 @@ protected:
 	static FString ToString(double Val) { return FString::Printf(TEXT("%lf"), Val); }
 	static FString ToString(const FString& Val) { return Val; }
 	static FString ToString(const FName& Val) { return Val.ToString(); }
+	static FString ToString(const FText& Val) { return Val.ToString(); }
 	template <typename T>
     static FString ToString(T* Val) { return Val->ToString(); }	
 
