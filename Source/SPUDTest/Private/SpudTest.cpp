@@ -307,3 +307,32 @@ bool FTestCustomData::RunTest(const FString& Parameters)
 
 	return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTestNestedObject, "SPUDTest.NestedObject",
+	EAutomationTestFlags::EditorContext |
+	EAutomationTestFlags::ClientContext |
+	EAutomationTestFlags::ProductFilter)
+
+bool FTestNestedObject::RunTest(const FString& Parameters)
+{
+	auto SavedObj = NewObject<UTestSaveObjectParent>();
+	SavedObj->UObjectVal1 = NewObject<UTestNestedChild1>();
+	SavedObj->UObjectVal2 = NewObject<UTestNestedChild2>();
+	SavedObj->UObjectVal3 = NewObject<UTestNestedChild3>();
+	SavedObj->UObjectVal4 = NewObject<UTestNestedChild4>();
+	SavedObj->UObjectVal5 = NewObject<UTestNestedChild5>();
+
+	auto State = NewObject<USpudState>();
+	State->StoreGlobalObject(SavedObj, "TestObject");
+
+	auto LoadedObj = NewObject<UTestSaveObjectParent>();
+	State->RestoreGlobalObject(LoadedObj, "TestObject");
+
+	TestNotNull("UObject1 shouldn't be null", LoadedObj->UObjectVal1);
+	TestNotNull("UObject2 shouldn't be null", LoadedObj->UObjectVal2);
+	TestNotNull("UObject3 shouldn't be null", LoadedObj->UObjectVal3);
+	TestNotNull("UObject4 shouldn't be null", LoadedObj->UObjectVal4);
+	TestNotNull("UObject5 shouldn't be null", LoadedObj->UObjectVal5);
+
+	return true;
+}
