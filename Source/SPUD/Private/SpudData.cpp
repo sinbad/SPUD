@@ -452,7 +452,7 @@ bool FSpudNamedObjectMap::RenameObject(const FString& OldName, const FString& Ne
 void FSpudDestroyedActorArray::Add(const FString& Name)
 {
 
-	Values.Add(FSpudDestroyedLevelActor(Name));
+	Values.Add(new FSpudDestroyedLevelActor(Name));
 	
 }
 //------------------------------------------------------------------------------
@@ -505,19 +505,24 @@ FSpudClassDef& FSpudClassMetadata::FindOrAddClassDef(const FString& ClassName)
 	int Index = ClassNameIndex.FindOrAddIndex(ClassName);
 	if (ClassDefinitions.Values.Num() < Index + 1)
 	{
+		// Create new entries
+		int OldNum = ClassDefinitions.Values.Num();
 		ClassDefinitions.Values.SetNum(Index + 1);
-		auto& Def = ClassDefinitions.Values[Index];
-		Def.ClassName = ClassName;
+		for (int i = OldNum; i < Index + 1; ++i)
+		{
+			ClassDefinitions.Values[i] = new FSpudClassDef();
 	}
-	return ClassDefinitions.Values[Index];
-	
+		// Set ClassName to correct one
+		ClassDefinitions.Values[Index]->ClassName = ClassName;
+	}
+	return *ClassDefinitions.Values[Index];
 }
 const FSpudClassDef* FSpudClassMetadata::GetClassDef(const FString& ClassName) const
 {
 	int Index = ClassNameIndex.GetIndex(ClassName);
 	if (Index != SPUDDATA_INDEX_NONE)
 	{
-		return &ClassDefinitions.Values[Index];
+		return ClassDefinitions.Values[Index];
 	}
 	return nullptr;
 }
@@ -589,7 +594,7 @@ bool FSpudClassMetadata::RenameClass(const FString& OldClassName, const FString&
 	uint32 Index = ClassNameIndex.Rename(OldClassName, NewClassName);
 	if (Index != SPUDDATA_INDEX_NONE)
 	{
-		auto& ClassDef = ClassDefinitions.Values[Index];
+		auto& ClassDef = *ClassDefinitions.Values[Index];
 		ClassDef.ClassName = NewClassName;
 		return true;
 	}
@@ -606,7 +611,7 @@ bool FSpudClassMetadata::RenameProperty(const FString& ClassName, const FString&
 		// This may orphan the old name ID but that doesn't hurt anyone except consuming a few bytes
 
 		// Now point our property for that class at new name. Everything else remains the same
-		auto& Def = ClassDefinitions.Values[*pClassID];
+		auto& Def = *ClassDefinitions.Values[*pClassID];
 	
 		uint32 OldNameID = GetPropertyIDFromName(OldName);
 		uint32 NewNameID = FindOrAddPropertyIDFromName(NewName);

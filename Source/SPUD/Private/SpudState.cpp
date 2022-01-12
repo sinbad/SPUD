@@ -454,7 +454,7 @@ void USpudState::RestoreLevel(ULevel* Level)
 	// Destroy actors in level but missing from save state
 	for (auto&& DestroyedActor : LevelData->DestroyedActors.Values)
 	{
-		DestroyActor(DestroyedActor, Level);			
+		DestroyActor(*DestroyedActor, Level);			
 	}
 	UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - Complete"), *LevelName);
 
@@ -753,7 +753,7 @@ void USpudState::RestoreObjectProperties(UObject* Obj, FMemoryReader& In, const 
 	const auto ClassDef = Meta.GetClassDef(ClassName);
 	if (!ClassDef)
 	{
-		UE_LOG(LogSpudState, Error, TEXT("Unable to find ClassDef for: %s %s"), *SpudPropertyUtil::GetClassName(Obj));
+		UE_LOG(LogSpudState, Error, TEXT("Unable to find ClassDef for: %s"), *SpudPropertyUtil::GetClassName(Obj));
 		return;
 	}
 

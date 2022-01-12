@@ -437,7 +437,7 @@ struct FSpudStructMapData : public FSpudChunk
 template <typename T>
 struct FSpudArray : public FSpudChunk
 {
-	TArray<T> Values;
+	TArray<T*> Values;
 
 	virtual const char* GetChildMagic() const = 0;
 
@@ -448,7 +448,7 @@ struct FSpudArray : public FSpudChunk
 			// Just write values, those will write chunks
 			for (auto && Item : Values)
 			{
-				Item.WriteToArchive(Ar);
+				Item->WriteToArchive(Ar);
 			}
 			ChunkEnd(Ar);
 		}
@@ -458,16 +458,16 @@ struct FSpudArray : public FSpudChunk
 	{
 		if (ChunkStart(Ar))
 		{
-			Values.Empty();
+			Reset();
 
 			// Detect chunks & only load compatible
 			const uint32 ChildMagicID = FSpudChunkHeader::EncodeMagic(GetChildMagic());
-			T ChildData;
 			while (IsStillInChunk(Ar))
 			{
 				if (Ar.NextChunkIs(ChildMagicID))
 				{
-					ChildData.ReadFromArchive(Ar, StoredSystemVersion);
+					T* ChildData = new T;
+					ChildData->ReadFromArchive(Ar, StoredSystemVersion);
 					Values.Add(ChildData);						
 				}
 				else
@@ -481,6 +481,10 @@ struct FSpudArray : public FSpudChunk
 
 	void Reset()
 	{
+		for (auto Item : Values)
+		{
+			delete Item;
+		}
 		Values.Empty();
 	}
 	
