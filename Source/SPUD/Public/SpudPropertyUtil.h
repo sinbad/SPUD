@@ -380,12 +380,12 @@ protected:
 	                                    int Depth, FArchive& In);
 	static FString ReadActorRefPropertyData(::FObjectProperty* OProp, void* Data, const RuntimeObjectMap* RuntimeObjects, ULevel* Level, FArchive& In);
 	static FString ReadNestedUObjectPropertyData(::FObjectProperty* OProp, void* Data, const RuntimeObjectMap* RuntimeObjects,
-		ULevel* Level, const FSpudClassMetadata& Meta, FArchive& In);
+		ULevel* Level, UObject* Outer, const FSpudClassMetadata& Meta, FArchive& In);
 	static FString ReadSubclassOfPropertyData(::FObjectProperty* OProp, void* Data, const RuntimeObjectMap* RuntimeObjects,
 		ULevel* Level, const FSpudClassMetadata& Meta, FArchive& In);
 	static bool TryReadUObjectPropertyData(::FProperty* Prop, void* Data, const ::FSpudPropertyDef& StoredProperty,
 	                                        const RuntimeObjectMap* RuntimeObjects,
-	                                        ULevel* Level, const FSpudClassMetadata& Meta, int Depth, FArchive& In);
+	                                        ULevel* Level, UObject* Outer, const FSpudClassMetadata& Meta, int Depth, FArchive& In);
 
 public:
 
