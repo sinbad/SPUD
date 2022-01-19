@@ -140,9 +140,9 @@ void ASpudStreamingVolume::AddRelevantActor(AActor* Actor)
 
 void ASpudStreamingVolume::RemoveRelevantActor(AActor* Actor)
 {
-	RelevantActorsInVolume.Remove(Actor);
+	const int Removed = RelevantActorsInVolume.Remove(Actor);
 
-	if (RelevantActorsInVolume.Num() == 0)
+	if (Removed > 0 && RelevantActorsInVolume.Num() == 0)
 	{
 		auto PS = GetSpudSubsystem(GetWorld());
 		if (PS)

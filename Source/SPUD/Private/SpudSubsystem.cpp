@@ -552,8 +552,8 @@ void USpudSubsystem::WithdrawRequestForStreamingLevel(UObject* Requester, FName 
 
 	if (auto Request = LevelRequests.Find(LevelName))
 	{
-		Request->Requesters.Remove(Requester);
-		if (Request->Requesters.Num() == 0)
+		const int Removed = Request->Requesters.Remove(Requester);
+		if (Removed > 0 && Request->Requesters.Num() == 0)
 		{
 			// This level can be unloaded after time delay
 			Request->bPendingUnload = true;
