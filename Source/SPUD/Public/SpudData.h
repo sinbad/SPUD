@@ -118,7 +118,7 @@ struct SPUD_API FSpudChunkHeader
 
 	static uint32 EncodeMagic(const char* InMagic)
 	{
-		check(strlen(InMagic) == 4)
+		check(strlen(InMagic) >= 4)
         return InMagic[0] +
             (InMagic[1] << 8) +
             (InMagic[2] << 16) +
