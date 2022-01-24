@@ -58,6 +58,8 @@ void FSpudChunkedDataArchive::SkipNextChunk()
 	}
 
 	FSpudChunkHeader Header;
+	const int64 StartPos = Tell();
+
 	if (PreviewNextChunk(Header, false))
 	{
 		// Length is after header so we can just seek from here
@@ -65,6 +67,7 @@ void FSpudChunkedDataArchive::SkipNextChunk()
 	}
 	else
 	{
+		Seek(StartPos);
 		UE_LOG(LogSpudData, Fatal, TEXT("Unable to preview next chunk to skip"))
 		return;
 	}

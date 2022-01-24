@@ -374,6 +374,8 @@ class SPUD_API USpudStateCustomData : public UObject
 protected:
 	FArchive *SPUDAr;
 
+	TArray<TSharedPtr<FSpudAdhocWrapperChunk>> ChunkStack;
+
 public:
 	USpudStateCustomData() : SPUDAr(nullptr) {}
 
@@ -533,6 +535,78 @@ public:
 
 	/// Access the underlying archive in order to write custom data directly.
 	FArchive* GetUnderlyingArchive() const { return SPUDAr; }
+
+	/**
+	 * Begin writing a chunk of data which is delimited by a header & length.
+	 * For more advanced custom data, you can wrap your data in a chunk. These chunks
+	 * contain an identifying header, and a total data length including anything written inside them, so they can be skipped
+	 * and more safely read back later.
+	 * You MUST balance this call with EndWriteChunk with the same ID. However you can nest chunks
+	 * by calling BeginWriteChunk again (with a different ID), so long as all begin/ends are balanced and
+	 * inner chunks are completed before outer ones.
+	 * 
+	 * @param MagicID 4-character string (longer strings will be truncated) identifying this chunk type.
+	 *   You can use the same ID multiple times for sibling chunks if you want, it's a type identifier not an instance
+	 */
+	UFUNCTION(BlueprintCallable)
+	void BeginWriteChunk(FString MagicID);
+
+	/**
+	 * Finish writing a chunk. You must call this the same number of times as BeginWriteChunk for a given ID
+	 * @param MagicID 4-character string (longer strings will be truncated) identifying this chunk type
+	 */
+	UFUNCTION(BlueprintCallable)
+	void EndWriteChunk(FString MagicID);
+
+	/**
+	 * Try to being reading a chunk of data which is delimited by a header & length.
+	 * For more advanced custom data, you can wrap your data in a chunk. These chunks
+	 * contain an identifying header, and a length so they can be skipped.
+	 * This returns whether a chunk of this type was found. If true, you can continue to read the inner data your
+	 * were expecting, and you MUST balance this call with EndReadChunk with the same ID. You can have nested chunks.
+	 * If it returns false, the chunk was not found, and the data pointer will remain unchanged.
+	 * 
+	 * @param MagicID 4-character string (longer strings will be truncated) identifying this chunk type.
+	 *   You can use the same ID multiple times for sibling chunks if you want, it's a type identifier not an instance
+	 * @return True if this chunk was found next in the data stream
+	 */
+	UFUNCTION(BlueprintCallable)
+	bool BeginReadChunk(FString MagicID);
+
+	/**
+	 * Finish reading a chunk. You must call this for each time BeginReadChunk returned true.
+	 * If you didn't read all the way to the end of the chunk, the data pointer will automatically jump to the end
+	 * of the chunk.
+	 * @param MagicID 4-character string (longer strings will be truncated) identifying this chunk type
+	 */
+	UFUNCTION(BlueprintCallable)
+	void EndReadChunk(FString MagicID);
+	
+	/**
+	 * Peek at the upcoming data in read mode, and return the ID of the next chunk.
+	 * You MUST check the OutMagicID because this function only returns false if there wasn't enough data left to read.
+	 * If you have other non-chunk data next in the stream, it can be returned in OutMagicID but will be garbage.
+	 * @param OutMagicID Reference to a string which will contain the 4-character identifier
+	 * @returns True if we managed to read enough data to read something that might be a chunk
+	 */
+	UFUNCTION(BlueprintCallable)
+	bool PeekChunk(FString &OutMagicID);
+	
+	/**
+	 * Skip over the next chunk of data, so long as it has the correct ID. If not, this call is ignored for safety.
+	 * @param MagicID 4-character string (longer strings will be truncated) identifying the chunk type
+	 * @returns True if we did indeed skip a chunk
+	 */
+	UFUNCTION(BlueprintCallable)
+	bool SkipChunk(FString MagicID);
+	
+	/**
+	 * Return whether we're still reading/writing a given chunk. Useful when reading and detecting the end of
+	 * a block of 1..n data.
+	 * @param MagicID 4-character string (longer strings will be truncated) identifying chunk type
+	 */
+	UFUNCTION(BlueprintCallable)
+	bool IsStillInChunk(FString MagicID) const;
 
 };
 

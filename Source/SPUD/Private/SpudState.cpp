@@ -1112,6 +1112,155 @@ bool USpudState::LoadSaveInfoFromArchive(FArchive& SPUDAr, USpudSaveGameInfo& Ou
 	
 }
 
+void USpudStateCustomData::BeginWriteChunk(FString MagicID)
+{
+	auto MagicChar = StringCast<ANSICHAR>(*MagicID);
+
+	if (MagicChar.Length() > 4)
+	{
+		UE_LOG(LogSpudData, Error, TEXT("Chunk ID %s is more than 4 characters long, will be truncated"), *MagicID);
+	}
+
+	const TSharedPtr<FSpudAdhocWrapperChunk> Chunk = MakeShareable<FSpudAdhocWrapperChunk>(new FSpudAdhocWrapperChunk(MagicChar.Get()));
+	ChunkStack.Push(Chunk);
+
+	Chunk->ChunkStart(*GetUnderlyingArchive());
+}
+
+void USpudStateCustomData::EndWriteChunk(FString MagicID)
+{
+	const auto CharStr = StringCast<ANSICHAR>(*MagicID);
+	
+	if (CharStr.Length() > 4)
+	{
+		UE_LOG(LogSpudData, Error, TEXT("Chunk ID %s is more than 4 characters long, truncating"), *MagicID);
+	}
+
+	if (ChunkStack.Num() == 0)
+	{
+		UE_LOG(LogSpudData, Error, TEXT("Cannot end chunk with ID %s, no chunks left to end"), *MagicID);
+		return;	
+	}
+
+	if (strncmp(ChunkStack.Top()->Magic, CharStr.Get(), 4) != 0)
+	{
+		UE_LOG(LogSpudData, Fatal,
+		       TEXT("Cannot call EndWriteChunk with ID %s because the last BeginWriteChunk was called with ID %s"),
+		       *MagicID,
+		       ChunkStack.Top()->Magic);
+		return;
+	}
+
+	const TSharedPtr<FSpudAdhocWrapperChunk> Chunk = ChunkStack.Pop();
+	Chunk->ChunkEnd(*GetUnderlyingArchive());
+	
+}
+
+bool USpudStateCustomData::BeginReadChunk(FString MagicID)
+{
+	const auto MagicChar = StringCast<ANSICHAR>(*MagicID);
+
+	if (MagicChar.Length() > 4)
+	{
+		UE_LOG(LogSpudData, Error, TEXT("Chunk ID %s is more than 4 characters long, will be truncated"), *MagicID);
+	}
+
+	const TSharedPtr<FSpudAdhocWrapperChunk> Chunk = MakeShareable<FSpudAdhocWrapperChunk>(new FSpudAdhocWrapperChunk(MagicChar.Get()));
+	const bool bOK = Chunk->ChunkStart(*GetUnderlyingArchive());
+	if (bOK)
+	{
+		ChunkStack.Push(Chunk);
+	}
+	return bOK;
+}
+
+void USpudStateCustomData::EndReadChunk(FString MagicID)
+{
+	const auto CharStr = StringCast<ANSICHAR>(*MagicID);
+	
+	if (CharStr.Length() > 4)
+	{
+		UE_LOG(LogSpudData, Error, TEXT("Chunk ID %s is more than 4 characters long, truncating"), *MagicID);
+	}
+
+	if (ChunkStack.Num() == 0)
+	{
+		UE_LOG(LogSpudData, Error, TEXT("Cannot end chunk with ID %s, no chunks left to end"), *MagicID);
+		return;	
+	}
+
+	if (strncmp(ChunkStack.Top()->Magic, CharStr.Get(), 4) != 0)
+	{
+		UE_LOG(LogSpudData, Fatal,
+			   TEXT("Cannot call EndReadChunk with ID %s because the last BeginWriteChunk was called with ID %s"),
+			   *MagicID,
+			   ChunkStack.Top()->Magic);
+		return;
+	}
+
+	const TSharedPtr<FSpudAdhocWrapperChunk> Chunk = ChunkStack.Pop();
+	Chunk->ChunkEnd(*GetUnderlyingArchive());
+	
+}
+
+bool USpudStateCustomData::PeekChunk(FString& OutMagicID)
+{
+	FSpudChunkedDataArchive Ar(*GetUnderlyingArchive());
+	FSpudChunkHeader Header;
+	if (Ar.PreviewNextChunk(Header))
+	{
+		OutMagicID = FSpudChunkHeader::MagicToString(Header.MagicFriendly);
+		return true;
+	}
+
+	return false;
+}
+
+bool USpudStateCustomData::SkipChunk(FString MagicID)
+{
+	const auto CharStr = StringCast<ANSICHAR>(*MagicID);
+	
+	if (CharStr.Length() > 4)
+	{
+		UE_LOG(LogSpudData, Error, TEXT("Chunk ID %s is more than 4 characters long, truncating"), *MagicID);
+	}
+	
+	FSpudChunkedDataArchive Ar(*GetUnderlyingArchive());
+	FSpudChunkHeader Header;
+	if (Ar.PreviewNextChunk(Header, true))
+	{
+		if (strncmp(Header.MagicFriendly, CharStr.Get(), 4) != 0)
+		{
+			Ar.SkipNextChunk();
+			return true;
+		}
+	}
+
+	return false;
+
+}
+
+bool USpudStateCustomData::IsStillInChunk(FString MagicID) const
+{
+	if (ChunkStack.Num() == 0)
+	{
+		return false;	
+	}
+	
+	const auto CharStr = StringCast<ANSICHAR>(*MagicID);
+	
+	if (CharStr.Length() > 4)
+	{
+		UE_LOG(LogSpudData, Error, TEXT("Chunk ID %s is more than 4 characters long, truncating"), *MagicID);
+	}
+	if (strncmp(ChunkStack.Top()->Magic, CharStr.Get(), 4) != 0)
+	{
+		return false;
+	}
+
+	return ChunkStack.Top()->IsStillInChunk(*GetUnderlyingArchive());
+	
+}
 
 FString USpudState::GetActiveGameLevelFolder()
 {
