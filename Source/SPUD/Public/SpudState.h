@@ -470,6 +470,7 @@ public:
 	/// Write a string
 	UFUNCTION(BlueprintCallable)
     void WriteString(const FString& S) { Write(S); }
+
 	/**
 	* @brief Read a string
 	* @param OutString The string we read if successful
@@ -489,6 +490,18 @@ public:
 	UFUNCTION(BlueprintCallable)
     bool ReadText(FText& OutText) { return Read(OutText); }
 
+	/// Write a GUID
+	UFUNCTION(BlueprintCallable)
+	void WriteGuid(const FGuid& G) { Write(G); }
+	
+	/**
+	* @brief Read a GUID
+	* @param OutGuid The FGuid we read if successful
+	* @return True if the value was read successfully
+	*/
+	UFUNCTION(BlueprintCallable)
+	bool ReadGuid(FGuid& OutGuid) { return Read(OutGuid); }
+	
 	/// Write an int
 	UFUNCTION(BlueprintCallable)
     void WriteInt(int V) { Write(V); }
