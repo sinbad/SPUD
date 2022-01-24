@@ -268,3 +268,42 @@ bool FTestStructs::RunTest(const FString& Parameters)
 
 	return true;
 }
+
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTestCustomData, "SPUDTest.CustomData",
+								 EAutomationTestFlags::EditorContext |
+								 EAutomationTestFlags::ClientContext |
+								 EAutomationTestFlags::ProductFilter)
+
+bool FTestCustomData::RunTest(const FString& Parameters)
+{
+	auto SavedObj = NewObject<UTestSaveObjectCustomData>();
+
+
+	SavedObj->bSomeBoolean = true;
+	SavedObj->SomeInteger = 203001;
+	SavedObj->SomeString = "Hello from custom data";
+	SavedObj->SomeFloat = 1.3245978893;
+
+	auto State = NewObject<USpudState>();
+	State->StoreGlobalObject(SavedObj, "TestObject");
+
+	auto LoadedObj = NewObject<UTestSaveObjectCustomData>();
+	State->RestoreGlobalObject(LoadedObj, "TestObject");
+
+	TestEqual("CustomData|Bool should match", LoadedObj->bSomeBoolean, SavedObj->bSomeBoolean);
+	TestEqual("CustomData|Int should match", LoadedObj->SomeInteger, SavedObj->SomeInteger);
+	TestEqual("CustomData|String should match", LoadedObj->SomeString, SavedObj->SomeString);
+	TestEqual("CustomData|Float should match", LoadedObj->SomeFloat, SavedObj->SomeFloat);
+
+	TestTrue("CustomData|Peek 1 should have worked", LoadedObj->Peek1Succeeded);
+	TestTrue("CustomData|Peek 1 chunk ID should match", LoadedObj->Peek1IDOK);
+	TestTrue("CustomData|Peek 2 should have worked", LoadedObj->Peek2Succeeded);
+	TestTrue("CustomData|Peek 2 chunk ID should match", LoadedObj->Peek2IDOK);
+	TestTrue("CustomData|Skip 1 should have worked", LoadedObj->Skip1Succeeded);
+	TestTrue("CustomData|Skip 1 data position should match", LoadedObj->Skip1PosOK);
+	TestTrue("CustomData|Skip 2 should have worked", LoadedObj->Skip2Succeeded);
+	TestTrue("CustomData|Skip 2 data position should match", LoadedObj->Skip2PosOK);
+
+	return true;
+}

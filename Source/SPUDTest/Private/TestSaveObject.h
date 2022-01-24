@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ISpudObject.h"
 #include "UObject/Object.h"
 #include "TestSaveObject.generated.h"
 
@@ -257,4 +258,32 @@ public:
 	UPROPERTY(SaveGame)
 	FTestNestedStruct NestedStruct;	
 
+};
+
+UCLASS()
+class SPUDTEST_API UTestSaveObjectCustomData : public UObject, public ISpudObjectCallback
+{
+	GENERATED_BODY()
+public:
+
+	bool bSomeBoolean;
+	int SomeInteger;
+	FString SomeString;
+	float SomeFloat;
+
+	// just for test read
+	bool Peek1Succeeded;
+	bool Peek1IDOK;
+	bool Peek2Succeeded;
+	bool Peek2IDOK;
+	bool Skip1Succeeded;
+	bool Skip1PosOK;
+	bool Skip2Succeeded;
+	bool Skip2PosOK;
+	
+	static const FString TestChunkID1;
+	static const FString TestChunkID2;
+	
+	virtual void SpudStoreCustomData_Implementation(const USpudState* State, USpudStateCustomData* CustomData) override;
+	virtual void SpudRestoreCustomData_Implementation(USpudState* State, USpudStateCustomData* CustomData) override;
 };
