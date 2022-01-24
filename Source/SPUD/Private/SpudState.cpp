@@ -1229,7 +1229,7 @@ bool USpudStateCustomData::SkipChunk(FString MagicID)
 	FSpudChunkHeader Header;
 	if (Ar.PreviewNextChunk(Header, true))
 	{
-		if (strncmp(Header.MagicFriendly, CharStr.Get(), 4) != 0)
+		if (strncmp(Header.MagicFriendly, CharStr.Get(), 4) == 0)
 		{
 			Ar.SkipNextChunk();
 			return true;
