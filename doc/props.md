@@ -35,8 +35,9 @@ The following property types are supported, but **not as arrays**:
 
 * Custom UStructs
 * Nested UObject instances (null preserving, will re-instantiate based on property type)
+* Nested components marked as SaveGame
 
-Maps and sets are not supported. 
+Maps and sets are not supported (these are not supported by UE serialization either). 
 
 
 ## Upgrading Properties
@@ -49,29 +50,28 @@ as the stored data, but when it's not, a slower path where properties are matche
 up by name / type is used instead, so you can still restore data from old saves
 even if a new save would have an altered set of properties.
 
-## Root object properties ONLY (not components)
+## Components
 
-Only properties at the top level of the UObject are persisted. Certain special
+Only properties marked at the top level of the UObject are persisted. Certain special
 cases are handled, such as restoring physics velocities and controller rotation,
-but for simplicity and efficiency we do not dig into actor components.
+but for simplicity and efficiency we do not dig into all actor components.
 
-This may be limiting if you use a strongly component-composition based approach.
-However adding support for any combination of components, dynamically added
-components etc would make everything much more complicated, slower and prone to
-more edge cases. 
+For any components you wish to be persisted, you must:
 
-It's been my observation that UE tends to encourage actor-level specialisation
-in most cases anyway, for similar reasons, so I'm sticking with that approach too.
+1. Hold a reference to them in a root object `UPROPERTY`, marked as `SaveGame`
+1. Instantiate those components at construction time
 
-There is a solution to this, however, in the form of Custom Data. 
+This will cause SPUD to cascade into that component just like any other nested
+`UObject`, and any properties in the component which are marked to be saved will
+processed in the same way.
+
 
 ### Using custom data
 
-If for any reason you have some additional data to store for an object on top
-of its top-level properties, you can implement the optional `ISpudObjectCallback`.
+If for any reason you have some additional data to store for an object that isn't
+supported by the above features, on top, you can implement the optional `ISpudObjectCallback`.
 This interface gets the opportunity to save / load any custom data it wants, which
 is stored with the rest of the object state. 
-
 
 
 ![Custom Data in Blueprints](./images/BPCustomData.png)
