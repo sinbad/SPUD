@@ -287,3 +287,71 @@ public:
 	virtual void SpudStoreCustomData_Implementation(const USpudState* State, USpudStateCustomData* CustomData) override;
 	virtual void SpudRestoreCustomData_Implementation(USpudState* State, USpudStateCustomData* CustomData) override;
 };
+
+
+/// Simple children UObjects and parent
+UCLASS()
+class SPUDTEST_API UTestNestedChild1 : public UObject
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(SaveGame)
+	FString NestedStringVal1;
+};
+
+UCLASS()
+class SPUDTEST_API UTestNestedChild2 : public UObject
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(SaveGame)
+	FString NestedStringVal2;
+};
+
+UCLASS()
+class SPUDTEST_API UTestNestedChild3 : public UObject
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(SaveGame)
+	FString NestedStringVal3;
+};
+
+UCLASS()
+class SPUDTEST_API UTestNestedChild4 : public UObject
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(SaveGame)
+	FString NestedStringVal4;
+};
+
+UCLASS()
+class SPUDTEST_API UTestNestedChild5 : public UObject
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(SaveGame)
+	FString NestedStringVal5;
+};
+
+UCLASS()
+class SPUDTEST_API UTestSaveObjectParent : public UObject
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(SaveGame)
+	UTestNestedChild1* UObjectVal1;
+
+	UPROPERTY(SaveGame)
+	UTestNestedChild2* UObjectVal2;
+
+	UPROPERTY(SaveGame)
+	UTestNestedChild3* UObjectVal3;
+
+	UPROPERTY(SaveGame)
+	UTestNestedChild4* UObjectVal4;
+
+	UPROPERTY(SaveGame)
+	UTestNestedChild5* UObjectVal5;
+};

@@ -437,7 +437,7 @@ struct FSpudStructMapData : public FSpudChunk
 template <typename T>
 struct FSpudArray : public FSpudChunk
 {
-	TArray<T> Values;
+	TArray<TSharedPtr<T>> Values;
 
 	virtual const char* GetChildMagic() const = 0;
 
@@ -448,7 +448,7 @@ struct FSpudArray : public FSpudChunk
 			// Just write values, those will write chunks
 			for (auto && Item : Values)
 			{
-				Item.WriteToArchive(Ar);
+				Item->WriteToArchive(Ar);
 			}
 			ChunkEnd(Ar);
 		}
@@ -458,16 +458,16 @@ struct FSpudArray : public FSpudChunk
 	{
 		if (ChunkStart(Ar))
 		{
-			Values.Empty();
+			Reset();
 
 			// Detect chunks & only load compatible
 			const uint32 ChildMagicID = FSpudChunkHeader::EncodeMagic(GetChildMagic());
-			T ChildData;
 			while (IsStillInChunk(Ar))
 			{
 				if (Ar.NextChunkIs(ChildMagicID))
 				{
-					ChildData.ReadFromArchive(Ar, StoredSystemVersion);
+					TSharedPtr<T> ChildData = MakeShareable(new T);
+					ChildData->ReadFromArchive(Ar, StoredSystemVersion);
 					Values.Add(ChildData);						
 				}
 				else
@@ -633,9 +633,9 @@ struct SPUD_API FSpudClassMetadata : public FSpudChunk
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
 	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override;
 
-	
-	FSpudClassDef& FindOrAddClassDef(const FString& ClassName);
-	const FSpudClassDef* GetClassDef(const FString& ClassName) const;
+
+	TSharedPtr<FSpudClassDef> FindOrAddClassDef(const FString& ClassName);
+	TSharedPtr<const FSpudClassDef> GetClassDef(const FString& ClassName) const;
 	const FString& GetPropertyNameFromID(uint32 ID) const;
 	uint32 FindOrAddPropertyIDFromName(const FString& Name);
 	uint32 GetPropertyIDFromName(const FString& Name) const;
