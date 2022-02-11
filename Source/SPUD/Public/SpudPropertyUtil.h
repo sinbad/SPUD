@@ -185,26 +185,55 @@ public:
 	static FString GetNestedPrefix(uint32 PrefixIDSoFar, FProperty* Prop, const FSpudClassMetadata& Meta);
 	static uint32 GetNestedPrefixID(uint32 PrefixIDSoFar, FProperty* Prop, const FSpudClassMetadata& Meta);
 	static uint32 FindOrAddNestedPrefixID(uint32 PrefixIDSoFar, FProperty* Prop, FSpudClassMetadata& Meta);
-	static void RegisterProperty(uint32 PropNameID, uint32 PrefixID, uint16 DataType, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FArchive& Out);
-	static void RegisterProperty(const FString& Name, uint32 PrefixID, uint16 DataType, FSpudClassDef&
-                          ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FArchive& Out);
-	static void RegisterProperty(FProperty* Prop, uint32 PrefixID, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata
-                          & Meta, FArchive& Out);
+	static void RegisterProperty(uint32 PropNameID, uint32 PrefixID, uint16 DataType, TSharedPtr<FSpudClassDef> ClassDef, TArray<uint32>& PropertyOffsets, FArchive& Out);
+	static void RegisterProperty(const FString& Name,
+	                             uint32 PrefixID,
+	                             uint16 DataType,
+	                             TSharedPtr<FSpudClassDef> ClassDef,
+	                             TArray<uint32>& PropertyOffsets,
+	                             FSpudClassMetadata& Meta,
+	                             FArchive& Out);
+	static void RegisterProperty(FProperty* Prop,
+	                             uint32 PrefixID,
+	                             TSharedPtr<FSpudClassDef> ClassDef,
+	                             TArray<uint32>& PropertyOffsets,
+	                             FSpudClassMetadata
+	                             & Meta,
+	                             FArchive& Out);
 
 	/// Visit all properties of a UObject
 	static void VisitPersistentProperties(UObject* RootObject, PropertyVisitor& Visitor, int StartDepth = 0);
 	/// Visit all properties of a class definition, with no instance
 	static void VisitPersistentProperties(const UStruct* Definition, PropertyVisitor& Visitor);
 	
-	static void StoreProperty(const UObject* RootObject, FProperty* Property, uint32 PrefixID,
-                             const void* ContainerPtr, int Depth,
-                             FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FMemoryWriter& Out);
-	static void StoreArrayProperty(FArrayProperty* AProp, const UObject* RootObject, uint32 PrefixID,
-                                 const void* ContainerPtr, int Depth, FSpudClassDef& ClassDef,
-                                 TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FMemoryWriter& Out);
-	static void StoreContainerProperty(FProperty* Property, const UObject* RootObject,
-	                                   uint32 PrefixID, const void* ContainerPtr, bool bIsArrayElement, int Depth,
-	                                   FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FMemoryWriter& Out);
+	static void StoreProperty(const UObject* RootObject,
+	                          FProperty* Property,
+	                          uint32 PrefixID,
+	                          const void* ContainerPtr,
+	                          int Depth,
+	                          TSharedPtr<FSpudClassDef> ClassDef,
+	                          TArray<uint32>& PropertyOffsets,
+	                          FSpudClassMetadata& Meta,
+	                          FMemoryWriter& Out);
+	static void StoreArrayProperty(FArrayProperty* AProp,
+	                               const UObject* RootObject,
+	                               uint32 PrefixID,
+	                               const void* ContainerPtr,
+	                               int Depth,
+	                               TSharedPtr<FSpudClassDef> ClassDef,
+	                               TArray<uint32>& PropertyOffsets,
+	                               FSpudClassMetadata& Meta,
+	                               FMemoryWriter& Out);
+	static void StoreContainerProperty(FProperty* Property,
+	                                   const UObject* RootObject,
+	                                   uint32 PrefixID,
+	                                   const void* ContainerPtr,
+	                                   bool bIsArrayElement,
+	                                   int Depth,
+	                                   TSharedPtr<FSpudClassDef> ClassDef,
+	                                   TArray<uint32>& PropertyOffsets,
+	                                   FSpudClassMetadata& Meta,
+	                                   FMemoryWriter& Out);
 
 
 	typedef TMap<FGuid, UObject*> RuntimeObjectMap;
@@ -254,8 +283,14 @@ protected:
 
 	template <class PropType, typename ValueType>
 	static typename SpudTypeInfo<ValueType>::StorageType WritePropertyData(
-		PropType* Prop, uint32 PrefixID, const void* Data, bool bIsArrayElement, FSpudClassDef& ClassDef,
-		TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FArchive& Out)
+		PropType* Prop,
+		uint32 PrefixID,
+		const void* Data,
+		bool bIsArrayElement,
+		TSharedPtr<FSpudClassDef> ClassDef,
+		TArray<uint32>& PropertyOffsets,
+		FSpudClassMetadata& Meta,
+		FArchive& Out)
 	{
     	if (!bIsArrayElement)
     		RegisterProperty(Prop, PrefixID, ClassDef, PropertyOffsets, Meta, Out);
@@ -267,7 +302,7 @@ protected:
 
 	template <class PropType, typename ValueType>
 	static bool TryWritePropertyData(FProperty* Prop, uint32 PrefixID, const void* Data, bool bIsArrayElement, int Depth,
-	                          FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta,
+	                          TSharedPtr<FSpudClassDef> ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta,
 	                          FArchive& Out)
     {
     	if (auto IProp = CastField<PropType>(Prop))
@@ -280,25 +315,59 @@ protected:
 	    
     }
 
-	static uint16 WriteEnumPropertyData(FEnumProperty* EProp, uint32 PrefixID, const void* Data, bool bIsArrayElement,
-	                                    FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets,
-	                                    FSpudClassMetadata& Meta, FArchive& Out);
+	static uint16 WriteEnumPropertyData(FEnumProperty* EProp,
+	                                    uint32 PrefixID,
+	                                    const void* Data,
+	                                    bool bIsArrayElement,
+	                                    TSharedPtr<FSpudClassDef> ClassDef,
+	                                    TArray<uint32>& PropertyOffsets,
+	                                    FSpudClassMetadata& Meta,
+	                                    FArchive& Out);
 
-	static bool TryWriteEnumPropertyData(FProperty* Property, uint32 PrefixID, const void* Data, bool bIsArrayElement,
-	                                     int Depth, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets,
+	static bool TryWriteEnumPropertyData(FProperty* Property,
+	                                     uint32 PrefixID,
+	                                     const void* Data,
+	                                     bool bIsArrayElement,
+	                                     int Depth,
+	                                     TSharedPtr<FSpudClassDef> ClassDef,
+	                                     TArray<uint32>& PropertyOffsets,
 	                                     FSpudClassMetadata& Meta,
 	                                     FArchive& Out);
-	static FString WriteActorRefPropertyData(FObjectProperty* OProp, AActor* Actor, FPlatformTypes::uint32 PrefixID, const void* Data,
-	                                         bool bIsArrayElement, FSpudClassDef& ClassDef,
-	                                         TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FArchive& Out);
-	static FString WriteNestedUObjectPropertyData(FObjectProperty* OProp, UObject* UObj, FPlatformTypes::uint32 PrefixID, const void* Data,
-											bool bIsArrayElement, FSpudClassDef& ClassDef,
-											TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FArchive& Out);
-	static FString WriteSubclassOfPropertyData(FClassProperty* CProp, UClass* Class, uint32 PrefixID, const void* Data,
-											bool bIsArrayElement, FSpudClassDef& ClassDef,
-											TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FArchive& Out);
-	static bool TryWriteUObjectPropertyData(FProperty* Property, uint32 PrefixID, const void* Data, bool bIsArrayElement,
-	                                        int Depth, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta,
+	static FString WriteActorRefPropertyData(FObjectProperty* OProp,
+	                                         AActor* Actor,
+	                                         FPlatformTypes::uint32 PrefixID,
+	                                         const void* Data,
+	                                         bool bIsArrayElement,
+	                                         TSharedPtr<FSpudClassDef> ClassDef,
+	                                         TArray<uint32>& PropertyOffsets,
+	                                         FSpudClassMetadata& Meta,
+	                                         FArchive& Out);
+	static FString WriteNestedUObjectPropertyData(FObjectProperty* OProp,
+	                                              UObject* UObj,
+	                                              FPlatformTypes::uint32 PrefixID,
+	                                              const void* Data,
+	                                              bool bIsArrayElement,
+	                                              TSharedPtr<FSpudClassDef> ClassDef,
+	                                              TArray<uint32>& PropertyOffsets,
+	                                              FSpudClassMetadata& Meta,
+	                                              FArchive& Out);
+	static FString WriteSubclassOfPropertyData(FClassProperty* CProp,
+	                                           UClass* Class,
+	                                           uint32 PrefixID,
+	                                           const void* Data,
+	                                           bool bIsArrayElement,
+	                                           TSharedPtr<FSpudClassDef> ClassDef,
+	                                           TArray<uint32>& PropertyOffsets,
+	                                           FSpudClassMetadata& Meta,
+	                                           FArchive& Out);
+	static bool TryWriteUObjectPropertyData(FProperty* Property,
+	                                        uint32 PrefixID,
+	                                        const void* Data,
+	                                        bool bIsArrayElement,
+	                                        int Depth,
+	                                        TSharedPtr<FSpudClassDef> ClassDef,
+	                                        TArray<uint32>& PropertyOffsets,
+	                                        FSpudClassMetadata& Meta,
 	                                        FArchive& Out);
 
 	
@@ -313,7 +382,7 @@ protected:
     }
 	template <typename ValueType>
 	static bool TryWriteBuiltinStructPropertyData(FStructProperty* Prop, uint32 PrefixID, const void* Data, bool bIsArrayElement,
-	                                       int Depth, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FArchive& Out)
+	                                       int Depth, TSharedPtr<FSpudClassDef> ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FArchive& Out)
     {
     	// Check struct detail value matches
     	if (Prop->Struct == TBaseStructure<ValueType>::Get())
@@ -408,7 +477,7 @@ public:
 	}
 
 	template <typename T>
-	void WriteProperty(const FString& Name, uint32 PrefixID, const T& Value, FSpudClassDef& ClassDef,
+	void WriteProperty(const FString& Name, uint32 PrefixID, const T& Value, TSharedPtr<FSpudClassDef> ClassDef,
 	                   TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FArchive& Out)
 	{
 		RegisterProperty(Name, PrefixID, SpudTypeInfo<T>::EnumType, ClassDef, PropertyOffsets, Meta, Out);

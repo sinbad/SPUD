@@ -63,7 +63,7 @@ void USpudState::StoreLevel(ULevel* Level, bool bRelease, bool bBlocking)
 
 USpudState::StorePropertyVisitor::StorePropertyVisitor(
 	USpudState* Parent,
-	FSpudClassDef& InClassDef, TArray<uint32>& InPropertyOffsets,
+	TSharedPtr<FSpudClassDef> InClassDef, TArray<uint32>& InPropertyOffsets,
 	FSpudClassMetadata& InMeta, FMemoryWriter& InOut):
 	ParentState(Parent),
 	ClassDef(InClassDef),
@@ -399,7 +399,7 @@ void USpudState::StoreObjectProperties(UObject* Obj, uint32 PrefixID, TArray<uin
 	FSpudClassMetadata& Meta, FMemoryWriter& Out, int StartDepth)
 {
 	const FString& ClassName = SpudPropertyUtil::GetClassName(Obj);
-	auto& ClassDef = Meta.FindOrAddClassDef(ClassName);
+	auto ClassDef = Meta.FindOrAddClassDef(ClassName);
 
 	// visit all properties and write out
 	StorePropertyVisitor Visitor(this, ClassDef, PropOffsets, Meta, Out);
@@ -780,27 +780,27 @@ void USpudState::RestoreObjectProperties(UObject* Obj, FMemoryReader& In, const 
 
 void USpudState::RestoreObjectPropertiesFast(UObject* Obj, FMemoryReader& In,
                                              const FSpudClassMetadata& Meta,
-                                             const FSpudClassDef* ClassDef,
+                                             TSharedPtr<const FSpudClassDef> ClassDef,
                                              const TMap<FGuid, UObject*>* RuntimeObjects,
                                              int StartDepth)
 {
 	UE_LOG(LogSpudState, Verbose, TEXT("%s FAST path, %d properties"), *SpudPropertyUtil::GetLogPrefix(StartDepth), ClassDef->Properties.Num());
 	const auto StoredPropertyIterator = ClassDef->Properties.CreateConstIterator();
 
-	RestoreFastPropertyVisitor Visitor(this, StoredPropertyIterator, In, *ClassDef, Meta, RuntimeObjects);
+	RestoreFastPropertyVisitor Visitor(this, StoredPropertyIterator, In, ClassDef, Meta, RuntimeObjects);
 	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor, StartDepth);
 	
 }
 
 void USpudState::RestoreObjectPropertiesSlow(UObject* Obj, FMemoryReader& In,
                                                        const FSpudClassMetadata& Meta,
-                                                       const FSpudClassDef* ClassDef,
+                                                       TSharedPtr<const FSpudClassDef> ClassDef,
                                                        const TMap<FGuid, UObject*>* RuntimeObjects,
                                                        int StartDepth)
 {
 	UE_LOG(LogSpudState, Verbose, TEXT("%s SLOW path, %d properties"), *SpudPropertyUtil::GetLogPrefix(StartDepth), ClassDef->Properties.Num());
 
-	RestoreSlowPropertyVisitor Visitor(this, In, *ClassDef, Meta, RuntimeObjects);
+	RestoreSlowPropertyVisitor Visitor(this, In, ClassDef, Meta, RuntimeObjects);
 	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor, StartDepth);
 }
 
@@ -882,31 +882,31 @@ bool USpudState::RestoreSlowPropertyVisitor::VisitProperty(UObject* RootObject, 
 		return true;
 	
 	// PropertyLookup is PrefixID -> Map of PropertyNameID to PropertyIndex
-	auto InnerMapPtr = ClassDef.PropertyLookup.Find(CurrentPrefixID);
+	auto InnerMapPtr = ClassDef->PropertyLookup.Find(CurrentPrefixID);
 	if (!InnerMapPtr)
 	{
-		UE_LOG(LogSpudState, Error, TEXT("Error in RestoreSlowPropertyVisitor, PrefixID invalid for %, class %s"), *Property->GetName(), *ClassDef.ClassName);
+		UE_LOG(LogSpudState, Error, TEXT("Error in RestoreSlowPropertyVisitor, PrefixID invalid for %, class %s"), *Property->GetName(), *ClassDef->ClassName);
 		return true;
 	}
 	
 	uint32 PropID = Meta.GetPropertyIDFromName(Property->GetName());
 	if (PropID == SPUDDATA_INDEX_NONE)
 	{
-		UE_LOG(LogSpudState, Log, TEXT("Skipping property %s on class %s, not found in class definition"), *Property->GetName(), *ClassDef.ClassName);
+		UE_LOG(LogSpudState, Log, TEXT("Skipping property %s on class %s, not found in class definition"), *Property->GetName(), *ClassDef->ClassName);
 		return true;
 	}
 	const int* PropertyIndexPtr = InnerMapPtr->Find(PropID);
 	if (!PropertyIndexPtr)
 	{
-		UE_LOG(LogSpudState, Log, TEXT("Skipping property %s on class %s, data not found"), *Property->GetName(), *ClassDef.ClassName);
+		UE_LOG(LogSpudState, Log, TEXT("Skipping property %s on class %s, data not found"), *Property->GetName(), *ClassDef->ClassName);
 		return true;		
 	}
-	if (*PropertyIndexPtr < 0 || *PropertyIndexPtr >= ClassDef.Properties.Num())
+	if (*PropertyIndexPtr < 0 || *PropertyIndexPtr >= ClassDef->Properties.Num())
 	{
-		UE_LOG(LogSpudState, Error, TEXT("Error in RestoreSlowPropertyVisitor, invalid property index for %s on class %s"), *Property->GetName(), *ClassDef.ClassName);
+		UE_LOG(LogSpudState, Error, TEXT("Error in RestoreSlowPropertyVisitor, invalid property index for %s on class %s"), *Property->GetName(), *ClassDef->ClassName);
 		return true;		
 	}
-	auto& StoredProperty = ClassDef.Properties[*PropertyIndexPtr];
+	auto& StoredProperty = ClassDef->Properties[*PropertyIndexPtr];
 	
 	SpudPropertyUtil::RestoreProperty(RootObject, Property, ContainerPtr, StoredProperty, RuntimeObjects, Meta, Depth, DataIn);
 

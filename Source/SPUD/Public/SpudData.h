@@ -437,7 +437,7 @@ struct FSpudStructMapData : public FSpudChunk
 template <typename T>
 struct FSpudArray : public FSpudChunk
 {
-	TArray<T*> Values;
+	TArray<TSharedPtr<T>> Values;
 
 	virtual const char* GetChildMagic() const = 0;
 
@@ -466,7 +466,7 @@ struct FSpudArray : public FSpudChunk
 			{
 				if (Ar.NextChunkIs(ChildMagicID))
 				{
-					T* ChildData = new T;
+					TSharedPtr<T> ChildData = MakeShareable(new T);
 					ChildData->ReadFromArchive(Ar, StoredSystemVersion);
 					Values.Add(ChildData);						
 				}
@@ -481,10 +481,6 @@ struct FSpudArray : public FSpudChunk
 
 	void Reset()
 	{
-		for (auto Item : Values)
-		{
-			delete Item;
-		}
 		Values.Empty();
 	}
 	
@@ -637,9 +633,9 @@ struct SPUD_API FSpudClassMetadata : public FSpudChunk
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
 	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override;
 
-	
-	FSpudClassDef& FindOrAddClassDef(const FString& ClassName);
-	const FSpudClassDef* GetClassDef(const FString& ClassName) const;
+
+	TSharedPtr<FSpudClassDef> FindOrAddClassDef(const FString& ClassName);
+	TSharedPtr<const FSpudClassDef> GetClassDef(const FString& ClassName) const;
 	const FString& GetPropertyNameFromID(uint32 ID) const;
 	uint32 FindOrAddPropertyIDFromName(const FString& Name);
 	uint32 GetPropertyIDFromName(const FString& Name) const;

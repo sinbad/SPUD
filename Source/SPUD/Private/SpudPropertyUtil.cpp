@@ -210,23 +210,36 @@ uint32 SpudPropertyUtil::GetNestedPrefixID(uint32 PrefixIDSoFar, FProperty* Prop
 	
 }
 
-void SpudPropertyUtil::RegisterProperty(uint32 PropNameID, uint32 PrefixID, uint16 DataType, FSpudClassDef& ClassDef,
-                                            TArray<uint32>& PropertyOffsets, FArchive& Out)
+void SpudPropertyUtil::RegisterProperty(uint32 PropNameID,
+                                        uint32 PrefixID,
+                                        uint16 DataType,
+                                        TSharedPtr<FSpudClassDef> ClassDef,
+                                        TArray<uint32>& PropertyOffsets,
+                                        FArchive& Out)
 {
-	const int Index = ClassDef.FindOrAddPropertyIndex(PropNameID, PrefixID, DataType);
+	const int Index = ClassDef->FindOrAddPropertyIndex(PropNameID, PrefixID, DataType);
 	if (PropertyOffsets.Num() < Index + 1)
 		PropertyOffsets.SetNum(Index + 1);
 	PropertyOffsets[Index] = Out.Tell();
 }
 
-void SpudPropertyUtil::RegisterProperty(const FString& Name, uint32 PrefixID, uint16 DataType, FSpudClassDef& ClassDef,
-    TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FArchive& Out)
+void SpudPropertyUtil::RegisterProperty(const FString& Name,
+                                        uint32 PrefixID,
+                                        uint16 DataType,
+                                        TSharedPtr<FSpudClassDef> ClassDef,
+                                        TArray<uint32>& PropertyOffsets,
+                                        FSpudClassMetadata& Meta,
+                                        FArchive& Out)
 {
 	return RegisterProperty(Meta.FindOrAddPropertyIDFromName(Name), PrefixID, DataType, ClassDef, PropertyOffsets, Out);
 }
 
-void SpudPropertyUtil::RegisterProperty(FProperty* Prop, uint32 PrefixID, FSpudClassDef& ClassDef,
-    TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FArchive& Out)
+void SpudPropertyUtil::RegisterProperty(FProperty* Prop,
+                                        uint32 PrefixID,
+                                        TSharedPtr<FSpudClassDef> ClassDef,
+                                        TArray<uint32>& PropertyOffsets,
+                                        FSpudClassMetadata& Meta,
+                                        FArchive& Out)
 {
 	return RegisterProperty(Meta.FindOrAddPropertyIDFromProperty(Prop), PrefixID, GetPropertyDataType(Prop), ClassDef, PropertyOffsets, Out);
 }
@@ -293,10 +306,14 @@ bool SpudPropertyUtil::VisitPersistentProperties(UObject* RootObject, const UStr
 	return true;
 }
 
-uint16 SpudPropertyUtil::WriteEnumPropertyData(FEnumProperty* EProp, uint32 PrefixID, const void* Data,
-                                                     bool bIsArrayElement, FSpudClassDef& ClassDef,
-                                                     TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta,
-                                                     FArchive& Out)
+uint16 SpudPropertyUtil::WriteEnumPropertyData(FEnumProperty* EProp,
+                                               uint32 PrefixID,
+                                               const void* Data,
+                                               bool bIsArrayElement,
+                                               TSharedPtr<FSpudClassDef> ClassDef,
+                                               TArray<uint32>& PropertyOffsets,
+                                               FSpudClassMetadata& Meta,
+                                               FArchive& Out)
 {
 	// Enums as 16-bit numbers, that should be large enough!
 	if (!bIsArrayElement)
@@ -307,10 +324,15 @@ uint16 SpudPropertyUtil::WriteEnumPropertyData(FEnumProperty* EProp, uint32 Pref
 	return Val;
 }
 
-bool SpudPropertyUtil::TryWriteEnumPropertyData(FProperty* Property, uint32 PrefixID, const void* Data,
-                                                      bool bIsArrayElement, int Depth, FSpudClassDef& ClassDef,
-                                                      TArray<uint32>& PropertyOffsets,
-                                                      FSpudClassMetadata& Meta, FArchive& Out)
+bool SpudPropertyUtil::TryWriteEnumPropertyData(FProperty* Property,
+                                                uint32 PrefixID,
+                                                const void* Data,
+                                                bool bIsArrayElement,
+                                                int Depth,
+                                                TSharedPtr<FSpudClassDef> ClassDef,
+                                                TArray<uint32>& PropertyOffsets,
+                                                FSpudClassMetadata& Meta,
+                                                FArchive& Out)
 {
 	if (const auto EProp = CastField<FEnumProperty>(Property))
 	{
@@ -349,9 +371,15 @@ bool SpudPropertyUtil::TryReadEnumPropertyData(FProperty* Prop, void* Data,
 	return false;
 }
 
-FString SpudPropertyUtil::WriteActorRefPropertyData(FObjectProperty* OProp, AActor* Actor, uint32 PrefixID, const void* Data,
-	bool bIsArrayElement, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta,
-	FArchive& Out)
+FString SpudPropertyUtil::WriteActorRefPropertyData(FObjectProperty* OProp,
+                                                    AActor* Actor,
+                                                    uint32 PrefixID,
+                                                    const void* Data,
+                                                    bool bIsArrayElement,
+                                                    TSharedPtr<FSpudClassDef> ClassDef,
+                                                    TArray<uint32>& PropertyOffsets,
+                                                    FSpudClassMetadata& Meta,
+                                                    FArchive& Out)
 {
 	if (!bIsArrayElement)
 		RegisterProperty(OProp, PrefixID, ClassDef, PropertyOffsets, Meta, Out);
@@ -367,7 +395,7 @@ FString SpudPropertyUtil::WriteActorRefPropertyData(FObjectProperty* OProp, AAct
 			if (!GuidProperty)
 			{
 				UE_LOG(LogSpudProps, Error, TEXT("Object reference %s/%s points to runtime Actor %s but that actor has no SpudGuid property, will not be saved."),
-                    *ClassDef.ClassName, *OProp->GetName(), *Actor->GetName());
+                    *ClassDef->ClassName, *OProp->GetName(), *Actor->GetName());
 				// This essentially becomes a null reference
 				RefString = FString();				
 			}
@@ -399,9 +427,15 @@ FString SpudPropertyUtil::WriteActorRefPropertyData(FObjectProperty* OProp, AAct
 	return RefString;
 }
 
-FString SpudPropertyUtil::WriteNestedUObjectPropertyData(FObjectProperty* OProp, UObject* UObj, uint32 PrefixID, const void* Data,
-	bool bIsArrayElement, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta,
-	FArchive& Out)
+FString SpudPropertyUtil::WriteNestedUObjectPropertyData(FObjectProperty* OProp,
+                                                         UObject* UObj,
+                                                         uint32 PrefixID,
+                                                         const void* Data,
+                                                         bool bIsArrayElement,
+                                                         TSharedPtr<FSpudClassDef> ClassDef,
+                                                         TArray<uint32>& PropertyOffsets,
+                                                         FSpudClassMetadata& Meta,
+                                                         FArchive& Out)
 {
 	if (!bIsArrayElement)
 		RegisterProperty(OProp, PrefixID, ClassDef, PropertyOffsets, Meta, Out);
@@ -424,9 +458,15 @@ FString SpudPropertyUtil::WriteNestedUObjectPropertyData(FObjectProperty* OProp,
 	return Ret;
 }
 
-FString SpudPropertyUtil::WriteSubclassOfPropertyData(FClassProperty* CProp, UClass* Class, uint32 PrefixID, const void* Data,
-	bool bIsArrayElement, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta,
-	FArchive& Out)
+FString SpudPropertyUtil::WriteSubclassOfPropertyData(FClassProperty* CProp,
+                                                      UClass* Class,
+                                                      uint32 PrefixID,
+                                                      const void* Data,
+                                                      bool bIsArrayElement,
+                                                      TSharedPtr<FSpudClassDef> ClassDef,
+                                                      TArray<uint32>& PropertyOffsets,
+                                                      FSpudClassMetadata& Meta,
+                                                      FArchive& Out)
 {
 	if (!bIsArrayElement)
 		RegisterProperty(CProp, PrefixID, ClassDef, PropertyOffsets, Meta, Out);
@@ -447,9 +487,15 @@ FString SpudPropertyUtil::WriteSubclassOfPropertyData(FClassProperty* CProp, UCl
 	return Ret;
 }
 
-bool SpudPropertyUtil::TryWriteUObjectPropertyData(FProperty* Property, uint32 PrefixID, const void* Data,
-                                                   bool bIsArrayElement, int Depth, FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets,
-                                                   FSpudClassMetadata& Meta, FArchive& Out)
+bool SpudPropertyUtil::TryWriteUObjectPropertyData(FProperty* Property,
+                                                   uint32 PrefixID,
+                                                   const void* Data,
+                                                   bool bIsArrayElement,
+                                                   int Depth,
+                                                   TSharedPtr<FSpudClassDef> ClassDef,
+                                                   TArray<uint32>& PropertyOffsets,
+                                                   FSpudClassMetadata& Meta,
+                                                   FArchive& Out)
 {
 	if (const auto OProp = CastField<FObjectProperty>(Property))
 	{
@@ -460,21 +506,21 @@ bool SpudPropertyUtil::TryWriteUObjectPropertyData(FProperty* Property, uint32 P
 		{
 			const auto Actor = Cast<AActor>(Obj);			
 			const FString Val = WriteActorRefPropertyData(OProp, Actor, PrefixID, Data, bIsArrayElement, ClassDef,
-														PropertyOffsets, Meta, Out);
+			                                              PropertyOffsets, Meta, Out);
 			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(OProp, Depth), *ToString(Val));
 		}
 		else if (auto CProp = CastField<FClassProperty>(OProp))
 		{
 			const auto RuntimeClass = Cast<UClass>(Obj);
 			const FString Val = WriteSubclassOfPropertyData(CProp, RuntimeClass, PrefixID, Data, bIsArrayElement, ClassDef,
-														PropertyOffsets, Meta, Out);
+			                                                PropertyOffsets, Meta, Out);
 			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(OProp, Depth), *Val);
 		}
 		else
 		{
 			// non-actor UObject
 			const FString Val = WriteNestedUObjectPropertyData(OProp, Obj, PrefixID, Data, bIsArrayElement, ClassDef,
-														PropertyOffsets, Meta, Out);
+			                                                   PropertyOffsets, Meta, Out);
 			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(OProp, Depth), *Val);
 		}
 		return true;
@@ -657,10 +703,15 @@ bool SpudPropertyUtil::TryReadUObjectPropertyData(FProperty* Prop, void* Data,
 	
 }
 
-void SpudPropertyUtil::StoreProperty(const UObject* RootObject, FProperty* Property, uint32 PrefixID,
-                                                const void* ContainerPtr,
-                                                int Depth, FSpudClassDef& ClassDef,
-                                                TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FMemoryWriter& Out)
+void SpudPropertyUtil::StoreProperty(const UObject* RootObject,
+                                     FProperty* Property,
+                                     uint32 PrefixID,
+                                     const void* ContainerPtr,
+                                     int Depth,
+                                     TSharedPtr<FSpudClassDef> ClassDef,
+                                     TArray<uint32>& PropertyOffsets,
+                                     FSpudClassMetadata& Meta,
+                                     FMemoryWriter& Out)
 {
 	// Arrays supported, but not maps / sets yet
 	if (const auto AProp = CastField<FArrayProperty>(Property))
@@ -673,11 +724,15 @@ void SpudPropertyUtil::StoreProperty(const UObject* RootObject, FProperty* Prope
 	}
 }
 
-void SpudPropertyUtil::StoreArrayProperty(FArrayProperty* AProp, const UObject* RootObject, uint32 PrefixID,
-                                                   const void* ContainerPtr,
-                                                   int Depth, FSpudClassDef& ClassDef,
-                                                   TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta,
-                                                   FMemoryWriter& Out)
+void SpudPropertyUtil::StoreArrayProperty(FArrayProperty* AProp,
+                                          const UObject* RootObject,
+                                          uint32 PrefixID,
+                                          const void* ContainerPtr,
+                                          int Depth,
+                                          TSharedPtr<FSpudClassDef> ClassDef,
+                                          TArray<uint32>& PropertyOffsets,
+                                          FSpudClassMetadata& Meta,
+                                          FMemoryWriter& Out)
 {
 	
 	// Use helper to get number, ArrayDim doesn't seem to work?
@@ -704,10 +759,16 @@ void SpudPropertyUtil::StoreArrayProperty(FArrayProperty* AProp, const UObject* 
 	
 }
 
-void SpudPropertyUtil::StoreContainerProperty(FProperty* Property, const UObject* RootObject, uint32 PrefixID,
-                                                       const void* ContainerPtr, bool bIsArrayElement, int Depth,
-                                                       FSpudClassDef& ClassDef, TArray<uint32>& PropertyOffsets,
-                                                       FSpudClassMetadata& Meta, FMemoryWriter& Out)
+void SpudPropertyUtil::StoreContainerProperty(FProperty* Property,
+                                              const UObject* RootObject,
+                                              uint32 PrefixID,
+                                              const void* ContainerPtr,
+                                              bool bIsArrayElement,
+                                              int Depth,
+                                              TSharedPtr<FSpudClassDef> ClassDef,
+                                              TArray<uint32>& PropertyOffsets,
+                                              FSpudClassMetadata& Meta,
+                                              FMemoryWriter& Out)
 {
 	// Get pointer to data within container, must be from original property in the case of arrays
 	const void* DataPtr = Property->ContainerPtrToValuePtr<void>(ContainerPtr);
