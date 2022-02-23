@@ -198,9 +198,16 @@ struct SPUD_API FSpudChunk
 // An ad-hoc chunk used to wrap other chunks. 
 struct SPUD_API FSpudAdhocWrapperChunk : public FSpudChunk
 {
-	const char* Magic;
+	char Magic[5];
 	
-	FSpudAdhocWrapperChunk(const char* InMagic) : Magic(InMagic) {}
+	FSpudAdhocWrapperChunk(const char* InMagic)
+	{
+		// Copy magic data so that we're not storing an external pointer
+		// memcpy since strncpy_s doesn't null-terminate at lower counts anyway, just check it's long enough
+		checkf(strlen(InMagic) >= 4, TEXT("FSpudAdhocWrapperChunk: Magic must be 4 characters"));
+		memcpy(Magic, InMagic, 4);
+		Magic[4] = '\0';
+	}
 	virtual const char* GetMagic() const override { return Magic; }
 	// You should not call read/write, this chunk is solely for wrapping others without owning them
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override { check(false);}
