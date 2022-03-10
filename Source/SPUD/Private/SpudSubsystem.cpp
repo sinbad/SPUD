@@ -371,14 +371,17 @@ void USpudSubsystem::HandleLevelLoaded(FName LevelName)
 	GetActiveState()->PreLoadLevelData(LevelName.ToString());
 
 	AsyncTask(ENamedThreads::GameThread, [this, LevelName]()
+	{
+		// But also add a slight delay so we get a tick in between so physics works
+		FTimerHandle H;
+		if (UWorld* World = GetWorld())
 		{
-			// But also add a slight delay so we get a tick in between so physics works
-			FTimerHandle H;
-			GetWorld()->GetTimerManager().SetTimer(H, [this, LevelName]()
-				{
-					PostLoadStreamLevelGameThread(LevelName);
-				}, 0.01, false);
-		});
+			World->GetTimerManager().SetTimer(H, [this, LevelName]()
+			{
+				PostLoadStreamLevelGameThread(LevelName);
+			}, 0.01, false);
+		}
+	});
 }
 
 void USpudSubsystem::HandleLevelUnloaded(ULevel* Level)
