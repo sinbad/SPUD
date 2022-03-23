@@ -578,7 +578,14 @@ FString SpudPropertyUtil::ReadActorRefPropertyData(FObjectProperty* OProp, void*
 			if (!Obj)
 			{
 				// Not found in owning level, search all
-				Obj = StaticFindObject(AActor::StaticClass(), ANY_PACKAGE, *RefString);
+				for (auto OtherLevel : Level->GetWorld()->GetLevels())
+				{
+					if (OtherLevel == Level)
+						continue;
+					Obj = StaticFindObjectFast(AActor::StaticClass(), OtherLevel, *RefString);
+					if (Obj)
+						break;
+				}
 			}
 			if (Obj)
 			{
