@@ -417,11 +417,11 @@ struct FSpudStructMapData : public FSpudChunk
 
 			// Detect chunks & only load compatible
 			const uint32 ChildMagicID = FSpudChunkHeader::EncodeMagic(GetChildMagic());
-			V ChildData;
 			while (IsStillInChunk(Ar))
 			{
 				if (Ar.NextChunkIs(ChildMagicID))
 				{
+					V ChildData;
 					ChildData.ReadFromArchive(Ar, StoredSystemVersion);
 					Contents.Add(ChildData.Key(), ChildData);						
 				}
