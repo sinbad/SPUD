@@ -574,7 +574,12 @@ FString SpudPropertyUtil::ReadActorRefPropertyData(FObjectProperty* OProp, void*
 		// Level object, identified by name. Level is the package
 		if (Level)
 		{
-			auto Obj = StaticFindObject(AActor::StaticClass(), Level, *RefString);
+			auto Obj = StaticFindObjectFast(AActor::StaticClass(), Level, *RefString);
+			if (!Obj)
+			{
+				// Not found in owning level, search all
+				Obj = StaticFindObject(AActor::StaticClass(), ANY_PACKAGE, *RefString);
+			}
 			if (Obj)
 			{
 				OProp->SetObjectPropertyValue(Data, Obj);
