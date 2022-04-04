@@ -71,11 +71,21 @@ bool SpudPropertyUtil::IsActorObjectProperty(const FProperty* Property)
 
 	if (const auto OProp = CastField<FObjectProperty>(Property))
 	{
+		// Raw pointers to actors
 		if (OProp->PropertyClass && OProp->PropertyClass->IsChildOf(AActor::StaticClass()))
 		{
 			return true;
 		}
 	}
+	// FWeakObjectPtr support
+	if (const auto WProp = CastField<FWeakObjectProperty>(Property))
+	{
+		if (WProp->PropertyClass && WProp->PropertyClass->IsChildOf(AActor::StaticClass()))
+		{
+			return true;
+		}
+	}
+	
 	return false;
 }
 
@@ -371,7 +381,7 @@ bool SpudPropertyUtil::TryReadEnumPropertyData(FProperty* Prop, void* Data,
 	return false;
 }
 
-FString SpudPropertyUtil::WriteActorRefPropertyData(FObjectProperty* OProp,
+FString SpudPropertyUtil::WriteActorRefPropertyData(FProperty* OProp,
                                                     AActor* Actor,
                                                     uint32 PrefixID,
                                                     const void* Data,
@@ -497,31 +507,42 @@ bool SpudPropertyUtil::TryWriteUObjectPropertyData(FProperty* Property,
                                                    FSpudClassMetadata& Meta,
                                                    FArchive& Out)
 {
-	if (const auto OProp = CastField<FObjectProperty>(Property))
+	UObject* Obj = nullptr;
+	FObjectProperty* StrongProp = CastField<FObjectProperty>(Property);
+	FWeakObjectProperty* WeakProp = CastField<FWeakObjectProperty>(Property);
+	
+	if (StrongProp)
 	{
-		const auto Obj = OProp->GetObjectPropertyValue(Data);
+		Obj = StrongProp->GetObjectPropertyValue(Data);
+	}
+	else if (WeakProp)
+	{
+		Obj = WeakProp->GetObjectPropertyValue(Data);
+	}
 
+	if (StrongProp || WeakProp)
+	{
 		// Nullrefs are OK, but if valid we need to check it's an Actor
 		if (IsActorObjectProperty(Property))
 		{
 			const auto Actor = Cast<AActor>(Obj);			
-			const FString Val = WriteActorRefPropertyData(OProp, Actor, PrefixID, Data, bIsArrayElement, ClassDef,
+			const FString Val = WriteActorRefPropertyData(Property, Actor, PrefixID, Data, bIsArrayElement, ClassDef,
 			                                              PropertyOffsets, Meta, Out);
-			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(OProp, Depth), *ToString(Val));
+			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(Property, Depth), *ToString(Val));
 		}
-		else if (auto CProp = CastField<FClassProperty>(OProp))
+		else if (auto CProp = CastField<FClassProperty>(Property))
 		{
 			const auto RuntimeClass = Cast<UClass>(Obj);
 			const FString Val = WriteSubclassOfPropertyData(CProp, RuntimeClass, PrefixID, Data, bIsArrayElement, ClassDef,
 			                                                PropertyOffsets, Meta, Out);
-			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(OProp, Depth), *Val);
+			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(Property, Depth), *Val);
 		}
-		else
+		else if (StrongProp) // Only strong properties on nested (should be owned)
 		{
 			// non-actor UObject
-			const FString Val = WriteNestedUObjectPropertyData(OProp, Obj, PrefixID, Data, bIsArrayElement, ClassDef,
+			const FString Val = WriteNestedUObjectPropertyData(StrongProp, Obj, PrefixID, Data, bIsArrayElement, ClassDef,
 			                                                   PropertyOffsets, Meta, Out);
-			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(OProp, Depth), *Val);
+			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(Property, Depth), *Val);
 		}
 		return true;
 	}
@@ -529,10 +550,11 @@ bool SpudPropertyUtil::TryWriteUObjectPropertyData(FProperty* Property,
 }
 
 
-FString SpudPropertyUtil::ReadActorRefPropertyData(FObjectProperty* OProp, void* Data,
-                                                         const RuntimeObjectMap* RuntimeObjects,
-                                                         ULevel* Level,
-                                                         FArchive& In)
+FString SpudPropertyUtil::ReadActorRefPropertyData(FProperty* OProp,
+                                                   void* Data,
+                                                   const RuntimeObjectMap* RuntimeObjects,
+                                                   ULevel* Level,
+                                                   FArchive& In)
 {
 	FString RefString;
 	In << RefString;
@@ -540,7 +562,7 @@ FString SpudPropertyUtil::ReadActorRefPropertyData(FObjectProperty* OProp, void*
 	// Now we need to find the actual object
 	if (RefString.IsEmpty())
 	{
-		OProp->SetObjectPropertyValue(Data, nullptr);
+		SetObjectPropertyValue(OProp, Data, nullptr);
 	}
 	else if (RefString.StartsWith("{"))
 	{
@@ -554,7 +576,7 @@ FString SpudPropertyUtil::ReadActorRefPropertyData(FObjectProperty* OProp, void*
 				auto ObjPtr = RuntimeObjects->Find(Guid);
 				if (ObjPtr)
 				{
-					OProp->SetObjectPropertyValue(Data, *ObjPtr);
+					SetObjectPropertyValue(OProp, Data, *ObjPtr);
 				}
 				else
 				{
@@ -589,7 +611,7 @@ FString SpudPropertyUtil::ReadActorRefPropertyData(FObjectProperty* OProp, void*
 			}
 			if (Obj)
 			{
-				OProp->SetObjectPropertyValue(Data, Obj);
+				SetObjectPropertyValue(OProp, Data, Obj);
 			}
 			else
 			{
@@ -605,16 +627,20 @@ FString SpudPropertyUtil::ReadActorRefPropertyData(FObjectProperty* OProp, void*
 	return RefString;
 }
 
-FString SpudPropertyUtil::ReadNestedUObjectPropertyData(FObjectProperty* OProp, void* Data,
-														const RuntimeObjectMap* RuntimeObjects,
-														ULevel* Level, UObject* Outer, const FSpudClassMetadata& Meta,
-														FArchive& In)
+FString SpudPropertyUtil::ReadNestedUObjectPropertyData(FObjectProperty* OProp,
+                                                        void* Data,
+                                                        const RuntimeObjectMap* RuntimeObjects,
+                                                        ULevel* Level,
+                                                        UObject* Outer,
+                                                        const FSpudClassMetadata& Meta,
+                                                        FArchive& In)
 {
 	uint32 ClassID;
 	In << ClassID;
 
 	UObject* Object = nullptr;
 	FString Ret = "NULL";
+	
 	if (ClassID == SPUDDATA_CLASSID_NONE)
 	{
 		// If stored data said it should be null, set it
@@ -648,8 +674,12 @@ FString SpudPropertyUtil::ReadNestedUObjectPropertyData(FObjectProperty* OProp, 
 	return Ret;
 }
 
-FString SpudPropertyUtil::ReadSubclassOfPropertyData(FObjectProperty* OProp, void* Data,
-	const RuntimeObjectMap* RuntimeObjects, ULevel* Level, const FSpudClassMetadata& Meta, FArchive& In)
+FString SpudPropertyUtil::ReadSubclassOfPropertyData(FClassProperty* CProp,
+                                                     void* Data,
+                                                     const RuntimeObjectMap* RuntimeObjects,
+                                                     ULevel* Level,
+                                                     const FSpudClassMetadata& Meta,
+                                                     FArchive& In)
 {
 	// TSubclassOf is just a class ID
 	uint32 ClassID;
@@ -659,7 +689,7 @@ FString SpudPropertyUtil::ReadSubclassOfPropertyData(FObjectProperty* OProp, voi
 	if (ClassID == SPUDDATA_CLASSID_NONE)
 	{
 		// If stored data said it should be null, set it
-		OProp->SetObjectPropertyValue(Data, nullptr);
+		CProp->SetObjectPropertyValue(Data, nullptr);
 	}
 	else
 	{
@@ -675,7 +705,7 @@ FString SpudPropertyUtil::ReadSubclassOfPropertyData(FObjectProperty* OProp, voi
 		}
 
 		// For a FClassProperty, the object value is the class instance
-		OProp->SetObjectPropertyValue(Data, Class);
+		CProp->SetObjectPropertyValue(Data, Class);
 		Ret = ClassName;
 	}
 
@@ -688,24 +718,28 @@ bool SpudPropertyUtil::TryReadUObjectPropertyData(FProperty* Prop, void* Data,
                                                   const FSpudPropertyDef& StoredProperty, const RuntimeObjectMap* RuntimeObjects, ULevel* Level, UObject* Outer,
                                                   const FSpudClassMetadata& Meta, int Depth, FArchive& In)
 {
-	auto OProp = CastField<FObjectProperty>(Prop);
-	if (OProp && StoredPropertyTypeMatchesRuntime(Prop, StoredProperty, true)) // we ignore array flag since we could be processing inner
+	FObjectProperty* StrongProp = CastField<FObjectProperty>(Prop);
+	FWeakObjectProperty* WeakProp = CastField<FWeakObjectProperty>(Prop);
+	
+	
+	if ((StrongProp || WeakProp) && StoredPropertyTypeMatchesRuntime(Prop, StoredProperty, true)) // we ignore array flag since we could be processing inner
 	{
 
 		// Nullrefs are OK, but if valid we need to check it's an Actor
+		// Actor refs supports both strong & weak object refs
 		if (IsActorObjectProperty(Prop))
 		{
-			const FString Val = ReadActorRefPropertyData(OProp, Data, RuntimeObjects, Level, In);
+			const FString Val = ReadActorRefPropertyData(Prop, Data, RuntimeObjects, Level, In);
 			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(Prop, Depth), *Val);
 		}
-		else if (auto CProp = CastField<FClassProperty>(OProp))
+		else if (auto CProp = CastField<FClassProperty>(Prop))
 		{
-			const FString Val = ReadSubclassOfPropertyData(OProp, Data, RuntimeObjects, Level, Meta, In);
+			const FString Val = ReadSubclassOfPropertyData(CProp, Data, RuntimeObjects, Level, Meta, In);
 			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(Prop, Depth), *Val);
 		}
-		else
+		else if (StrongProp) // Only strong refs for nested (owned)
 		{
-			const FString Val = ReadNestedUObjectPropertyData(OProp, Data, RuntimeObjects, Level, Outer, Meta, In);
+			const FString Val = ReadNestedUObjectPropertyData(StrongProp, Data, RuntimeObjects, Level, Outer, Meta, In);
 			UE_LOG(LogSpudProps, Verbose, TEXT("%s = %s"), *GetLogPrefix(Prop, Depth), *Val);
 		}
 		return true;
@@ -713,6 +747,19 @@ bool SpudPropertyUtil::TryReadUObjectPropertyData(FProperty* Prop, void* Data,
 	}
 	return false;
 	
+}
+
+void SpudPropertyUtil::SetObjectPropertyValue(FProperty* Property, void* Data, UObject* Obj)
+{
+	// Support setting strong and weak pointers
+	if (const auto OProp = CastField<FObjectProperty>(Property))
+	{
+		OProp->SetObjectPropertyValue(Data, Obj);
+	}
+	else if (const auto WProp = CastField<FWeakObjectProperty>(Property))
+	{
+		WProp->SetObjectPropertyValue(Data, Obj);
+	}
 }
 
 void SpudPropertyUtil::StoreProperty(const UObject* RootObject,

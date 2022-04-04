@@ -29,7 +29,9 @@ The following property types are supported, either as single entries, or
 * Rotator (FRotator)
 * Transform (FTransform)
 * Guid (FGuid)
-* Actor references
+* Actor references, either as:
+  * Strong references: `AActor*` and subclasses
+  * Weak references: `TWeakObjectPtr<AActor>` and subclasses
 
 The following property types are supported, but **not as arrays**:
 
