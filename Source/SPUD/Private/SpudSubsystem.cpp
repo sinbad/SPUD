@@ -356,11 +356,12 @@ void USpudSubsystem::FinishSaveGame(const FString& SlotName, const FText& Title,
 
 void USpudSubsystem::SaveComplete(const FString& SlotName, bool bSuccess)
 {
+	CurrentState = ESpudSystemState::RunningIdle;
+	PostSaveGame.Broadcast(SlotName, bSuccess);
+	// It's possible that the reference to SlotName *is* SlotNameInProgress, so we can't reset it until after
 	SlotNameInProgress = "";
 	TitleInProgress = FText();
 	ExtraInfoInProgress = nullptr;
-	CurrentState = ESpudSystemState::RunningIdle;
-	PostSaveGame.Broadcast(SlotName, bSuccess);
 }
 
 void USpudSubsystem::HandleLevelLoaded(FName LevelName)
