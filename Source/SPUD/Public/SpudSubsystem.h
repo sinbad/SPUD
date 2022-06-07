@@ -235,9 +235,16 @@ public:
 	UFUNCTION(BlueprintPure)
     bool IsIdle() const { return CurrentState == ESpudSystemState::RunningIdle; }
 
-	/// Start a new game with a blank persistent state
+	
+	/**
+	 * Start a new game with a blank persistent state
+	 * @param bCheckServerOnly Whether to only allow this call on the server 
+	 * @param bAfterLevelLoad Restart tracking of state only after the next level load. Set this to true if you're currently
+	 *   in a level which has persistent state that you don't want to keep.
+	 *   
+	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
-    void NewGame(bool CheckServerOnly = true);
+    void NewGame(bool bCheckServerOnly = true, bool bAfterLevelLoad = false);
 
 	/// Terminate a running game. Does not save state. Call this when returning to a main menu for example.
 	/// All map changes after this are ignored by the persistence system

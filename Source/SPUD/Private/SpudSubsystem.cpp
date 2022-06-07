@@ -44,14 +44,21 @@ void USpudSubsystem::Deinitialize()
 }
 
 
-void USpudSubsystem::NewGame(bool CheckServerOnly)
+void USpudSubsystem::NewGame(bool bCheckServerOnly, bool bAfterLevelLoad)
 {
-	if (CheckServerOnly && !ServerCheck(true))
+	if (bCheckServerOnly && !ServerCheck(true))
 		return;
 		
 	EndGame();
 	CurrentState = ESpudSystemState::RunningIdle;
-	SubscribeAllLevelObjectEvents();
+	
+	// EndGame will have unsubscribed from all current levels
+	// Re-sub if we want to keep state for currently loaded levels, or not if starting from next level load
+	// This allows the caller to call NewGame mid-game and then load a map, and the current levels won't try to save
+	if (!bAfterLevelLoad)
+	{
+		SubscribeAllLevelObjectEvents();
+	}
 }
 
 bool USpudSubsystem::ServerCheck(bool LogWarning) const
