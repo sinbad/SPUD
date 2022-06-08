@@ -184,24 +184,34 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 {
 	if (!ServerCheck(false))
 		return;
-	
-	if (CurrentState == ESpudSystemState::NewGameOnNextLevel)
+
+
+	switch(CurrentState)
 	{
-		CurrentState = ESpudSystemState::RunningIdle;
-	}
-	
-	if (CurrentState == ESpudSystemState::RunningIdle ||
-		CurrentState == ESpudSystemState::LoadingGame)
-	{
+	case ESpudSystemState::NewGameOnNextLevel:
+		if (IsValid(World)) // nullptr seems possible if load is aborted or something?
+		{
+			const FString LevelName = UGameplayStatics::GetCurrentLevelName(World);
+			UE_LOG(LogSpudSubsystem,
+				   Verbose,
+				   TEXT("OnPostLoadMap NewGame starting: %s"),
+				   *LevelName);
+			SubscribeLevelObjectEvents(World->GetCurrentLevel());
+		}
+		break;
+	case ESpudSystemState::RunningIdle:
+	case ESpudSystemState::LoadingGame:
 		// This is called when a new map is loaded
 		// In all cases, we try to load the state
 		if (IsValid(World)) // nullptr seems possible if load is aborted or something?
 		{
-			FString LevelName = UGameplayStatics::GetCurrentLevelName(World); 
-			UE_LOG(LogSpudSubsystem, Verbose, TEXT("OnPostLoadMap restore: %s"),
+			const FString LevelName = UGameplayStatics::GetCurrentLevelName(World);
+			UE_LOG(LogSpudSubsystem,
+			       Verbose,
+			       TEXT("OnPostLoadMap restore: %s"),
 			       *LevelName);
 
-			auto State = GetActiveState();
+			const auto State = GetActiveState();
 			PreLevelRestore.Broadcast(LevelName);
 			State->RestoreLoadedWorld(World);
 			PostLevelRestore.Broadcast(LevelName, true);
@@ -215,6 +225,11 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 			LoadComplete(SlotNameInProgress, true);
 			UE_LOG(LogSpudSubsystem, Log, TEXT("Load: Success"));
 		}
+		
+		break;
+	default:
+		break;
+			
 	}
 
 	PostTravelToNewMap.Broadcast();
