@@ -50,13 +50,17 @@ void USpudSubsystem::NewGame(bool bCheckServerOnly, bool bAfterLevelLoad)
 		return;
 		
 	EndGame();
-	CurrentState = ESpudSystemState::RunningIdle;
 	
 	// EndGame will have unsubscribed from all current levels
 	// Re-sub if we want to keep state for currently loaded levels, or not if starting from next level load
 	// This allows the caller to call NewGame mid-game and then load a map, and the current levels won't try to save
-	if (!bAfterLevelLoad)
+	if (bAfterLevelLoad)
 	{
+		CurrentState = ESpudSystemState::RestartAfterLevelLoad;
+	}
+	else
+	{
+		CurrentState = ESpudSystemState::RunningIdle;
 		SubscribeAllLevelObjectEvents();
 	}
 }
@@ -143,7 +147,7 @@ void USpudSubsystem::OnPreLoadMap(const FString& MapName)
 		return;
 
 	PreTravelToNewMap.Broadcast(MapName);
-	// All streaming maps will be unloaded by travelling, so remove all
+	// All streaming maps will be unloaded by traveling, so remove all
 	LevelRequests.Empty();
 	StopUnloadTimer();
 	
@@ -207,6 +211,15 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 			UE_LOG(LogSpudSubsystem, Log, TEXT("Load: Success"));
 		}
 	}
+	else if (CurrentState == ESpudSystemState::RestartAfterLevelLoad && IsValid(World))
+	{
+		CurrentState = ESpudSystemState::RunningIdle;
+
+		FString LevelName = UGameplayStatics::GetCurrentLevelName(World);
+		UE_LOG(LogSpudSubsystem, Verbose, TEXT("OnPostLoadMap resuming: %s"), *LevelName);
+
+		SubscribeLevelObjectEvents(World->GetCurrentLevel());
+	}
 
 	PostTravelToNewMap.Broadcast();
 }
@@ -239,7 +252,7 @@ void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title, bool 
 
 	if (bTakeScreenshot)
 	{
-		UE_LOG(LogSpudSubsystem, Verbose, TEXT("Queueing screenshot for save %s"), *SlotName);
+		UE_LOG(LogSpudSubsystem, Verbose, TEXT("Queuing screenshot for save %s"), *SlotName);
 
 		// Memory-based screenshot request
 		SlotNameInProgress = SlotName;

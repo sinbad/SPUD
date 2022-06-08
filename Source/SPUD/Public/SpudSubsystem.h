@@ -42,7 +42,9 @@ enum class ESpudSystemState : uint8
 	/// Currently loading a save game, cannot be interrupted
     LoadingGame,
 	/// Currently saving a game, cannot be interrupted
-    SavingGame
+    SavingGame,
+	// Will switch to RunningIdle after a level is loaded.
+	RestartAfterLevelLoad,
 };
 
 UENUM(BlueprintType)
