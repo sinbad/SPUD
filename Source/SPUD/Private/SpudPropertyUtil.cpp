@@ -1178,9 +1178,9 @@ FString SpudPropertyUtil::GetLevelActorName(const AActor* Actor)
 {
 	if (Actor->Implements<USpudObject>())
 	{
-		auto name = ISpudObject::Execute_OverrideName(Actor);
-		if (!name.IsEmpty())
-			return name;
+		auto Name = ISpudObject::Execute_OverrideName(Actor);
+		if (!Name.IsEmpty())
+			return Name;
 	}
 	return Actor->GetFName().ToString();
 }
