@@ -1176,6 +1176,12 @@ bool SpudPropertyUtil::SetGuidProperty(UObject* Obj, const FStructProperty* Prop
 
 FString SpudPropertyUtil::GetLevelActorName(const AActor* Actor)
 {
+	if (Actor->Implements<USpudObject>())
+	{
+		auto name = ISpudObject::Execute_OverrideName(Actor);
+		if (!name.IsEmpty())
+			return name;
+	}
 	return Actor->GetFName().ToString();
 }
 
