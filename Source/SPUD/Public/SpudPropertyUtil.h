@@ -497,7 +497,7 @@ public:
 	/// Return whether this object is persistent. Null safe
 	static bool IsPersistentObject(UObject* Obj);
 	/// Return whether an actor is a runtime created one, or whether it was part of a loaded level. Null safe
-	static bool IsRuntimeActor(AActor* Actor);
+	static bool IsRuntimeActor(const AActor* Actor);
 	/// Get the SpudGuid property value of an object, if it has one (blank otherwise)
 	static FGuid GetGuidProperty(const UObject* Obj);
 	/// Get the SpudGuid property value of an object, from a previously found property (blank if null)

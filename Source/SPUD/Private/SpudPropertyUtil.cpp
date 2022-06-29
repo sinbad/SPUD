@@ -1103,7 +1103,7 @@ uint32 SpudPropertyUtil::StoredMatchesRuntimePropertyVisitor::GetNestedPrefix(
 	// This doesn't create a new ID, expects it to be there already
 	return GetNestedPrefixID(CurrentPrefixID, Prop, Meta);
 }
-bool SpudPropertyUtil::IsRuntimeActor(AActor* Actor)
+bool SpudPropertyUtil::IsRuntimeActor(const AActor* Actor)
 {
 	// RF_WasLoaded means it was part of a level
 	// But not being part of a level might not means it needs to be respawned, it might have been
@@ -1182,6 +1182,21 @@ FString SpudPropertyUtil::GetLevelActorName(const AActor* Actor)
 		if (!Name.IsEmpty())
 			return Name;
 	}
+
+#if WITH_EDITOR
+	// Verify that cases where the actor wasn't loaded from the level, but also
+	// wasn't respawned, such as Characters, GameState, that we got an overridden name because
+	// the FName isn't reliable in non-Editor builds
+	// See https://github.com/sinbad/SPUD/issues/41
+	if (IsRuntimeActor(Actor))
+	{
+		UE_LOG(LogSpudProps, Warning, TEXT("Actor %s should implement 'OverrideName' with a predefined name. "
+			"This is because it's not saved in the level, but is also a special type not automatically respawned by Spud. "
+			"Examples include ACharacter, APlayerState etc. These instances should have a predefined name to reliably restore them. "
+			"They may work fine in editor builds, but will start to fail in non-Editor builds."), *Actor->GetName())
+	}
+#endif
+	
 	return Actor->GetFName().ToString();
 }
 
