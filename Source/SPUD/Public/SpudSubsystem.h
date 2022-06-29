@@ -43,8 +43,8 @@ enum class ESpudSystemState : uint8
     LoadingGame,
 	/// Currently saving a game, cannot be interrupted
     SavingGame,
-	// Will switch to RunningIdle after a level is loaded.
-	RestartAfterLevelLoad,
+	/// Starting a new game, after the next level load
+	NewGameOnNextLevel,
 };
 
 UENUM(BlueprintType)
@@ -242,8 +242,8 @@ public:
 	 * Start a new game with a blank persistent state
 	 * @param bCheckServerOnly Whether to only allow this call on the server 
 	 * @param bAfterLevelLoad Restart tracking of state only after the next level load. Set this to true if you're currently
-	 *   in a level which has persistent state that you don't want to keep.
-	 *   
+	 *   in a level which has persistent state that you don't want to keep. You MUST load a level after setting this option,
+	 *   even if it's the same level you're currently on.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void NewGame(bool bCheckServerOnly = true, bool bAfterLevelLoad = false);
