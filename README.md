@@ -198,6 +198,44 @@ You don't have to assign a value to this property, SPUD will generate a GUID if
 it's blank. Also you should **NOT mark it as SaveGame**. It's not your save state,
 just some metadata SPUD needs to uniquely identify this object.
 
+### Gameplay Framework Spawned Actors
+
+Some actors are not stored in the level, and are spawned at runtime but *not*
+explicitly during game code; they're spawned automatically by the gameplay 
+framework during the initialisation of the level. Examples include:
+
+* Pawns / Characters
+* PlayerState
+* GameState
+* GameMode
+
+If you have state in these objects, then you need to implement the `OverrideName`
+method in `ISpudObject`, either in C++ or Blueprints, to give these instances
+a unique, pre-defined name. 
+
+For example, in C++:
+
+```c++
+FString AMyPlayerState::OverrideName_Implementation() const
+{
+	static const FString Name("PlayerState");
+	return Name;
+}
+
+```
+
+In this case we're assuming there's only one player, so only one player state.
+If you had more than one player then they should each have a unique name.
+This just makes sure that when restoring these objects, the automatically 
+created instances are correctly associated with the previous state.
+
+> The reason we don't use SpudGuid here is because you'd have to come up with a
+> fixed unique GUID which is awkward. And really SpudGuid is for dealing with any
+> number of runtime spawned objects, wheras in these cases there's always a known 
+> number of them (often just one), they're more akin to level objects, just automatically
+> constructed ones.
+
+
 
 ## Saving and Loading 
 
