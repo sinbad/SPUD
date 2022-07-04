@@ -145,3 +145,6 @@ putting them in the Persistent Level instead of the streamed level. However,
 be careful about making them respond to gravity if there's a chance they can be
 in an area that unloads.
 
+## Warning: "Actor Foo should implement 'OverrideName' with a predefined name."
+
+See [Gameplay Framework Spawned Actors](../Readme.md#gameplay-framework-spawned-actors)
