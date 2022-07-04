@@ -60,11 +60,28 @@ enum class ESpudSaveSorting : uint8
 	Title
 };
 
+UCLASS(Transient)
+class SPUD_API USpudStreamingLevelWrapper : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY()
+	ULevelStreaming* LevelStreaming;
+
+	UFUNCTION()
+	void OnLevelShown();
+	UFUNCTION()
+	void OnLevelHidden();
+};
+
 /// Subsystem which controls our save games, and also the active game's persistent state (for streaming levels)
 UCLASS(Config=Engine)
 class SPUD_API USpudSubsystem : public UGameInstanceSubsystem, public FTickableGameObject
 {
 	GENERATED_BODY()
+
+	friend USpudStreamingLevelWrapper;
 
 public:
 	/// Event fired just before a game is loaded
@@ -125,6 +142,10 @@ public:
 	int32 ScreenshotHeight = 135;
 	FDelegateHandle OnScreenshotHandle;
 
+	// When true, the system will monitor the loading and unloading of streaming levels. Required for World Partition support.
+	UPROPERTY(BlueprintReadWrite, Config)
+	bool MonitorLevelStreaming = true;
+
 
 protected:
 	FDelegateHandle OnPreLoadMapHandle;
@@ -177,6 +198,9 @@ protected:
 	// Map of streaming level names to the requests to load them 
 	TMap<FName, FStreamLevelRequests> LevelRequests;
 
+	UPROPERTY()
+	TMap<ULevelStreaming*, USpudStreamingLevelWrapper*> MonitoredStreamingLevels;
+
 	bool ServerCheck(bool LogWarning) const;
 
 	UFUNCTION()
@@ -215,6 +239,7 @@ protected:
 	void SaveComplete(const FString& SlotName, bool bSuccess);
 
 	void HandleLevelLoaded(FName LevelName);
+	void HandleLevelLoaded(ULevel* Level) { HandleLevelLoaded(FName(USpudState::GetLevelName(Level))); }
 	void HandleLevelUnloaded(ULevel* Level);
 
 	void LoadStreamLevel(FName LevelName, bool Blocking);

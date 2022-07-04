@@ -150,6 +150,7 @@ void USpudSubsystem::OnPreLoadMap(const FString& MapName)
 	// All streaming maps will be unloaded by travelling, so remove all
 	LevelRequests.Empty();
 	StopUnloadTimer();
+	MonitoredStreamingLevels.Empty();
 	
 	FirstStreamRequestSinceMapLoad = true;
 
@@ -197,6 +198,7 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 				   TEXT("OnPostLoadMap NewGame starting: %s"),
 				   *LevelName);
 			SubscribeLevelObjectEvents(World->GetCurrentLevel());
+			CurrentState = ESpudSystemState::RunningIdle;
 		}
 		break;
 	case ESpudSystemState::RunningIdle:
@@ -211,6 +213,14 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 			       TEXT("OnPostLoadMap restore: %s"),
 			       *LevelName);
 
+			// Switch to loading state if not already. This is needed because events triggered by loading, perhaps at some remote (event 1 > event 2 > etc)
+			// might need to check if SPUD is currently loading the game.
+			if (CurrentState != ESpudSystemState::LoadingGame)
+			{
+				CurrentState = ESpudSystemState::LoadingGame;
+				PreLoadGame.Broadcast(FString());
+			}
+
 			const auto State = GetActiveState();
 			PreLevelRestore.Broadcast(LevelName);
 			State->RestoreLoadedWorld(World);
@@ -219,13 +229,9 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 			SubscribeLevelObjectEvents(World->GetCurrentLevel());
 		}
 
-		// If we were loading, this is the completion
-		if (CurrentState == ESpudSystemState::LoadingGame)
-		{
-			LoadComplete(SlotNameInProgress, true);
-			UE_LOG(LogSpudSubsystem, Log, TEXT("Load: Success"));
-		}
-		
+		LoadComplete(SlotNameInProgress, true);
+		UE_LOG(LogSpudSubsystem, Log, TEXT("Load: Success"));
+
 		break;
 	default:
 		break;
@@ -716,6 +722,11 @@ void USpudSubsystem::PostLoadStreamLevelGameThread(FName LevelName)
 			UE_LOG(LogSpudSubsystem, Log, TEXT("PostLoadStreamLevel called for %s but level is null; probably unloaded again?"), *LevelName.ToString());
 			return;
 		}
+
+		// Events triggered by loading might need to know that SPUD is loading.
+		auto crtState = CurrentState;
+		CurrentState = ESpudSystemState::LoadingGame;
+
 		PreLevelRestore.Broadcast(LevelName.ToString());
 		// It's important to note that this streaming level won't be added to UWorld::Levels yet
 		// This is usually where things like the TActorIterator get actors from, ULevel::Actors
@@ -730,6 +741,8 @@ void USpudSubsystem::PostLoadStreamLevelGameThread(FName LevelName)
 		StreamLevel->SetShouldBeVisible(true);
 		SubscribeLevelObjectEvents(Level);
 		PostLevelRestore.Broadcast(LevelName.ToString(), true);
+
+		CurrentState = crtState;
 	}
 }
 
@@ -1139,6 +1152,44 @@ void USpudSubsystem::Tick(float DeltaTime)
 			ScreenshotTimedOut();
 		}
 	}
+
+	if (MonitorLevelStreaming)
+	{
+		auto world = GetWorld();
+		if (world)
+		{
+			TSet<ULevelStreaming*> streamingLevels(world->GetStreamingLevels());
+
+			// Find newly added levels.
+			for (const auto level : streamingLevels)
+			{
+				if (!MonitoredStreamingLevels.Contains(level))
+				{
+					UE_LOG(LogSpudSubsystem, Verbose, TEXT("Loaded streaming level: %s"), *GetNameSafe(level));
+					auto wrapper = NewObject<USpudStreamingLevelWrapper>(world);
+					wrapper->LevelStreaming = level;
+					MonitoredStreamingLevels.Add(level, wrapper);
+					level->OnLevelShown.AddUniqueDynamic(wrapper, &USpudStreamingLevelWrapper::OnLevelShown);
+					level->OnLevelHidden.AddUniqueDynamic(wrapper, &USpudStreamingLevelWrapper::OnLevelHidden);
+					if (level->IsLevelVisible())
+						wrapper->OnLevelShown();
+				}
+			}
+
+			// Discard unloaded levels.
+			for (auto it = MonitoredStreamingLevels.CreateIterator(); it; ++it)
+			{
+				if (!streamingLevels.Contains(it.Key()))
+				{
+					UE_LOG(LogSpudSubsystem, Verbose, TEXT("Unloaded streaming level: %s"), *GetNameSafe(it.Key()));
+					check(!it.Key()->IsLevelVisible());
+					it.Key()->OnLevelShown.RemoveAll(it.Value());
+					it.Key()->OnLevelHidden.RemoveAll(it.Value());
+					it.RemoveCurrent();
+				}
+			}
+		}
+	}
 }
 
 ETickableTickType USpudSubsystem::GetTickableTickType() const
@@ -1160,3 +1211,31 @@ TStatId USpudSubsystem::GetStatId() const
 
 
 // FTickableGameObject end
+
+void USpudStreamingLevelWrapper::OnLevelShown()
+{
+	const auto level = LevelStreaming->GetLoadedLevel();
+	if (level)
+	{
+		UE_LOG(LogSpudSubsystem, Verbose, TEXT("Level shown: %s"), *USpudState::GetLevelName(level));
+		auto spud = UGameInstance::GetSubsystem<USpudSubsystem>(GetWorld()->GetGameInstance());
+		spud->HandleLevelLoaded(level);
+	}
+	else
+		UE_LOG(LogSpudSubsystem, Verbose, TEXT("No loaded level"));
+}
+
+void USpudStreamingLevelWrapper::OnLevelHidden()
+{
+	const auto level = LevelStreaming->GetLoadedLevel();
+	if (level)
+	{
+		const auto levelName = USpudState::GetLevelName(level);
+		UE_LOG(LogSpudSubsystem, Verbose, TEXT("Level hidden: %s"), *levelName);
+		auto spud = UGameInstance::GetSubsystem<USpudSubsystem>(GetWorld()->GetGameInstance());
+		spud->PreUnloadStreamingLevel.Broadcast(FName(levelName));
+		spud->HandleLevelUnloaded(level);
+	}
+	else
+		UE_LOG(LogSpudSubsystem, Verbose, TEXT("No loaded level"));
+}
