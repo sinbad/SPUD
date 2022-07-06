@@ -1005,6 +1005,25 @@ void USpudState::StoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelDat
 			pDestProperties = &ActorData->Properties;
 			pDestCustomData = &ActorData->CustomData.Data;
 			Name = ActorData->Name;
+
+#if WITH_EDITOR
+			// Verify that cases where the actor wasn't loaded from the level, but also
+			// wasn't respawned, such as Characters, GameState, that we got an overridden name because
+			// the FName isn't reliable in non-Editor builds
+			// See https://github.com/sinbad/SPUD/issues/41
+			if (SpudPropertyUtil::IsRuntimeActor(Actor))
+			{
+				FString OverrideName = ISpudObject::Execute_OverrideName(Actor);
+				if (OverrideName.IsEmpty())
+				{
+					UE_LOG(LogSpudProps, Warning, TEXT("Actor %s should implement 'OverrideName' with a predefined name. "
+						"This is because it's not saved in the level, but is also a special type not automatically respawned by Spud. "
+						"Examples include ACharacter, APlayerState etc. These instances should have a predefined name to reliably restore them. "
+						"They may work fine in editor builds, but will start to fail in non-Editor builds."), *Actor->GetName())
+				}
+			}
+#endif
+			
 		}
 	}
 
