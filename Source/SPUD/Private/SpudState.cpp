@@ -1023,6 +1023,7 @@ void USpudState::StoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelDat
 				}
 			}
 #endif
+
 		}
 	}
 
