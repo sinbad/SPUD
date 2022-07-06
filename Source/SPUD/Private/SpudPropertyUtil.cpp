@@ -1190,10 +1190,14 @@ FString SpudPropertyUtil::GetLevelActorName(const AActor* Actor)
 	// See https://github.com/sinbad/SPUD/issues/41
 	if (IsRuntimeActor(Actor))
 	{
-		UE_LOG(LogSpudProps, Warning, TEXT("Actor %s should implement 'OverrideName' with a predefined name. "
-			"This is because it's not saved in the level, but is also a special type not automatically respawned by Spud. "
-			"Examples include ACharacter, APlayerState etc. These instances should have a predefined name to reliably restore them. "
-			"They may work fine in editor builds, but will start to fail in non-Editor builds."), *Actor->GetName())
+		auto GuidProperty = FindGuidProperty(Actor);
+		if (!GuidProperty)
+		{
+			UE_LOG(LogSpudProps, Warning, TEXT("Actor %s should implement 'OverrideName' with a predefined name. "
+				"This is because it's not saved in the level, but is also a special type not automatically respawned by Spud. "
+				"Examples include ACharacter, APlayerState etc. These instances should have a predefined name to reliably restore them. "
+				"They may work fine in editor builds, but will start to fail in non-Editor builds."), *Actor->GetName());
+		}
 	}
 #endif
 	

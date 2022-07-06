@@ -172,6 +172,10 @@ protected:
 	UPROPERTY(BlueprintReadOnly)
 	ESpudSystemState CurrentState = ESpudSystemState::RunningIdle;
 
+	// True while restoring game state, either by loading a game or restoring the state of a streamed-in level.
+	UPROPERTY(BlueprintReadOnly)
+	bool IsRestoringState = false;
+
 	// The currently active game state
 	UPROPERTY()
 	USpudState* ActiveState;

@@ -90,6 +90,7 @@ void USpudSubsystem::EndGame()
 
 	UnsubscribeAllLevelObjectEvents();
 	CurrentState = ESpudSystemState::Disabled;
+	IsRestoringState = false;
 }
 
 void USpudSubsystem::AutoSaveGame(FText Title, bool bTakeScreenshot, const USpudCustomSaveInfo* ExtraInfo)
@@ -213,24 +214,24 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 			       TEXT("OnPostLoadMap restore: %s"),
 			       *LevelName);
 
-			// Switch to loading state if not already. This is needed because events triggered by loading, perhaps at some remote (event 1 > event 2 > etc)
-			// might need to check if SPUD is currently loading the game.
-			if (CurrentState != ESpudSystemState::LoadingGame)
-			{
-				CurrentState = ESpudSystemState::LoadingGame;
-				PreLoadGame.Broadcast(FString());
-			}
+			IsRestoringState = true;
 
 			const auto State = GetActiveState();
 			PreLevelRestore.Broadcast(LevelName);
 			State->RestoreLoadedWorld(World);
 			PostLevelRestore.Broadcast(LevelName, true);
 
+			IsRestoringState = false;
+
 			SubscribeLevelObjectEvents(World->GetCurrentLevel());
 		}
 
-		LoadComplete(SlotNameInProgress, true);
-		UE_LOG(LogSpudSubsystem, Log, TEXT("Load: Success"));
+		// If we were loading, this is the completion
+		if (CurrentState == ESpudSystemState::LoadingGame)
+		{
+			LoadComplete(SlotNameInProgress, true);
+			UE_LOG(LogSpudSubsystem, Log, TEXT("Load: Success"));
+		}
 
 		break;
 	default:
@@ -470,6 +471,7 @@ void USpudSubsystem::LoadGame(const FString& SlotName)
 	}
 
 	CurrentState = ESpudSystemState::LoadingGame;
+	IsRestoringState = true;
 	PreLoadGame.Broadcast(SlotName);
 
 	UE_LOG(LogSpudSubsystem, Verbose, TEXT("Loading Game from slot %s"), *SlotName);		
@@ -526,6 +528,7 @@ void USpudSubsystem::LoadGame(const FString& SlotName)
 void USpudSubsystem::LoadComplete(const FString& SlotName, bool bSuccess)
 {
 	CurrentState = ESpudSystemState::RunningIdle;
+	IsRestoringState = false;
 	SlotNameInProgress = "";
 	PostLoadGame.Broadcast(SlotName, bSuccess);
 }
@@ -723,9 +726,7 @@ void USpudSubsystem::PostLoadStreamLevelGameThread(FName LevelName)
 			return;
 		}
 
-		// Events triggered by loading might need to know that SPUD is loading.
-		auto crtState = CurrentState;
-		CurrentState = ESpudSystemState::LoadingGame;
+		IsRestoringState = true;
 
 		PreLevelRestore.Broadcast(LevelName.ToString());
 		// It's important to note that this streaming level won't be added to UWorld::Levels yet
@@ -742,7 +743,7 @@ void USpudSubsystem::PostLoadStreamLevelGameThread(FName LevelName)
 		SubscribeLevelObjectEvents(Level);
 		PostLevelRestore.Broadcast(LevelName.ToString(), true);
 
-		CurrentState = crtState;
+		IsRestoringState = false;
 	}
 }
 
@@ -779,6 +780,7 @@ void USpudSubsystem::UnloadStreamLevel(FName LevelName)
 void USpudSubsystem::ForceReset()
 {
 	CurrentState = ESpudSystemState::RunningIdle;
+	IsRestoringState = false;
 }
 
 void USpudSubsystem::SetUserDataModelVersion(int32 Version)
