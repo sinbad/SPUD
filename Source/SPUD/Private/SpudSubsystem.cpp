@@ -6,6 +6,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "ImageUtils.h"
 #include "TimerManager.h"
+#include "HAL/FileManager.h"
+#include "Async/Async.h"
 
 DEFINE_LOG_CATEGORY(LogSpudSubsystem)
 
