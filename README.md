@@ -2,7 +2,7 @@
 
 ## What is it?
 
-SPUD is a save game and streaming level persistence solution for Unreal Engine 4.
+SPUD is a save game and streaming level persistence solution for Unreal Engine (4.27 or 5.x).
 
 The 2 main core features:
 
