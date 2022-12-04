@@ -129,7 +129,7 @@ void USpudState::StorePropertyVisitor::StoreNestedUObjectIfNeeded(UObject* RootO
 void USpudState::StorePropertyVisitor::UnsupportedProperty(UObject* RootObject,
                                                            FProperty* Property, uint32 CurrentPrefixID, int Depth)
 {
-	UE_LOG(LogSpudState, Error, TEXT("Property %s/%s is marked for save but is an unsupported type, ignoring. E.g. Arrays of custom structs or UObjects (other than actor refs) are not supported."),
+	UE_LOG(LogSpudState, Error, TEXT("Property %s/%s is marked for save but is an unsupported type, ignoring. "),
         *RootObject->GetName(), *Property->GetName());
 	
 }

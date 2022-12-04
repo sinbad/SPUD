@@ -2,7 +2,7 @@
 
 ## What UE versions are supported?
 
-UE 4.26.1+
+UE 4.27, 5.x
 
 ## It's not working in Play In Editor (PIE) mode!
 

@@ -15,7 +15,7 @@ Blueprints, in the advanced property details section:
 
 ## Supported Property Types
 
-The following property types are supported, either as single entries, or
+The following property types are fully supported, either as single entries, and as
 **arrays**.
 
 * Integer (int)
@@ -33,13 +33,19 @@ The following property types are supported, either as single entries, or
   * Strong references: `AActor*` and subclasses
   * Weak references: `TWeakObjectPtr<AActor>` and subclasses
 
-The following property types are supported, but **not as arrays**:
+The following property types are fully supported as individual items, but
+have **caveats for arrays**:
 
 * Custom UStructs
 * Nested UObject instances (null preserving, will re-instantiate based on property type)
 * Nested components marked as SaveGame
 
-Maps and sets are not supported (these are not supported by UE serialization either). 
+All other property types - Maps, Sets, arrays of Custom UStructs or UObjects *are* supported
+**but** are not quite as functional. Due to their added complexity, they are serialized
+as "opaque" records using UE's own internal serialisation methods. This means SPUD 
+doesn't "look inside" them, it just saves/restores them as a blob, and cannot 
+support SPUD's additional special processing such as retaining links between actors
+in these properties. But for simple stand-alone state retention, they will work.
 
 
 ## Upgrading Properties

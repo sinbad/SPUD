@@ -16,7 +16,7 @@ Some more details:
   * You implement ISpudObject, a marker interface with no required methods
 * Pick properties to save
     * By enabling the "SaveGame" option
-* Large number of property types supported, including arrays, references between objects, and custom structs
+* All property types supported, including arrays, references between objects, and custom structs
 * You can also manually mark non-level UObjects (e.g. GameInstance) for inclusion in the save
 * Dynamically spawned objects that exist at save are re-spawned on load
 * Level objects which have been destroyed are automatically re-destroyed on level load

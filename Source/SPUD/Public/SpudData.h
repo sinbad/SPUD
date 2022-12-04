@@ -89,6 +89,9 @@ enum SPUD_API ESpudStorageType // (stored as uint16 but not using enum class to 
 	ESST_Name = 31,
 	ESST_Text = 32,
 
+	/// Not directly supported but embedded in an FRecord
+	ESST_OpaqueRecord = 64,
+
 	/// Unknown is a placeholder fallback
 	ESST_Unknown = 0x0F00,
 

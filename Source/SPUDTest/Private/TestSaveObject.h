@@ -129,7 +129,6 @@ public:
 	UPROPERTY(SaveGame)
 	TArray<FText> TextArray;
 
-	// Arrays of custom structs or UObjects are not supported yet
 };
 
 // Test 2-level nesting
@@ -354,4 +353,38 @@ public:
 
 	UPROPERTY(SaveGame)
 	UTestNestedChild5* UObjectVal5;
+};
+
+USTRUCT(BlueprintType)
+struct FTestSmallStruct
+{
+	GENERATED_USTRUCT_BODY()
+
+public:
+	UPROPERTY(SaveGame)
+	FString StringVal;
+	UPROPERTY(SaveGame)
+	FText TextVal;
+	UPROPERTY(SaveGame)
+	float FloatVal;
+};
+
+UCLASS()
+class SPUDTEST_API UTestSaveObjectNonNative : public UObject
+{
+	GENERATED_BODY()
+public:
+	// Simple primitive type as control
+	UPROPERTY(SaveGame)
+	int IntVal;
+
+	// Array of custom struct
+	UPROPERTY(SaveGame)
+	TArray<FTestSmallStruct> ArrayOfCustomStructs;
+
+	// Map
+	UPROPERTY(SaveGame)
+	TMap<FString, FTestSmallStruct> Map;
+	
+	
 };
