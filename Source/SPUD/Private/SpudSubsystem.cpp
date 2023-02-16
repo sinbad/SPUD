@@ -326,7 +326,11 @@ void USpudSubsystem::OnScreenshotCaptured(int32 Width, int32 Height, const TArra
 
 	// Convert down to PNG
 	TArray<uint8> PngData;
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
+	FImageUtils::ThumbnailCompressImageArray(ScreenshotWidth, ScreenshotHeight, RawDataCroppedResized, PngData);
+#else
 	FImageUtils::CompressImageArray(ScreenshotWidth, ScreenshotHeight, RawDataCroppedResized, PngData);
+#endif
 	
 	FinishSaveGame(SlotNameInProgress, TitleInProgress, ExtraInfoInProgress, &PngData);
 	
