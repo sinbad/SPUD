@@ -15,7 +15,7 @@ class SPUD_API ASpudStreamingVolume : public AVolume
 
 protected:
 
-	UPROPERTY(Category=LevelStreamingVolume, EditAnywhere, BlueprintReadOnly, meta=(DisplayName = "Streaming Levels", AllowedClasses="World"))
+	UPROPERTY(Category=LevelStreamingVolume, EditAnywhere, BlueprintReadOnly, meta=(DisplayName = "Streaming Levels", AllowedClasses="/Script/Engine.World"))
 	TArray<FSoftObjectPath> StreamingLevels;
 
 	UPROPERTY()
