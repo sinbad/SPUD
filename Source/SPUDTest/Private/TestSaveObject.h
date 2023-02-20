@@ -366,7 +366,7 @@ public:
 	UPROPERTY(SaveGame)
 	FText TextVal;
 	UPROPERTY(SaveGame)
-	float FloatVal;
+	float FloatVal = 0;
 };
 
 UCLASS()
