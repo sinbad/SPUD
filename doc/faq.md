@@ -2,7 +2,11 @@
 
 ## What UE versions are supported?
 
-UE 4.27, 5.x
+Unreal 5.x
+
+## Is World Partition Supported?
+
+As of the latest version, yes!
 
 ## It's not working in Play In Editor (PIE) mode!
 

@@ -1,10 +1,15 @@
 # Levels and Streaming
 
-In order for persistent state to work reliably with level streaming, you need to
-request streaming levels via `USpudSubSystem`. This is a wrapper around the
-standard streaming methods which ensures things happen in the right order.
+In previous versions of SPDU, you needed to request streaming levels via `USpudSubSystem`,
+for example using `ASpudStreamingVolume`. 
 
-The 2 methods needed (you can call these in Blueprints too, from a Get Spud Subsystem node): 
+As of the latest version of SPUD, this is no longer required, but you can still
+use it for the other benefits.
+
+SPUD now also supports [World Partition](https://docs.unrealengine.com/5.1/en-US/world-partition-in-unreal-engine/). 
+
+
+## Manually requesting streaming levels
 
 ```c++
 	/// Make a request that a streaming level is loaded. Won't load if already loaded, but will
