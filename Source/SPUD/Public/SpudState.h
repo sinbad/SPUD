@@ -191,7 +191,7 @@ protected:
 public:
 
 	static FString GetLevelName(const ULevel* Level);
-	static FString GetLevelNameForObject(const UObject* Obj);
+	static FString GetLevelNameForActor(const AActor* Actor);
 
 	USpudState();
 

@@ -61,11 +61,28 @@ enum class ESpudSaveSorting : uint8
 	Title
 };
 
+UCLASS(Transient)
+class SPUD_API USpudStreamingLevelWrapper : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY()
+	ULevelStreaming* LevelStreaming;
+
+	UFUNCTION()
+	void OnLevelShown();
+	UFUNCTION()
+	void OnLevelHidden();
+};
+
 /// Subsystem which controls our save games, and also the active game's persistent state (for streaming levels)
 UCLASS(Config=Engine)
 class SPUD_API USpudSubsystem : public UGameInstanceSubsystem, public FTickableGameObject
 {
 	GENERATED_BODY()
+
+	friend USpudStreamingLevelWrapper;
 
 public:
 	/// Event fired just before a game is loaded
@@ -126,6 +143,11 @@ public:
 	int32 ScreenshotHeight = 135;
 	FDelegateHandle OnScreenshotHandle;
 
+	/// If true, use the show/hide events of streaming levels to save/load, which is compatible with World Partition
+	/// You can set this to false to change to the legacy mode which requires ASpudStreamingVolume
+	UPROPERTY(BlueprintReadWrite, Config)
+	bool bSupportWorldPartition = true;
+
 
 protected:
 	FDelegateHandle OnPreLoadMapHandle;
@@ -152,6 +174,10 @@ protected:
 	UPROPERTY(BlueprintReadOnly)
 	ESpudSystemState CurrentState = ESpudSystemState::RunningIdle;
 
+	// True while restoring game state, either by loading a game or restoring the state of a streamed-in level.
+	UPROPERTY(BlueprintReadOnly)
+	bool IsRestoringState = false;
+
 	// The currently active game state
 	UPROPERTY()
 	USpudState* ActiveState;
@@ -177,6 +203,9 @@ protected:
 	
 	// Map of streaming level names to the requests to load them 
 	TMap<FName, FStreamLevelRequests> LevelRequests;
+
+	UPROPERTY()
+	TMap<ULevelStreaming*, USpudStreamingLevelWrapper*> MonitoredStreamingLevels;
 
 	bool ServerCheck(bool LogWarning) const;
 
@@ -216,6 +245,7 @@ protected:
 	void SaveComplete(const FString& SlotName, bool bSuccess);
 
 	void HandleLevelLoaded(FName LevelName);
+	void HandleLevelLoaded(ULevel* Level) { HandleLevelLoaded(FName(USpudState::GetLevelName(Level))); }
 	void HandleLevelUnloaded(ULevel* Level);
 
 	void LoadStreamLevel(FName LevelName, bool Blocking);
