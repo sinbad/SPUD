@@ -719,7 +719,11 @@ void USpudSubsystem::PostLoadStreamLevel(int32 LinkID)
 			StreamLevel->SetShouldBeVisible(true);
 		}		
 
-		HandleLevelLoaded(LevelName);
+		if (!bSupportWorldPartition)
+		{
+			// When supporting WP, shown event will trigger this
+			HandleLevelLoaded(LevelName);
+		}
 	}
 	else
 	{
@@ -777,7 +781,11 @@ void USpudSubsystem::UnloadStreamLevel(FName LevelName)
 		}
 		PreUnloadStreamingLevel.Broadcast(LevelName);
 
-		HandleLevelUnloaded(Level);
+		if (!bSupportWorldPartition)
+		{
+			// If using WP, the hidden event will trigger this instead
+			HandleLevelUnloaded(Level);
+		}
 		
 		// Now unload
 		FScopeLock PendingUnloadLock(&LevelsPendingUnloadMutex);
@@ -1171,7 +1179,7 @@ void USpudSubsystem::Tick(float DeltaTime)
 		}
 	}
 
-	if (MonitorLevelStreaming)
+	if (bSupportWorldPartition)
 	{
 		auto world = GetWorld();
 		if (world)

@@ -143,9 +143,10 @@ public:
 	int32 ScreenshotHeight = 135;
 	FDelegateHandle OnScreenshotHandle;
 
-	// When true, the system will monitor the loading and unloading of streaming levels. Required for World Partition support.
+	/// If true, use the show/hide events of streaming levels to save/load, which is compatible with World Partition
+	/// You can set this to false to change to the legacy mode which requires ASpudStreamingVolume
 	UPROPERTY(BlueprintReadWrite, Config)
-	bool MonitorLevelStreaming = true;
+	bool bSupportWorldPartition = true;
 
 
 protected:
