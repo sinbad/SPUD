@@ -39,39 +39,39 @@ struct FTestAllTypesStruct
 public:
 	// Primitive types
 	UPROPERTY(SaveGame)
-	int IntVal;
+	int IntVal = 0;
 	UPROPERTY(SaveGame)
-	uint8 UInt8Val;
+	uint8 UInt8Val = 0;
 	UPROPERTY(SaveGame)
-	uint16 UInt16Val;
+	uint16 UInt16Val = 0;
 	UPROPERTY(SaveGame)
-	uint32 UInt32Val;
+	uint32 UInt32Val = 0;
 	UPROPERTY(SaveGame)
-	uint64 UInt64Val;
+	uint64 UInt64Val = 0;
 	UPROPERTY(SaveGame)
-	int8 Int8Val;
+	int8 Int8Val = 0;
 	UPROPERTY(SaveGame)
-	int16 Int16Val;
+	int16 Int16Val = 0;
 	UPROPERTY(SaveGame)
-	int32 Int32Val;
+	int32 Int32Val = 0;
 	UPROPERTY(SaveGame)
-	int64 Int64Val;
+	int64 Int64Val = 0;
 
 	UPROPERTY(SaveGame)
-	float FloatVal;
+	float FloatVal = 0;
 	UPROPERTY(SaveGame)
-	double DoubleVal;
+	double DoubleVal = 0;
 	
 	UPROPERTY(SaveGame)
-	ETestEnum EnumVal;
+	ETestEnum EnumVal = ETestEnum::First;
 
 	// Built in structs
 	UPROPERTY(SaveGame)
-	FVector VectorVal;
+	FVector VectorVal = FVector::ZeroVector;
 	UPROPERTY(SaveGame)
-	FRotator RotatorVal;
+	FRotator RotatorVal = FRotator::ZeroRotator;
 	UPROPERTY(SaveGame)
-	FTransform TransformVal;
+	FTransform TransformVal = FTransform::Identity;
 
 	// Strings etc
 	UPROPERTY(SaveGame)
@@ -129,7 +129,6 @@ public:
 	UPROPERTY(SaveGame)
 	TArray<FText> TextArray;
 
-	// Arrays of custom structs or UObjects are not supported yet
 };
 
 // Test 2-level nesting
@@ -354,4 +353,38 @@ public:
 
 	UPROPERTY(SaveGame)
 	UTestNestedChild5* UObjectVal5;
+};
+
+USTRUCT(BlueprintType)
+struct FTestSmallStruct
+{
+	GENERATED_USTRUCT_BODY()
+
+public:
+	UPROPERTY(SaveGame)
+	FString StringVal;
+	UPROPERTY(SaveGame)
+	FText TextVal;
+	UPROPERTY(SaveGame)
+	float FloatVal = 0;
+};
+
+UCLASS()
+class SPUDTEST_API UTestSaveObjectNonNative : public UObject
+{
+	GENERATED_BODY()
+public:
+	// Simple primitive type as control
+	UPROPERTY(SaveGame)
+	int IntVal;
+
+	// Array of custom struct
+	UPROPERTY(SaveGame)
+	TArray<FTestSmallStruct> ArrayOfCustomStructs;
+
+	// Map
+	UPROPERTY(SaveGame)
+	TMap<FString, FTestSmallStruct> Map;
+	
+	
 };

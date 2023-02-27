@@ -6,6 +6,7 @@
 #include "SpudState.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Tickable.h"
+#include "Engine/World.h"
 
 #include "SpudSubsystem.generated.h"
 

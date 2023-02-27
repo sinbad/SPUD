@@ -3,6 +3,7 @@
 #include "SpudState.h"
 #include "TestSaveObject.h"
 
+PRAGMA_DISABLE_OPTIMIZATION
 
 template<typename T>
 void PopulateAllTypes(T& Obj)
@@ -336,3 +337,102 @@ bool FTestNestedObject::RunTest(const FString& Parameters)
 
 	return true;
 }
+
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTestNonNative, "SPUDTest.NonNative",
+	EAutomationTestFlags::EditorContext |
+	EAutomationTestFlags::ClientContext |
+	EAutomationTestFlags::ProductFilter)
+
+bool FTestNonNative::RunTest(const FString& Parameters)
+{
+	auto SavedObj = NewObject<UTestSaveObjectNonNative>();
+	SavedObj->ArrayOfCustomStructs.Add(FTestSmallStruct { "Item 0", FText::FromString("Text Item 0"), 0.01});
+	SavedObj->ArrayOfCustomStructs.Add(FTestSmallStruct { "Item 1", FText::FromString("Text Item 1"), 1.02});
+	SavedObj->ArrayOfCustomStructs.Add(FTestSmallStruct { "Item 2", FText::FromString("Text Item 2"), 2.03});
+	SavedObj->ArrayOfCustomStructs.Add(FTestSmallStruct { "Item 3", FText::FromString("Text Item 3"), 3.04});
+	SavedObj->IntVal = 99;
+	SavedObj->Map.Add("Map0", FTestSmallStruct { "Map Item 0", FText::FromString("Map Text Item 0"), 0.99});
+	SavedObj->Map.Add("Map1", FTestSmallStruct { "Map Item 1", FText::FromString("Map Text Item 1"), 1.99});
+	SavedObj->Map.Add("Map2", FTestSmallStruct { "Map Item 2", FText::FromString("Map Text Item 2"), 2.99});
+	SavedObj->Map.Add("Map3", FTestSmallStruct { "Map Item 3", FText::FromString("Map Text Item 3"), 3.99});
+	SavedObj->Map.Add("Map4", FTestSmallStruct { "Map Item 4", FText::FromString("Map Text Item 4"), 4.99});
+	SavedObj->Map.Add("Map5", FTestSmallStruct { "Map Item 5", FText::FromString("Map Text Item 5"), 5.99});
+
+	auto State = NewObject<USpudState>();
+	State->StoreGlobalObject(SavedObj, "TestObject");
+
+	auto LoadedObj = NewObject<UTestSaveObjectNonNative>();
+	State->RestoreGlobalObject(LoadedObj, "TestObject");
+
+
+	TestEqual("Int Val", LoadedObj->IntVal, 99);
+	if (TestEqual("Array num", LoadedObj->ArrayOfCustomStructs.Num(), 4))
+	{
+		TestEqual("Custom structs 0 float", LoadedObj->ArrayOfCustomStructs[0].FloatVal, 0.01f);
+		TestEqual("Custom structs 0 string", LoadedObj->ArrayOfCustomStructs[0].StringVal, "Item 0");
+		TestEqual("Custom structs 0 text", LoadedObj->ArrayOfCustomStructs[0].TextVal.ToString(), "Text Item 0");
+		TestEqual("Custom structs 1 float", LoadedObj->ArrayOfCustomStructs[1].FloatVal, 1.02f);
+		TestEqual("Custom structs 1 string", LoadedObj->ArrayOfCustomStructs[1].StringVal, "Item 1");
+		TestEqual("Custom structs 1 text", LoadedObj->ArrayOfCustomStructs[1].TextVal.ToString(), "Text Item 1");
+		TestEqual("Custom structs 2 float", LoadedObj->ArrayOfCustomStructs[2].FloatVal, 2.03f);
+		TestEqual("Custom structs 2 string", LoadedObj->ArrayOfCustomStructs[2].StringVal, "Item 2");
+		TestEqual("Custom structs 2 text", LoadedObj->ArrayOfCustomStructs[2].TextVal.ToString(), "Text Item 2");
+		TestEqual("Custom structs 3 float", LoadedObj->ArrayOfCustomStructs[3].FloatVal, 3.04f);
+		TestEqual("Custom structs 3 string", LoadedObj->ArrayOfCustomStructs[3].StringVal, "Item 3");
+		TestEqual("Custom structs 3 text", LoadedObj->ArrayOfCustomStructs[3].TextVal.ToString(), "Text Item 3");
+	}
+	if (TestEqual("Map num", LoadedObj->Map.Num(), 6))
+	{
+		FTestSmallStruct *Tmp = LoadedObj->Map.Find("Map0");
+		if (TestNotNull("Found item 0", Tmp))
+		{
+			TestEqual("Float val 0", Tmp->FloatVal, 0.99f);
+			TestEqual("String val 0", Tmp->StringVal, "Map Item 0");
+			TestEqual("Text val 0", Tmp->TextVal.ToString(), "Map Text Item 0");
+		}
+		Tmp = LoadedObj->Map.Find("Map1");
+		if (TestNotNull("Found item 1", Tmp))
+		{
+			TestEqual("Float val 1", Tmp->FloatVal, 1.99f);
+			TestEqual("String val 1", Tmp->StringVal, "Map Item 1");
+			TestEqual("Text val 1", Tmp->TextVal.ToString(), "Map Text Item 1");
+		}
+		Tmp = LoadedObj->Map.Find("Map2");
+		if (TestNotNull("Found item 2", Tmp))
+		{
+			TestEqual("Float val 2", Tmp->FloatVal, 2.99f);
+			TestEqual("String val 2", Tmp->StringVal, "Map Item 2");
+			TestEqual("Text val 2", Tmp->TextVal.ToString(), "Map Text Item 2");
+		}
+		Tmp = LoadedObj->Map.Find("Map3");
+		if (TestNotNull("Found item 3", Tmp))
+		{
+			TestEqual("Float val 3", Tmp->FloatVal, 3.99f);
+			TestEqual("String val 3", Tmp->StringVal, "Map Item 3");
+			TestEqual("Text val 3", Tmp->TextVal.ToString(), "Map Text Item 3");
+		}
+		Tmp = LoadedObj->Map.Find("Map4");
+		if (TestNotNull("Found item 4", Tmp))
+		{
+			TestEqual("Float val 4", Tmp->FloatVal, 4.99f);
+			TestEqual("String val 4", Tmp->StringVal, "Map Item 4");
+			TestEqual("Text val 4", Tmp->TextVal.ToString(), "Map Text Item 4");
+		}
+		Tmp = LoadedObj->Map.Find("Map5");
+		if (TestNotNull("Found item 5", Tmp))
+		{
+			TestEqual("Float val 5", Tmp->FloatVal, 5.99f);
+			TestEqual("String val 5", Tmp->StringVal, "Map Item 5");
+			TestEqual("Text val 5", Tmp->TextVal.ToString(), "Map Text Item 5");
+		}
+
+
+
+		
+	}
+
+	return true;
+}
+
+PRAGMA_ENABLE_OPTIMIZATION

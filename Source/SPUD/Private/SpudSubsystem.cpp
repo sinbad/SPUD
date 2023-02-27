@@ -6,6 +6,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "ImageUtils.h"
 #include "TimerManager.h"
+#include "HAL/FileManager.h"
+#include "Async/Async.h"
 
 DEFINE_LOG_CATEGORY(LogSpudSubsystem)
 
@@ -26,12 +28,21 @@ void USpudSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 #if WITH_EDITORONLY_DATA
 	// The one problem we have is that in PIE mode, PostLoadMap doesn't get fired for the current map you're on
 	// So we'll need to trigger it manually
+	// Also "AlwaysLoaded" maps do NOT trigger PostLoad, and at this point, they're NOT in the level list, meaning if
+	// we try to sub to levels right now, we'll only see the PersistentLevel
+	// So, we're going to have to delay this call by a frame
 	auto World = GetWorld();
 	if (World && World->WorldType == EWorldType::PIE)
 	{
-		// TODO: make this more configurable, use a known save etc
-		NewGame(false);
+		FTimerHandle TempHandle;
+		GetWorld()->GetTimerManager().SetTimer(TempHandle,[this]()
+		{
+			// TODO: make this more configurable, use a known save etc
+			NewGame(false);
+
+		}, 0.2, false);
 	}
+
 	
 #endif
 }
@@ -198,7 +209,8 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 				   Verbose,
 				   TEXT("OnPostLoadMap NewGame starting: %s"),
 				   *LevelName);
-			SubscribeLevelObjectEvents(World->GetCurrentLevel());
+			// We need to subscribe to ALL currently loaded levels, because of "AlwaysLoaded" sublevels
+			SubscribeAllLevelObjectEvents();
 			CurrentState = ESpudSystemState::RunningIdle;
 		}
 		break;
@@ -220,10 +232,10 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 			PreLevelRestore.Broadcast(LevelName);
 			State->RestoreLoadedWorld(World);
 			PostLevelRestore.Broadcast(LevelName, true);
-
+			
 			IsRestoringState = false;
-
-			SubscribeLevelObjectEvents(World->GetCurrentLevel());
+			// We need to subscribe to ALL currently loaded levels, because of "AlwaysLoaded" sublevels
+			SubscribeAllLevelObjectEvents();
 		}
 
 		// If we were loading, this is the completion
@@ -320,7 +332,11 @@ void USpudSubsystem::OnScreenshotCaptured(int32 Width, int32 Height, const TArra
 
 	// Convert down to PNG
 	TArray<uint8> PngData;
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
+	FImageUtils::ThumbnailCompressImageArray(ScreenshotWidth, ScreenshotHeight, RawDataCroppedResized, PngData);
+#else
 	FImageUtils::CompressImageArray(ScreenshotWidth, ScreenshotHeight, RawDataCroppedResized, PngData);
+#endif
 	
 	FinishSaveGame(SlotNameInProgress, TitleInProgress, ExtraInfoInProgress, &PngData);
 	

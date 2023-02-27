@@ -144,6 +144,13 @@ public:
 	 * @return Whether this property is supported in the persistence system
 	 */
 	static bool IsPropertySupported(FProperty* Property);
+	
+	/**
+	 * @brief Return wether a specified property is natively supported, with full upgrade functionality
+	 * @param Property the property in question
+	 * @return Whether this property is supported in the persistence system
+	 */
+	static bool IsPropertyNativelySupported(FProperty* Property);
 	/**
 	 * @brief Return whether a property is of a built-in struct 
 	 * @param SProp The struct property
@@ -262,7 +269,7 @@ public:
 	static bool StoredClassDefMatchesRuntime(const FSpudClassDef& ClassDef, const FSpudClassMetadata& Meta);
 
 protected:
-	static bool IsValidArrayType(FArrayProperty* AProp);
+	static bool IsNativelySupportedArrayType(const FArrayProperty* AProp);
 	/// General recursive visitation of properties, returns false to early-out, object/container can be null
 	static bool VisitPersistentProperties(UObject* RootObject, const UStruct* Definition, uint32 PrefixID,
 	                                      void* ContainerPtr, bool IsChildOfSaveGame, int Depth,

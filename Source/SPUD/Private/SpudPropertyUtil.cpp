@@ -16,18 +16,32 @@ bool SpudPropertyUtil::ShouldPropertyBeIncluded(FProperty* Property, bool IsChil
 
 bool SpudPropertyUtil::IsPropertySupported(FProperty* Property)
 {
+	// We're going to support everything now
+	return true;
+}
+
+bool SpudPropertyUtil::IsPropertyNativelySupported(FProperty* Property)
+{
 	if (const auto AProp = CastField<FArrayProperty>(Property))
 	{
-		if (!IsValidArrayType(AProp))
+		if (!IsNativelySupportedArrayType(AProp))
 			return false;
+	}
+	else if (const auto MProp = CastField<FMapProperty>(Property))
+	{
+		return false;
+	}
+	else if (const auto SProp = CastField<FSetProperty>(Property))
+	{
+		return false;
 	}
 
 	return true;
 }
 
-bool SpudPropertyUtil::IsValidArrayType(FArrayProperty* AProp)
+bool SpudPropertyUtil::IsNativelySupportedArrayType(const FArrayProperty* AProp)
 {
-	// We cannot support arrays of custom structs
+	// We only natively support arrays of non-custom structs
 	// This is because we're relying on iterating through the UObject's properties and looking up from the state data,
 	// and to support this with all the issues of backwards compatibility would require such detailed offset data that
 	// it would make the whole thing very unwieldy. Arrays can only be primitive types or builtin structs
@@ -114,13 +128,20 @@ uint16 SpudPropertyUtil::GetPropertyDataType(const FProperty* Prop)
 {
 	bool bIsArray = false;
 	const FProperty* ActualProp = Prop;
+	// Default to opaque record
+	// Use this for arrays of custom structs, maps etc
+	uint16 Ret = ESST_OpaqueRecord;
+
 	if (const auto AProp = CastField<FArrayProperty>(Prop))
 	{
-		bIsArray = true;
-		ActualProp = AProp->Inner;
+		// Only natively supported array types will be stored natively
+		if (IsNativelySupportedArrayType(AProp))
+		{
+			bIsArray = true;
+			ActualProp = AProp->Inner;
+		}
 	}
 
-	uint16 Ret = ESST_Unknown;
 	
 	if (const auto SProp = CastField<FStructProperty>(ActualProp))
 	{
@@ -775,12 +796,15 @@ void SpudPropertyUtil::StoreProperty(const UObject* RootObject,
 	// Arrays supported, but not maps / sets yet
 	if (const auto AProp = CastField<FArrayProperty>(Property))
 	{
-		StoreArrayProperty(AProp, RootObject, PrefixID, ContainerPtr, Depth, ClassDef, PropertyOffsets, Meta, Out);
+		if (IsNativelySupportedArrayType(AProp))
+		{
+			StoreArrayProperty(AProp, RootObject, PrefixID, ContainerPtr, Depth, ClassDef, PropertyOffsets, Meta, Out);
+			return;
+		}
 	}
-	else
-	{
-		StoreContainerProperty(Property, RootObject, PrefixID, ContainerPtr, false, Depth, ClassDef, PropertyOffsets, Meta, Out);
-	}
+
+	// Includes arrays of custom structs, maps etc
+	StoreContainerProperty(Property, RootObject, PrefixID, ContainerPtr, false, Depth, ClassDef, PropertyOffsets, Meta, Out);
 }
 
 void SpudPropertyUtil::StoreArrayProperty(FArrayProperty* AProp,
@@ -829,49 +853,65 @@ void SpudPropertyUtil::StoreContainerProperty(FProperty* Property,
                                               FSpudClassMetadata& Meta,
                                               FMemoryWriter& Out)
 {
-	// Get pointer to data within container, must be from original property in the case of arrays
-	const void* DataPtr = Property->ContainerPtrToValuePtr<void>(ContainerPtr);
 	bool bUpdateOK;
-	if (const auto SProp = CastField<FStructProperty>(Property))
+	if (IsPropertyNativelySupported(Property))
 	{
-		if (IsBuiltInStructProperty(SProp))
+		// Get pointer to data within container, must be from original property in the case of arrays
+		const void* DataPtr = Property->ContainerPtrToValuePtr<void>(ContainerPtr);
+		if (const auto SProp = CastField<FStructProperty>(Property))
 		{
-			// Builtin structs
-			bUpdateOK =
-                TryWriteBuiltinStructPropertyData<FVector>(SProp, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-                TryWriteBuiltinStructPropertyData<FRotator>(SProp, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-                TryWriteBuiltinStructPropertyData<FTransform>(SProp, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-                TryWriteBuiltinStructPropertyData<FGuid>(SProp, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out);
+			if (IsBuiltInStructProperty(SProp))
+			{
+				// Builtin structs
+				bUpdateOK =
+					TryWriteBuiltinStructPropertyData<FVector>(SProp, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+					TryWriteBuiltinStructPropertyData<FRotator>(SProp, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+					TryWriteBuiltinStructPropertyData<FTransform>(SProp, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+					TryWriteBuiltinStructPropertyData<FGuid>(SProp, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out);
+			}
+			else
+			{
+				// We assume that nested custom structs are ok
+				// We don't cascade here any more, visitor does it
+				// Just log fo consistency
+				UE_LOG(LogSpudProps, Verbose, TEXT("%s:"), *GetLogPrefix(Property, Depth));
+				bUpdateOK = true;
+			}
 		}
-		else
+		else 
 		{
-			// We assume that nested custom structs are ok
-			// We don't cascade here any more, visitor does it
-			// Just log fo consistency
-			UE_LOG(LogSpudProps, Verbose, TEXT("%s:"), *GetLogPrefix(Property, Depth));
-			bUpdateOK = true;
+			bUpdateOK =
+				TryWritePropertyData<FBoolProperty,		bool>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+				TryWritePropertyData<FByteProperty,		uint8>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+				TryWritePropertyData<FUInt16Property,	uint16>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+				TryWritePropertyData<FUInt32Property,	uint32>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+				TryWritePropertyData<FUInt64Property,	uint64>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+				TryWritePropertyData<FInt8Property,		int8>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+				TryWritePropertyData<FInt16Property,	int16>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+				TryWritePropertyData<FIntProperty,		int>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+				TryWritePropertyData<FInt64Property,	int64>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+				TryWritePropertyData<FFloatProperty,	float>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+				TryWritePropertyData<FDoubleProperty,	double>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+				TryWritePropertyData<FStrProperty,		FString>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+				TryWritePropertyData<FNameProperty,		FName>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+				TryWritePropertyData<FTextProperty,		FText>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+				TryWriteEnumPropertyData(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
+				TryWriteUObjectPropertyData(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out);;
+		
 		}
 	}
-	else 
+	else
 	{
-		bUpdateOK =
-            TryWritePropertyData<FBoolProperty,		bool>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-            TryWritePropertyData<FByteProperty,		uint8>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-            TryWritePropertyData<FUInt16Property,	uint16>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-            TryWritePropertyData<FUInt32Property,	uint32>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-            TryWritePropertyData<FUInt64Property,	uint64>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-            TryWritePropertyData<FInt8Property,		int8>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-            TryWritePropertyData<FInt16Property,	int16>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-            TryWritePropertyData<FIntProperty,		int>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-            TryWritePropertyData<FInt64Property,	int64>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-            TryWritePropertyData<FFloatProperty,	float>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-            TryWritePropertyData<FDoubleProperty,	double>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-            TryWritePropertyData<FStrProperty,		FString>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-            TryWritePropertyData<FNameProperty,		FName>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-            TryWritePropertyData<FTextProperty,		FText>(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-            TryWriteEnumPropertyData(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out) ||
-            TryWriteUObjectPropertyData(Property, PrefixID, DataPtr, bIsArrayElement, Depth, ClassDef, PropertyOffsets, Meta, Out);;
-		
+		// Not a fully supported type, wrap in an FRecord as an opaque type
+		// Not super efficient but useful for plugging gaps in things we support
+		RegisterProperty(Property, PrefixID, ClassDef, PropertyOffsets, Meta, Out);
+		FBinaryArchiveFormatter Fmt(Out);
+		FStructuredArchive Ar(Fmt);
+		const auto RootSlot = Ar.Open();
+		// Nasty const cast but that's because this loads and saves
+		Property->SerializeBinProperty(RootSlot, const_cast<void*>(ContainerPtr));
+		Ar.Close();
+		bUpdateOK = true;
 	}
 	if (!bUpdateOK)
 	{
@@ -890,12 +930,15 @@ void SpudPropertyUtil::RestoreProperty(UObject* RootObject, FProperty* Property,
 	// Arrays supported, but not maps / sets yet
 	if (const auto AProp = CastField<FArrayProperty>(Property))
 	{
-		RestoreArrayProperty(RootObject, AProp, ContainerPtr, StoredProperty, RuntimeObjects, Meta, Depth, DataIn);
+		if (IsNativelySupportedArrayType(AProp))
+		{
+			RestoreArrayProperty(RootObject, AProp, ContainerPtr, StoredProperty, RuntimeObjects, Meta, Depth, DataIn);
+			return;
+		}
 	}
-	else
-	{
-		RestoreContainerProperty(RootObject,Property, ContainerPtr, StoredProperty, RuntimeObjects, Meta, Depth, DataIn);
-	}
+		
+	// Otherwise pass through general property util
+	RestoreContainerProperty(RootObject,Property, ContainerPtr, StoredProperty, RuntimeObjects, Meta, Depth, DataIn);
 }
 
 
@@ -931,55 +974,71 @@ void SpudPropertyUtil::RestoreContainerProperty(UObject* RootObject, FProperty* 
                                                       int Depth,
                                                       FMemoryReader& DataIn)
 {
-	// Get pointer to data within container, must be from original property in the case of arrays
-	void* DataPtr = Property->ContainerPtrToValuePtr<void>(ContainerPtr);
 	bool bUpdateOK;
-	if (const auto SProp = CastField<FStructProperty>(Property))
+
+	if (IsPropertyNativelySupported(Property))
 	{
-		if (IsBuiltInStructProperty(SProp))
+		// Get pointer to data within container, must be from original property in the case of arrays
+		void* DataPtr = Property->ContainerPtrToValuePtr<void>(ContainerPtr);
+		if (const auto SProp = CastField<FStructProperty>(Property))
 		{
-			// Builtin structs
-			bUpdateOK =
-                TryReadBuiltinStructPropertyData<FVector>(SProp, DataPtr, StoredProperty, Depth, DataIn) ||
-                TryReadBuiltinStructPropertyData<FRotator>(SProp, DataPtr, StoredProperty, Depth, DataIn) ||
-                TryReadBuiltinStructPropertyData<FTransform>(SProp, DataPtr, StoredProperty, Depth, DataIn) ||
-                TryReadBuiltinStructPropertyData<FGuid>(SProp, DataPtr, StoredProperty, Depth, DataIn);
+			if (IsBuiltInStructProperty(SProp))
+			{
+				// Builtin structs
+				bUpdateOK =
+					TryReadBuiltinStructPropertyData<FVector>(SProp, DataPtr, StoredProperty, Depth, DataIn) ||
+					TryReadBuiltinStructPropertyData<FRotator>(SProp, DataPtr, StoredProperty, Depth, DataIn) ||
+					TryReadBuiltinStructPropertyData<FTransform>(SProp, DataPtr, StoredProperty, Depth, DataIn) ||
+					TryReadBuiltinStructPropertyData<FGuid>(SProp, DataPtr, StoredProperty, Depth, DataIn);
+			}
+			else
+			{
+				// We assume that nested custom structs are ok
+				// We don't cascade here any more, visitor does it
+				bUpdateOK = true;
+			}
 		}
-		else
+		else 
 		{
-			// We assume that nested custom structs are ok
-			// We don't cascade here any more, visitor does it
-			bUpdateOK = true;
+			bUpdateOK =
+				TryReadPropertyData<FBoolProperty,		bool>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+				TryReadPropertyData<FByteProperty,		uint8>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+				TryReadPropertyData<FUInt16Property,	uint16>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+				TryReadPropertyData<FUInt32Property,	uint32>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+				TryReadPropertyData<FUInt64Property,	uint64>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+				TryReadPropertyData<FInt8Property,		int8>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+				TryReadPropertyData<FInt16Property,	int16>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+				TryReadPropertyData<FIntProperty,		int>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+				TryReadPropertyData<FInt64Property,	int64>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+				TryReadPropertyData<FFloatProperty,	float>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+				TryReadPropertyData<FDoubleProperty,	double>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+				TryReadPropertyData<FStrProperty,		FString>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+				TryReadPropertyData<FNameProperty,		FName>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+				TryReadPropertyData<FTextProperty,		FText>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
+				TryReadEnumPropertyData(Property, DataPtr, StoredProperty, Depth, DataIn);
+
+			if (!bUpdateOK)
+			{
+				// Actors can refer to each other
+			
+				ULevel* Level = nullptr;
+				if (auto Actor = Cast<AActor>(RootObject))
+					Level = Actor->GetLevel();
+				bUpdateOK = TryReadUObjectPropertyData(Property, DataPtr, StoredProperty, RuntimeObjects, Level, RootObject, Meta, Depth, DataIn);
+			}
+		
 		}
 	}
-	else 
+	else
 	{
-		bUpdateOK =
-            TryReadPropertyData<FBoolProperty,		bool>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
-            TryReadPropertyData<FByteProperty,		uint8>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
-            TryReadPropertyData<FUInt16Property,	uint16>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
-            TryReadPropertyData<FUInt32Property,	uint32>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
-            TryReadPropertyData<FUInt64Property,	uint64>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
-            TryReadPropertyData<FInt8Property,		int8>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
-            TryReadPropertyData<FInt16Property,	int16>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
-            TryReadPropertyData<FIntProperty,		int>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
-            TryReadPropertyData<FInt64Property,	int64>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
-            TryReadPropertyData<FFloatProperty,	float>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
-            TryReadPropertyData<FDoubleProperty,	double>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
-            TryReadPropertyData<FStrProperty,		FString>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
-            TryReadPropertyData<FNameProperty,		FName>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
-            TryReadPropertyData<FTextProperty,		FText>(Property, DataPtr, StoredProperty, Depth, DataIn) ||
-            TryReadEnumPropertyData(Property, DataPtr, StoredProperty, Depth, DataIn);
-
-		if (!bUpdateOK)
-		{
-			// Actors can refer to each other
-			
-			ULevel* Level = nullptr;
-			if (auto Actor = Cast<AActor>(RootObject))
-				Level = Actor->GetLevel();
-			bUpdateOK = TryReadUObjectPropertyData(Property, DataPtr, StoredProperty, RuntimeObjects, Level, RootObject, Meta, Depth, DataIn);
-		}
+		// Not a fully supported type, will have been wrapped in an FRecord as an opaque type
+		FBinaryArchiveFormatter Fmt(DataIn);
+		FStructuredArchive Ar(Fmt);
+		const auto RootSlot = Ar.Open();
+		// Nasty const cast but that's because this loads and saves
+		Property->SerializeBinProperty(RootSlot, ContainerPtr);
+		Ar.Close();
+		bUpdateOK = true;
 		
 	}
 	if (!bUpdateOK)

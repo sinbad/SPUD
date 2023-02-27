@@ -2,7 +2,7 @@
 
 ## What UE versions are supported?
 
-UE 4.26.1+
+UE 4.27, 5.x
 
 ## It's not working in Play In Editor (PIE) mode!
 
@@ -148,3 +148,16 @@ in an area that unloads.
 ## Warning: "Actor Foo should implement 'OverrideName' with a predefined name."
 
 See [Gameplay Framework Spawned Actors](../Readme.md#gameplay-framework-spawned-actors)
+
+## Crash on restore "Array has changed during ranged-for iteration!"
+
+The most common reason for this is that you're spawning new actors during
+one of the per-actor callbacks in `ISpudObjectCallback`. This isn't allowed, because
+we're currently going through the level actors to restore them. While SPUD could
+duplicate the level actors array to prevent this, there can be a lot of actors in 
+a level so this would be an unnecessary cost.
+
+Instead, simply delay the creation of actors in any post-restore hook. Note that
+you can spawn actors indirectly, such as playing a Level Sequence which uses 
+spawnables. In all cases, simply delay spawning / playing the sequence by a small
+time so that it happens after the restore process.
