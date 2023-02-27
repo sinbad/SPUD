@@ -865,7 +865,7 @@ void USpudSubsystem::SubscribeLevelObjectEvents(ULevel* Level)
 			// We don't care about runtime spawned actors, only level actors
 			// Runtime actors will just be omitted, level actors need to be logged as destroyed
 			if (!SpudPropertyUtil::IsRuntimeActor(Actor))
-				Actor->OnDestroyed.AddDynamic(this, &USpudSubsystem::OnActorDestroyed);			
+				Actor->OnDestroyed.AddUniqueDynamic(this, &USpudSubsystem::OnActorDestroyed);			
 		}		
 	}	
 }
