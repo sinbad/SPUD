@@ -52,6 +52,19 @@ void USpudSubsystem::Deinitialize()
 	FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(OnPostLoadMapHandle);
 	FCoreUObjectDelegates::PreLoadMap.Remove(OnPreLoadMapHandle);
 	FWorldDelegates::OnSeamlessTravelTransition.Remove(OnSeamlessTravelHandle);
+
+	// Clean up streaming level event listeners, as they may fire after we've been destroyed
+	for (auto It = MonitoredStreamingLevels.CreateIterator(); It; ++It)
+	{
+		ULevelStreaming* const Level = It.Key();
+		if (ensure(Level))
+		{
+			USpudStreamingLevelWrapper* const Wrapper = It.Value();
+			Level->OnLevelShown.RemoveAll(Wrapper);
+			Level->OnLevelHidden.RemoveAll(Wrapper);
+			It.RemoveCurrent();
+		}
+	}
 }
 
 
@@ -1244,8 +1257,12 @@ void USpudStreamingLevelWrapper::OnLevelShown()
 	if (level)
 	{
 		UE_LOG(LogSpudSubsystem, Verbose, TEXT("Level shown: %s"), *USpudState::GetLevelName(level));
+		
 		auto spud = UGameInstance::GetSubsystem<USpudSubsystem>(GetWorld()->GetGameInstance());
-		spud->HandleLevelLoaded(level);
+		if (ensureMsgf(spud, TEXT("Unable to find SpudSubsystem, so cannot load the state of level: %s"), *USpudState::GetLevelName(level)))
+		{
+			spud->HandleLevelLoaded(level);
+		}
 	}
 	else
 		UE_LOG(LogSpudSubsystem, Verbose, TEXT("No loaded level"));
@@ -1258,9 +1275,15 @@ void USpudStreamingLevelWrapper::OnLevelHidden()
 	{
 		const auto levelName = USpudState::GetLevelName(level);
 		UE_LOG(LogSpudSubsystem, Verbose, TEXT("Level hidden: %s"), *levelName);
+		
+		// We no longer crash, but we still need to know when this happens, as we really should be
+		// storing the state of the unloaded level
 		auto spud = UGameInstance::GetSubsystem<USpudSubsystem>(GetWorld()->GetGameInstance());
-		spud->PreUnloadStreamingLevel.Broadcast(FName(levelName));
-		spud->HandleLevelUnloaded(level);
+		if (ensureMsgf(spud, TEXT("Unable to find SpudSubsystem, so cannot save the state of level: %s"), *levelName))
+		{
+			spud->PreUnloadStreamingLevel.Broadcast(FName(levelName));
+			spud->HandleLevelUnloaded(level);
+		}
 	}
 	else
 		UE_LOG(LogSpudSubsystem, Verbose, TEXT("No loaded level"));
