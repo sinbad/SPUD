@@ -53,29 +53,18 @@ void USpudSubsystem::Deinitialize()
 	FCoreUObjectDelegates::PreLoadMap.Remove(OnPreLoadMapHandle);
 	FWorldDelegates::OnSeamlessTravelTransition.Remove(OnSeamlessTravelHandle);
 
-    // Tell all visible levels to save themselves, as we're shutting down
-    for (auto It = MonitoredStreamingLevels.CreateIterator(); It; ++It)
-    {
-        ULevelStreaming* const Level = It.Key();
-        if (ensure(Level))
-        {
-            USpudStreamingLevelWrapper* const Wrapper = It.Value();
-
-            if (Level->IsLevelVisible())
-            {
-                UE_LOG(LogSpudSubsystem, Verbose, TEXT("Firing OnLevelHidden for streaming level as shutting down: %s"), *GetNameSafe(Level));
-
-                // We need to fire this now in order to ensure it's state gets saved
-                // before USpudSubsystem is destroyed
-                Wrapper->OnLevelHidden();
-            }
-
-            // Remove callbacks, as we've already processed everything
-            Level->OnLevelShown.RemoveAll(Wrapper);
-            Level->OnLevelHidden.RemoveAll(Wrapper);
-            It.RemoveCurrent();
-        }
-    }
+	// Clean up streaming level event listeners, as they may fire after we've been destroyed
+	for (auto It = MonitoredStreamingLevels.CreateIterator(); It; ++It)
+	{
+		ULevelStreaming* const Level = It.Key();
+		if (ensure(Level))
+		{
+			USpudStreamingLevelWrapper* const Wrapper = It.Value();
+			Level->OnLevelShown.RemoveAll(Wrapper);
+			Level->OnLevelHidden.RemoveAll(Wrapper);
+			It.RemoveCurrent();
+		}
+	}
 }
 
 
@@ -1270,10 +1259,10 @@ void USpudStreamingLevelWrapper::OnLevelShown()
 		UE_LOG(LogSpudSubsystem, Verbose, TEXT("Level shown: %s"), *USpudState::GetLevelName(level));
 		
 		auto spud = UGameInstance::GetSubsystem<USpudSubsystem>(GetWorld()->GetGameInstance());
-	    if (ensureMsgf(spud, TEXT("Unable to find SpudSubsystem, so cannot load the state of level: %s"), *USpudState::GetLevelName(level)))
-	    {
-	        spud->HandleLevelLoaded(level);
-	    }
+		if (ensureMsgf(spud, TEXT("Unable to find SpudSubsystem, so cannot load the state of level: %s"), *USpudState::GetLevelName(level)))
+		{
+			spud->HandleLevelLoaded(level);
+		}
 	}
 	else
 		UE_LOG(LogSpudSubsystem, Verbose, TEXT("No loaded level"));
@@ -1288,13 +1277,13 @@ void USpudStreamingLevelWrapper::OnLevelHidden()
 		UE_LOG(LogSpudSubsystem, Verbose, TEXT("Level hidden: %s"), *levelName);
 		
 		// We no longer crash, but we still need to know when this happens, as we really should be
-	    // storing the state of the unloaded level
-	    auto spud = UGameInstance::GetSubsystem<USpudSubsystem>(GetWorld()->GetGameInstance());
-	    if (ensureMsgf(spud, TEXT("Unable to find SpudSubsystem, so cannot save the state of level: %s"), *levelName))
-	    {
-	        spud->PreUnloadStreamingLevel.Broadcast(FName(levelName));
-	        spud->HandleLevelUnloaded(level);
-	    }
+		// storing the state of the unloaded level
+		auto spud = UGameInstance::GetSubsystem<USpudSubsystem>(GetWorld()->GetGameInstance());
+		if (ensureMsgf(spud, TEXT("Unable to find SpudSubsystem, so cannot save the state of level: %s"), *levelName))
+		{
+			spud->PreUnloadStreamingLevel.Broadcast(FName(levelName));
+			spud->HandleLevelUnloaded(level);
+		}
 	}
 	else
 		UE_LOG(LogSpudSubsystem, Verbose, TEXT("No loaded level"));
