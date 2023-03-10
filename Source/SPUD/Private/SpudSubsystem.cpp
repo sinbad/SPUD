@@ -18,6 +18,7 @@ DEFINE_LOG_CATEGORY(LogSpudSubsystem)
 
 void USpudSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
+	bIsTearingDown = false;
 	// Note: this will register for clients too, but callbacks will be ignored
 	// We can't call ServerCheck() here because GameMode won't be valid (which is what we use to determine server mode)
 	OnPostLoadMapHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &USpudSubsystem::OnPostLoadMap);
@@ -49,6 +50,9 @@ void USpudSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void USpudSubsystem::Deinitialize()
 {
+	Super::Deinitialize();
+	bIsTearingDown = true;
+	
 	FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(OnPostLoadMapHandle);
 	FCoreUObjectDelegates::PreLoadMap.Remove(OnPreLoadMapHandle);
 	FWorldDelegates::OnSeamlessTravelTransition.Remove(OnSeamlessTravelHandle);
@@ -456,9 +460,13 @@ void USpudSubsystem::HandleLevelUnloaded(ULevel* Level)
 {
 	UnsubscribeLevelObjectEvents(Level);
 
-	if (CurrentState != ESpudSystemState::LoadingGame)
+	if (CurrentState != ESpudSystemState::LoadingGame && !bIsTearingDown)
 	{
-		// save the state, if not loading game
+		// NOTE: even though we're attempting to NOT do this while tearing down, in PIE it will still happen on end play
+		// This is because for some reason, in PIE the GameInstance shutdown function is called AFTER the levels are flushed,
+		// compared to before in normal game shutdown. See the difference between UEditorEngine::EndPlayMap() and UGameEngine::PreExit()
+		// We can't really fix this; we could listen on FEditorDelegates::PrePIEEnded but that would require linking the editor module (bleh) 
+		// save the state
 		// when loading game we will unload the current level and streaming and don't want to restore the active state from that
 		// After storing, the level data is released so doesn't take up memory any more
 		StoreLevel(Level, true, false);

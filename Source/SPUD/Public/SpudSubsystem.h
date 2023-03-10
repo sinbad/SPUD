@@ -178,6 +178,10 @@ protected:
 	UPROPERTY(BlueprintReadOnly)
 	bool IsRestoringState = false;
 
+	/// True when system shutdown has been started
+	UPROPERTY(BlueprintReadOnly)
+	bool bIsTearingDown = false;
+
 	// The currently active game state
 	UPROPERTY()
 	USpudState* ActiveState;
