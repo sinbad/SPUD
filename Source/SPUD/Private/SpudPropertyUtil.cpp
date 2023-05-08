@@ -1030,7 +1030,10 @@ void SpudPropertyUtil::RestoreContainerProperty(UObject* RootObject, FProperty* 
 				{
 					if (UActorComponent* ActorComponentLevelCheck = Cast<UActorComponent>(RootObject))
 					{
-						Level = ActorComponentLevelCheck->GetOwner()->GetLevel();
+						if (IsValid(ActorComponentLevelCheck->GetOwner()->GetLevel()))
+						{
+							Level = ActorComponentLevelCheck->GetOwner()->GetLevel();
+						}
 					}
 				}
 				bUpdateOK = TryReadUObjectPropertyData(Property, DataPtr, StoredProperty, RuntimeObjects, Level, RootObject, Meta, Depth, DataIn);
