@@ -146,11 +146,17 @@ public:
 	static bool IsPropertySupported(FProperty* Property);
 	
 	/**
-	 * @brief Return wether a specified property is natively supported, with full upgrade functionality
+	 * @brief Return whether a specified property is natively supported, with full upgrade functionality
 	 * @param Property the property in question
 	 * @return Whether this property is supported in the persistence system
 	 */
 	static bool IsPropertyNativelySupported(FProperty* Property);
+	/**
+	 * @brief Return whether a specified property is supported, as a fallback
+	 * @param Property the property in question
+	 * @return Whether this property is supported in the persistence system even if not natively
+	 */
+	static bool IsPropertyFallbackSupported(FProperty* Property);
 	/**
 	 * @brief Return whether a property is of a built-in struct 
 	 * @param SProp The struct property

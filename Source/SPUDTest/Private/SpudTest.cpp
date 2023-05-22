@@ -29,6 +29,9 @@ void PopulateAllTypes(T& Obj)
 	Obj.UObjectVal = NewObject<UTestNestedUObject>();
 	Obj.UObjectVal->NestedIntVal = 96;
 	Obj.UObjectVal->NestedStringVal = "A string inside a nested UObject";
+	Obj.TObjectPtrVal = NewObject<UTestNestedUObject>();
+	Obj.TObjectPtrVal->NestedIntVal = 123;
+	Obj.TObjectPtrVal->NestedStringVal = "A string inside a nested TObjectPtr";
 
 	Obj.ActorSubclass = AStaticMeshActor::StaticClass();
 	Obj.ActorSubclassArray.Add(AStaticMeshActor::StaticClass());
@@ -144,7 +147,15 @@ void CheckAllTypes(FAutomationTestBase* Test, const FString& Prefix, const T& Ac
 		Test->TestEqual(Prefix + "UObject Int should match", Actual.UObjectVal->NestedIntVal, Expected.UObjectVal->NestedIntVal);
 		
 	}
-
+	
+	Test->TestTrue(Prefix + "TObjectPtr shouldn't be null", (bool)Actual.TObjectPtrVal);
+	if (Actual.TObjectPtrVal)
+	{
+		Test->TestEqual(Prefix + "UObject String should match", Actual.TObjectPtrVal->NestedStringVal, Expected.TObjectPtrVal->NestedStringVal);
+		Test->TestEqual(Prefix + "UObject Int should match", Actual.TObjectPtrVal->NestedIntVal, Expected.TObjectPtrVal->NestedIntVal);
+		
+	}
+	
 	Test->TestEqual(Prefix + "SubclassOf field should match", Actual.ActorSubclass.Get(), AStaticMeshActor::StaticClass());
 	if (Test->TestEqual(Prefix + "SubclassOf array should be correct size", Actual.ActorSubclassArray.Num(), 2))
 	{

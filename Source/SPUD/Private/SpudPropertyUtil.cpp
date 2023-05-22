@@ -1,6 +1,7 @@
 #include "SpudPropertyUtil.h"
 #include <limits>
 #include "ISpudObject.h"
+#include "Serialization/ArchiveUObjectFromStructuredArchive.h"
 
 DEFINE_LOG_CATEGORY(LogSpudProps)
 
@@ -36,6 +37,36 @@ bool SpudPropertyUtil::IsPropertyNativelySupported(FProperty* Property)
 		return false;
 	}
 
+	return true;
+}
+
+bool SpudPropertyUtil::IsPropertyFallbackSupported(FProperty* Property)
+{
+	// UE 5.2 now requires the use of FArchiveUObject for TObjectPtr (UGH), this breaks the FSlot fallback wrapping
+	// The trouble is that we use FMemoryArchive which is a separate class hierarchy to FArchiveUObject
+	// I've tried using FArchiveUObjectFromStructuredArchive but you just can't get it routed through FMemoryArchive
+	// This just doesn't work any more, the FArchive class hierarchy is bifurcated in an annoying way
+	// This section is not guarded by UE version markers, because we want to warn about this in all cases
+	// (save data could be lost on engine upgrade)
+	if (const auto AProp = CastField<FArrayProperty>(Property))
+	{
+		if (const auto PtrProp = CastField<FObjectPtrProperty>(AProp->Inner))
+		{
+			return false;
+		}
+	}
+	else if (const auto MProp = CastField<FMapProperty>(Property))
+	{
+		TArray<FField*> Inners;
+		MProp->GetInnerFields(Inners);
+		for (auto Inner : Inners)
+		{
+			if (const auto PtrProp = CastField<FObjectPtrProperty>(Inner))
+			{
+				return false;
+			}
+		}
+	}
 	return true;
 }
 
@@ -853,7 +884,7 @@ void SpudPropertyUtil::StoreContainerProperty(FProperty* Property,
                                               FSpudClassMetadata& Meta,
                                               FMemoryWriter& Out)
 {
-	bool bUpdateOK;
+	bool bUpdateOK = false;
 	if (IsPropertyNativelySupported(Property))
 	{
 		// Get pointer to data within container, must be from original property in the case of arrays
@@ -900,7 +931,7 @@ void SpudPropertyUtil::StoreContainerProperty(FProperty* Property,
 		
 		}
 	}
-	else
+	else if (IsPropertyFallbackSupported(Property))
 	{
 		// Not a fully supported type, wrap in an FRecord as an opaque type
 		// Not super efficient but useful for plugging gaps in things we support
