@@ -48,7 +48,7 @@ support SPUD's additional special processing such as retaining links between act
 in these properties. But for simple stand-alone state retention, they will work.
 
 > In addition, from UE 5.2 uses of TObjectPtr<> inside Arrays and Maps is no longer supported.
-> UE changed the say these are serialized in the core and have broken compatibility
+> UE changed the way these are serialized in the core and have broken compatibility
 > with FMemoryArchive, which SPUD relies on. Raw UObject pointers are still Supported
 > in arrays and maps, as are single TObjectPtr vars.
 
