@@ -3,7 +3,6 @@
 #include "SpudState.h"
 #include "TestSaveObject.h"
 
-PRAGMA_DISABLE_OPTIMIZATION
 
 template<typename T>
 void PopulateAllTypes(T& Obj)
@@ -434,5 +433,3 @@ bool FTestNonNative::RunTest(const FString& Parameters)
 
 	return true;
 }
-
-PRAGMA_ENABLE_OPTIMIZATION
