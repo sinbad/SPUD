@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 
 #include "SpudData.h"
+#include "SpudMemoryReaderWriter.h"
 #include "SpudPropertyUtil.h"
 
 
@@ -51,7 +52,7 @@ protected:
 			Offset = Data.PropertyOffsets[i];
 		}
 		
-		FMemoryWriter Ar(Data.PropertyData);
+		FSpudMemoryWriter Ar(Data.PropertyData);
 		Ar.Seek(Offset);
 		SpudPropertyUtil::WriteRaw(Value, Ar);
 	}
@@ -64,7 +65,7 @@ protected:
 		if (i >= 0)
 		{
 			const uint32 Offset = Data.PropertyOffsets[i];
-			FMemoryReader Ar(Data.PropertyData);
+			FSpudMemoryReader Ar(Data.PropertyData);
 			Ar.Seek(Offset);
 			SpudPropertyUtil::ReadRaw(OutValue, Ar);
 			return true;

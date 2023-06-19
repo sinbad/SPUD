@@ -88,6 +88,9 @@ public:
 	TObjectPtr<UTestNestedUObject> TObjectPtrVal = nullptr;
 
 	UPROPERTY(SaveGame)
+	TArray< TObjectPtr<UTestNestedUObject> > TObjectPtrArray;
+	
+	UPROPERTY(SaveGame)
 	TSubclassOf<AActor> ActorSubclass;
 	
 	UPROPERTY(SaveGame)
@@ -203,6 +206,9 @@ public:
 
 	UPROPERTY(SaveGame)
 	TObjectPtr<UTestNestedUObject> TObjectPtrVal = nullptr;
+
+	UPROPERTY(SaveGame)
+	TArray< TObjectPtr<UTestNestedUObject> > TObjectPtrArray;
 
 	UPROPERTY(SaveGame)
 	TSubclassOf<AActor> ActorSubclass;

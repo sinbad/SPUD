@@ -11,6 +11,7 @@
 #include "GameFramework/MovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "ImageUtils.h"
+#include "..\Public\SpudMemoryReaderWriter.h"
 #include "GameFramework/PlayerState.h"
 
 DEFINE_LOG_CATEGORY(LogSpudState)
@@ -64,7 +65,7 @@ void USpudState::StoreLevel(ULevel* Level, bool bRelease, bool bBlocking)
 USpudState::StorePropertyVisitor::StorePropertyVisitor(
 	USpudState* Parent,
 	TSharedPtr<FSpudClassDef> InClassDef, TArray<uint32>& InPropertyOffsets,
-	FSpudClassMetadata& InMeta, FMemoryWriter& InOut):
+	FSpudClassMetadata& InMeta, FSpudMemoryWriter& InOut):
 	ParentState(Parent),
 	ClassDef(InClassDef),
 	PropertyOffsets(InPropertyOffsets),
@@ -371,7 +372,7 @@ void USpudState::StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
 		if (bIsCallback)
 		{
 			Data->CustomData.Data.Empty();
-			FMemoryWriter CustomDataWriter(Data->CustomData.Data);
+			FSpudMemoryWriter CustomDataWriter(Data->CustomData.Data);
 			auto CustomDataStruct = NewObject<USpudStateCustomData>();
 			CustomDataStruct->Init(&CustomDataWriter);
 			ISpudObjectCallback::Execute_SpudStoreCustomData(Obj, this, CustomDataStruct);
@@ -389,14 +390,14 @@ void USpudState::StoreObjectProperties(UObject* Obj, FSpudPropertyData& Properti
 		
 	auto& PropData = Properties.Data;
 	PropData.Empty();
-	FMemoryWriter PropertyWriter(PropData);
+	FSpudMemoryWriter PropertyWriter(PropData);
 
 	StoreObjectProperties(Obj, SPUDDATA_PREFIXID_NONE, PropOffsets, Meta, PropertyWriter, StartDepth);	
 }
 
 
 void USpudState::StoreObjectProperties(UObject* Obj, uint32 PrefixID, TArray<uint32>& PropOffsets,
-	FSpudClassMetadata& Meta, FMemoryWriter& Out, int StartDepth)
+	FSpudClassMetadata& Meta, FSpudMemoryWriter& Out, int StartDepth)
 {
 	const FString& ClassName = SpudPropertyUtil::GetClassName(Obj);
 	auto ClassDef = Meta.FindOrAddClassDef(ClassName);
@@ -635,7 +636,7 @@ void USpudState::PostRestoreObject(UObject* Obj, const FSpudCustomData& FromCust
 		if (GCurrentUserDataModelVersion != StoredUserVersion)
 			ISpudObjectCallback::Execute_SpudPostRestoreDataModelUpgrade(Obj, this, StoredUserVersion, GCurrentUserDataModelVersion);
 
-		FMemoryReader Reader(FromCustomData.Data);
+		FSpudMemoryReader Reader(FromCustomData.Data);
 		auto CustomData = NewObject<USpudStateCustomData>();
 		CustomData->Init(&Reader);
 		ISpudObjectCallback::Execute_SpudRestoreCustomData(Obj, this, CustomData);
@@ -648,7 +649,7 @@ void USpudState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& F
 	// Restore core data based on version
 	// Unlike properties this is packed data, versioned
 
-	FMemoryReader In(FromData.Data);
+	FSpudMemoryReader In(FromData.Data);
 	
 	// All formats have version number first (this is separate from the file version)
 	uint16 InVersion = 0;
@@ -740,13 +741,13 @@ void USpudState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& F
 void USpudState::RestoreObjectProperties(UObject* Obj, const FSpudPropertyData& FromData, const FSpudClassMetadata& Meta,
 	const TMap<FGuid, UObject*>* RuntimeObjects, int StartDepth)
 {
-	FMemoryReader In(FromData.Data);
+	FSpudMemoryReader In(FromData.Data);
 	RestoreObjectProperties(Obj, In, Meta, RuntimeObjects, StartDepth);
 
 }
 
 
-void USpudState::RestoreObjectProperties(UObject* Obj, FMemoryReader& In, const FSpudClassMetadata& Meta,
+void USpudState::RestoreObjectProperties(UObject* Obj, FSpudMemoryReader& In, const FSpudClassMetadata& Meta,
 	const TMap<FGuid, UObject*>* RuntimeObjects, int StartDepth)
 {
 	const auto ClassName = SpudPropertyUtil::GetClassName(Obj);
@@ -778,7 +779,7 @@ void USpudState::RestoreObjectProperties(UObject* Obj, FMemoryReader& In, const 
 		RestoreObjectPropertiesSlow(Obj, In, Meta, ClassDef, RuntimeObjects, StartDepth);
 }
 
-void USpudState::RestoreObjectPropertiesFast(UObject* Obj, FMemoryReader& In,
+void USpudState::RestoreObjectPropertiesFast(UObject* Obj, FSpudMemoryReader& In,
                                              const FSpudClassMetadata& Meta,
                                              TSharedPtr<const FSpudClassDef> ClassDef,
                                              const TMap<FGuid, UObject*>* RuntimeObjects,
@@ -792,7 +793,7 @@ void USpudState::RestoreObjectPropertiesFast(UObject* Obj, FMemoryReader& In,
 	
 }
 
-void USpudState::RestoreObjectPropertiesSlow(UObject* Obj, FMemoryReader& In,
+void USpudState::RestoreObjectPropertiesSlow(UObject* Obj, FSpudMemoryReader& In,
                                                        const FSpudClassMetadata& Meta,
                                                        TSharedPtr<const FSpudClassDef> ClassDef,
                                                        const TMap<FGuid, UObject*>* RuntimeObjects,
@@ -1046,7 +1047,7 @@ void USpudState::StoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelDat
 
 	// Core data first
 	pDestCoreData->Empty();
-	FMemoryWriter CoreDataWriter(*pDestCoreData);
+	FSpudMemoryWriter CoreDataWriter(*pDestCoreData);
 	WriteCoreActorData(Actor, CoreDataWriter);
 
 	// Now properties, visit all and write out
@@ -1057,7 +1058,7 @@ void USpudState::StoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelDat
 		if (pDestCustomData)
 		{
 			pDestCustomData->Empty();
-			FMemoryWriter CustomDataWriter(*pDestCustomData);
+			FSpudMemoryWriter CustomDataWriter(*pDestCustomData);
 			auto CustomDataStruct = NewObject<USpudStateCustomData>();
 			CustomDataStruct->Init(&CustomDataWriter);
 			ISpudObjectCallback::Execute_SpudStoreCustomData(Actor, this, CustomDataStruct);

@@ -1,7 +1,7 @@
 #include "SpudPropertyUtil.h"
 #include <limits>
 #include "ISpudObject.h"
-#include "Serialization/ArchiveUObjectFromStructuredArchive.h"
+#include "..\Public\SpudMemoryReaderWriter.h"
 
 DEFINE_LOG_CATEGORY(LogSpudProps)
 
@@ -42,31 +42,7 @@ bool SpudPropertyUtil::IsPropertyNativelySupported(FProperty* Property)
 
 bool SpudPropertyUtil::IsPropertyFallbackSupported(FProperty* Property)
 {
-	// UE 5.2 now requires the use of FArchiveUObject for TObjectPtr (UGH), this breaks the FSlot fallback wrapping
-	// The trouble is that we use FMemoryArchive which is a separate class hierarchy to FArchiveUObject
-	// I've tried using FArchiveUObjectFromStructuredArchive but you just can't get it routed through FMemoryArchive
-	// This just doesn't work any more, the FArchive class hierarchy is bifurcated in an annoying way
-	// This section is not guarded by UE version markers, because we want to warn about this in all cases
-	// (save data could be lost on engine upgrade)
-	if (const auto AProp = CastField<FArrayProperty>(Property))
-	{
-		if (const auto PtrProp = CastField<FObjectPtrProperty>(AProp->Inner))
-		{
-			return false;
-		}
-	}
-	else if (const auto MProp = CastField<FMapProperty>(Property))
-	{
-		TArray<FField*> Inners;
-		MProp->GetInnerFields(Inners);
-		for (auto Inner : Inners)
-		{
-			if (const auto PtrProp = CastField<FObjectPtrProperty>(Inner))
-			{
-				return false;
-			}
-		}
-	}
+	// No limitations currently known?
 	return true;
 }
 
@@ -822,7 +798,7 @@ void SpudPropertyUtil::StoreProperty(const UObject* RootObject,
                                      TSharedPtr<FSpudClassDef> ClassDef,
                                      TArray<uint32>& PropertyOffsets,
                                      FSpudClassMetadata& Meta,
-                                     FMemoryWriter& Out)
+                                     FSpudMemoryWriter& Out)
 {
 	// Arrays supported, but not maps / sets yet
 	if (const auto AProp = CastField<FArrayProperty>(Property))
@@ -846,7 +822,7 @@ void SpudPropertyUtil::StoreArrayProperty(FArrayProperty* AProp,
                                           TSharedPtr<FSpudClassDef> ClassDef,
                                           TArray<uint32>& PropertyOffsets,
                                           FSpudClassMetadata& Meta,
-                                          FMemoryWriter& Out)
+                                          FSpudMemoryWriter& Out)
 {
 	
 	// Use helper to get number, ArrayDim doesn't seem to work?
@@ -882,7 +858,7 @@ void SpudPropertyUtil::StoreContainerProperty(FProperty* Property,
                                               TSharedPtr<FSpudClassDef> ClassDef,
                                               TArray<uint32>& PropertyOffsets,
                                               FSpudClassMetadata& Meta,
-                                              FMemoryWriter& Out)
+                                              FSpudMemoryWriter& Out)
 {
 	bool bUpdateOK = false;
 	if (IsPropertyNativelySupported(Property))
@@ -956,7 +932,7 @@ void SpudPropertyUtil::RestoreProperty(UObject* RootObject, FProperty* Property,
                                              const RuntimeObjectMap* RuntimeObjects,
                                              const FSpudClassMetadata& Meta,
                                              int Depth,
-                                             FMemoryReader& DataIn)
+                                             FSpudMemoryReader& DataIn)
 {
 	// Arrays supported, but not maps / sets yet
 	if (const auto AProp = CastField<FArrayProperty>(Property))
@@ -978,7 +954,7 @@ void SpudPropertyUtil::RestoreArrayProperty(UObject* RootObject, FArrayProperty*
                                                   const RuntimeObjectMap* RuntimeObjects,
                                                   const FSpudClassMetadata& Meta,
                                                   int Depth,
-                                                  FMemoryReader& DataIn)
+                                                  FSpudMemoryReader& DataIn)
 {
 
 	// Array properties store the count as a uint16 first
@@ -1003,7 +979,7 @@ void SpudPropertyUtil::RestoreContainerProperty(UObject* RootObject, FProperty* 
                                                       const RuntimeObjectMap* RuntimeObjects,
                                                       const FSpudClassMetadata& Meta,
                                                       int Depth,
-                                                      FMemoryReader& DataIn)
+                                                      FSpudMemoryReader& DataIn)
 {
 	bool bUpdateOK;
 
