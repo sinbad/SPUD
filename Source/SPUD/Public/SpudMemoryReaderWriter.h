@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "Serialization/MemoryWriter.h"
 #include "Serialization/MemoryReader.h"
+#include "Serialization/ArchiveUObject.h"
 
 /// Custom version of FMemoryWriter so that we can add methods from FArchiveUObject
 class FSpudMemoryWriter : public TMemoryWriter<32>

@@ -1,4 +1,5 @@
 ﻿#include "..\Public\SpudMemoryReaderWriter.h"
+#include "UObject/Object.h"
 FArchive& FSpudMemoryWriter::operator<<(UObject*& Obj)
 {
 	// save out the fully qualified object name
