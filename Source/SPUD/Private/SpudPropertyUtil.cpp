@@ -437,6 +437,11 @@ FString SpudPropertyUtil::WriteActorRefPropertyData(FProperty* OProp,
 				if (Actor->Implements<USpudObject>())
 				{
 					RefString = ISpudObject::Execute_OverrideName(Actor);
+					if (RefString.IsEmpty())
+					{
+						UE_LOG(LogSpudProps, Error, TEXT("Object reference %s/%s points to runtime Actor %s but that actor has neither SpudGuid property nor overridden name, and will not be saved."),
+								*ClassDef->ClassName, *OProp->GetName(), *Actor->GetName());
+					}
 				}
 				else
 				{
