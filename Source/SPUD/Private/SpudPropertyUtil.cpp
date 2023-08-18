@@ -1,5 +1,7 @@
 #include "SpudPropertyUtil.h"
 #include <limits>
+
+#include "EngineUtils.h"
 #include "ISpudObject.h"
 #include "..\Public\SpudMemoryReaderWriter.h"
 
@@ -432,10 +434,17 @@ FString SpudPropertyUtil::WriteActorRefPropertyData(FProperty* OProp,
 			auto GuidProperty = FindGuidProperty(Actor);
 			if (!GuidProperty)
 			{
-				UE_LOG(LogSpudProps, Error, TEXT("Object reference %s/%s points to runtime Actor %s but that actor has no SpudGuid property, will not be saved."),
-                    *ClassDef->ClassName, *OProp->GetName(), *Actor->GetName());
-				// This essentially becomes a null reference
-				RefString = FString();				
+				if (Actor->Implements<USpudObject>())
+				{
+					RefString = ISpudObject::Execute_OverrideName(Actor);
+				}
+				else
+				{
+					UE_LOG(LogSpudProps, Error, TEXT("Object reference %s/%s points to runtime Actor %s but that actor has no SpudGuid property, will not be saved."),
+							*ClassDef->ClassName, *OProp->GetName(), *Actor->GetName());
+					// This essentially becomes a null reference
+					RefString = FString();
+				}
 			}
 			else
 			{
@@ -624,11 +633,13 @@ FString SpudPropertyUtil::ReadActorRefPropertyData(FProperty* OProp,
 		// Level object, identified by name. Level is the package
 		if (Level)
 		{
+			const auto World = Level->GetWorld();
+
 			auto Obj = StaticFindObjectFast(AActor::StaticClass(), Level, *RefString);
 			if (!Obj)
 			{
 				// Not found in owning level, search all
-				for (auto OtherLevel : Level->GetWorld()->GetLevels())
+				for (const auto OtherLevel : World->GetLevels())
 				{
 					if (OtherLevel == Level)
 						continue;
@@ -637,13 +648,20 @@ FString SpudPropertyUtil::ReadActorRefPropertyData(FProperty* OProp,
 						break;
 				}
 			}
+
+			if (!Obj)
+			{
+				// some actors might override their name, which is not taken into account above
+				Obj = FindObjectWithOverridenName(World, RefString);
+			}
+
 			if (Obj)
 			{
 				SetObjectPropertyValue(OProp, Data, Obj);
 			}
 			else
 			{
-				UE_LOG(LogSpudProps, Error, TEXT("Could not locate level object for property %s, name was %s"), *OProp->GetName(), *RefString);	
+				UE_LOG(LogSpudProps, Error, TEXT("Could not locate level object for property %s, name was %s"), *OProp->GetName(), *RefString);
 			}
 		}
 		else
@@ -788,6 +806,22 @@ void SpudPropertyUtil::SetObjectPropertyValue(FProperty* Property, void* Data, U
 	{
 		WProp->SetObjectPropertyValue(Data, Obj);
 	}
+}
+
+UObject* SpudPropertyUtil::FindObjectWithOverridenName(const UWorld* World, const FString& RefString)
+{
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		if (It->Implements<USpudObject>())
+		{
+			if (const auto Name = ISpudObject::Execute_OverrideName(*It); Name == RefString)
+			{
+				return *It;
+			}
+		}
+	}
+
+	return nullptr;
 }
 
 void SpudPropertyUtil::StoreProperty(const UObject* RootObject,

@@ -481,6 +481,8 @@ protected:
 	                                        ULevel* Level, UObject* Outer, const FSpudClassMetadata& Meta, int Depth, FArchive& In);
 	static void SetObjectPropertyValue(FProperty* Property, void* Data, UObject* Obj);
 
+	static UObject* FindObjectWithOverridenName(const UWorld* World, const FString& RefString);
+
 public:
 
 	// Low-level functions, use with caution
