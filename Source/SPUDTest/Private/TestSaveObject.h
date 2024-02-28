@@ -97,6 +97,9 @@ public:
 	TArray< TSubclassOf<AActor> > ActorSubclassArray;
 	// sadly we can't test actor refs easily here; test example world does that though
 
+	UPROPERTY(SaveGame)
+	TMap<int, UTestNestedUObject*> UObjectMap;
+
 	// Arrays of the above
 	UPROPERTY(SaveGame)
 	TArray<int> IntArray;
@@ -215,6 +218,9 @@ public:
 
 	UPROPERTY(SaveGame)
 	TArray< TSubclassOf<AActor> > ActorSubclassArray;
+
+	UPROPERTY(SaveGame)
+	TMap<int, UObject*> UObjectMap;
 	
 	// sadly we can't test actor refs easily here; test example world does that though
 

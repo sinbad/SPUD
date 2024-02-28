@@ -41,6 +41,15 @@ void PopulateAllTypes(T& Obj)
 	Obj.ActorSubclassArray.Add(AStaticMeshActor::StaticClass());
 	Obj.ActorSubclassArray.Add(APointLight::StaticClass());
 
+	UTestNestedUObject* Nested1 = NewObject<UTestNestedUObject>();
+	Nested1->NestedStringVal = "Something";
+	Nested1->NestedIntVal = 23;
+	Obj.UObjectMap.Add(23, Nested1);
+	UTestNestedUObject* Nested2 = NewObject<UTestNestedUObject>();
+	Nested2->NestedStringVal = "Else";
+	Nested2->NestedIntVal = 48;
+	Obj.UObjectMap.Add(48, Nested2);
+
 	Obj.IntArray.Add(136);
 	Obj.IntArray.Add(-31913);
 	Obj.UInt8Array.Add(2);
@@ -121,6 +130,22 @@ void CheckArrayExplicitEquals(FAutomationTestBase* Test, const FString& Prefix, 
 	}
 }
 
+template<typename K, typename V>
+void CheckMap(FAutomationTestBase* Test, const FString& Prefix, const TMap<K, V>& Actual, const TMap<K, V>& Expected)
+{
+	Test->TestEqual(Prefix + "Map Length should match", Actual.Num(), Expected.Num());
+	for (auto It = Expected.CreateConstIterator(); It; ++It)
+	{
+		auto* pVal = Actual.Find(It.Key());
+		if (Test->TestNotNull(FString::Printf(TEXT("%sKey %d should be present"), *Prefix, It.Key()), pVal))
+		{
+			Test->TestEqual(FString::Printf(TEXT("%sItems for key %d should match"), *Prefix, It.Key()), *pVal, It.Value());
+		}
+		
+	}
+	
+}
+
 template<typename T>
 void CheckAllTypes(FAutomationTestBase* Test, const FString& Prefix, const T& Actual, const T& Expected)
 {
@@ -173,6 +198,8 @@ void CheckAllTypes(FAutomationTestBase* Test, const FString& Prefix, const T& Ac
 		Test->TestEqual(Prefix + "SubclassOf array 0 should match", Actual.ActorSubclassArray[0].Get(), AStaticMeshActor::StaticClass());
 		Test->TestEqual(Prefix + "SubclassOf array 1 should match", Actual.ActorSubclassArray[1].Get(), APointLight::StaticClass());
 	}
+
+	CheckMap(Test, Prefix + "UObjectMap|", Actual.UObjectMap, Expected.UObjectMap);
 
 	CheckArray(Test, Prefix + "IntArray|", Actual.IntArray, Expected.IntArray);
 	CheckArray(Test, Prefix + "UInt8Array|", Actual.UInt8Array, Expected.UInt8Array);
