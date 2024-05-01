@@ -886,7 +886,7 @@ bool USpudState::RestoreSlowPropertyVisitor::VisitProperty(UObject* RootObject, 
 	auto InnerMapPtr = ClassDef->PropertyLookup.Find(CurrentPrefixID);
 	if (!InnerMapPtr)
 	{
-		UE_LOG(LogSpudState, Error, TEXT("Error in RestoreSlowPropertyVisitor, PrefixID invalid for %, class %s"), *Property->GetName(), *ClassDef->ClassName);
+		UE_LOG(LogSpudState, Error, TEXT("Error in RestoreSlowPropertyVisitor, PrefixID invalid for %s, class %s"), *Property->GetName(), *ClassDef->ClassName);
 		return true;
 	}
 	
@@ -1165,7 +1165,7 @@ void USpudStateCustomData::EndWriteChunk(FString MagicID)
 	if (strncmp(ChunkStack.Top()->Magic, CharStr.Get(), 4) != 0)
 	{
 		UE_LOG(LogSpudData, Fatal,
-		       TEXT("Cannot call EndWriteChunk with ID %s because the last BeginWriteChunk was called with ID %s"),
+		       TEXT("Cannot call EndWriteChunk with ID %s because the last BeginWriteChunk was called with ID %hs"),
 		       *MagicID,
 		       ChunkStack.Top()->Magic);
 		return;
@@ -1212,7 +1212,7 @@ void USpudStateCustomData::EndReadChunk(FString MagicID)
 	if (strncmp(ChunkStack.Top()->Magic, CharStr.Get(), 4) != 0)
 	{
 		UE_LOG(LogSpudData, Fatal,
-			   TEXT("Cannot call EndReadChunk with ID %s because the last BeginWriteChunk was called with ID %s"),
+			   TEXT("Cannot call EndReadChunk with ID %s because the last BeginWriteChunk was called with ID %hs"),
 			   *MagicID,
 			   ChunkStack.Top()->Magic);
 		return;
