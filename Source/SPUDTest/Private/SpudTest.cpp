@@ -1,7 +1,8 @@
 ﻿#include "Misc/AutomationTest.h"
-#include "Engine.h"
 #include "SpudState.h"
 #include "TestSaveObject.h"
+#include "Engine/PointLight.h"
+#include "Engine/StaticMeshActor.h"
 
 
 template<typename T>

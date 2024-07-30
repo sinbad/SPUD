@@ -3,6 +3,7 @@
 
 #include "ISettingsModule.h"
 #include "ISettingsSection.h"
+#include "FileHelpers.h"
 #include "SPUDEditor/Public/SpudPluginSettings.h"
 
 IMPLEMENT_GAME_MODULE(FSpudEditorModule, SPUDEditor);
