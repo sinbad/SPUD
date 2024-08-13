@@ -2,6 +2,7 @@
 #include <limits>
 
 #include "EngineUtils.h"
+#include "InstancedStruct.h"
 #include "ISpudObject.h"
 #include "..\Public\SpudMemoryReaderWriter.h"
 
@@ -323,6 +324,33 @@ bool SpudPropertyUtil::VisitPersistentProperties(UObject* RootObject, const UStr
 		{
 			if (!IsBuiltInStructProperty(SProp))
 			{
+				const UScriptStruct* StructDefinition = nullptr;
+				void* StructPtr = nullptr;
+
+				// Check if it's a InstancedStruct
+             	if(SProp->Struct->GetName() == "InstancedStruct")
+             	{
+             		// If it is, we need to get the actual struct from the property
+             		const FInstancedStruct* InstancedStruct = ContainerPtr ? SProp->ContainerPtrToValuePtr<FInstancedStruct>(ContainerPtr) : nullptr;
+
+             		if(InstancedStruct)
+             		{
+             			if(!InstancedStruct->IsValid())
+             			{
+             				// If it's not valid, ignore it
+			 				continue;
+             			}
+
+             			StructDefinition = InstancedStruct->GetScriptStruct();
+			 			StructPtr = (void*)InstancedStruct->GetMemory();
+             		}
+             	}
+                else
+                {
+                	StructDefinition = SProp->Struct;
+                	StructPtr = ContainerPtr ? SProp->ContainerPtrToValuePtr<void>(ContainerPtr) : nullptr;
+                }
+
 				// Everything underneath a custom struct is recorded with a nested prefix
 				const uint32 NewPrefixID = Visitor.GetNestedPrefix(SProp, PrefixID);
 				// Should never have no prefix, if none abort
@@ -330,10 +358,9 @@ bool SpudPropertyUtil::VisitPersistentProperties(UObject* RootObject, const UStr
 					continue;
 
 				const int NewDepth = Depth + 1;
-				const auto StructPtr = ContainerPtr ? SProp->ContainerPtrToValuePtr<void>(ContainerPtr) : nullptr;
-
+		
 				Visitor.StartNestedStruct(RootObject, SProp, NewPrefixID, NewDepth);
-				if (!VisitPersistentProperties(RootObject, SProp->Struct, NewPrefixID, StructPtr, true, NewDepth, Visitor))
+				if (!VisitPersistentProperties(RootObject, StructDefinition, NewPrefixID, StructPtr, true, NewDepth, Visitor))
 					return false;				
 				Visitor.EndNestedStruct(RootObject, SProp, NewPrefixID, NewDepth);
 			}
