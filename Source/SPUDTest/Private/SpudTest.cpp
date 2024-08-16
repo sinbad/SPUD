@@ -305,6 +305,7 @@ bool FTestStructs::RunTest(const FString& Parameters)
 
 	PopulateAllTypes(SavedObj->SimpleStruct);
 	PopulateAllTypes(SavedObj->NestedStruct.Nested);
+	PopulateAllTypes(SavedObj->InstancedStruct.GetMutable<FTestAllTypesStruct>());
 
 	auto State = NewObject<USpudState>();
 	State->StoreGlobalObject(SavedObj, "StructTest");
@@ -314,6 +315,8 @@ bool FTestStructs::RunTest(const FString& Parameters)
 
 	CheckAllTypes(this, "SimpleStruct|", LoadedObj->SimpleStruct, SavedObj->SimpleStruct);
 	CheckAllTypes(this, "NestedStruct|", LoadedObj->NestedStruct.Nested, SavedObj->NestedStruct.Nested);
+	CheckAllTypes(this, "InstancedStruct|", LoadedObj->InstancedStruct.GetMutable<FTestAllTypesStruct>(),
+		SavedObj->InstancedStruct.GetMutable<FTestAllTypesStruct>());
 
 	return true;
 }

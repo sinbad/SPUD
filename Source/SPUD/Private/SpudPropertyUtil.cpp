@@ -328,7 +328,7 @@ bool SpudPropertyUtil::VisitPersistentProperties(UObject* RootObject, const UStr
 				void* StructPtr = nullptr;
 
 				// Check if it's a InstancedStruct
-             	if(SProp->Struct->GetName() == "InstancedStruct")
+             	if(SProp->Struct->IsChildOf(FInstancedStruct::StaticStruct()))
              	{
              		// If it is, we need to get the actual struct from the property
              		const FInstancedStruct* InstancedStruct = ContainerPtr ? SProp->ContainerPtrToValuePtr<FInstancedStruct>(ContainerPtr) : nullptr;

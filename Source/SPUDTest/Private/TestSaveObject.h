@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "InstancedStruct.h"
 #include "ISpudObject.h"
 #include "UObject/Object.h"
 #include "TestSaveObject.generated.h"
@@ -275,6 +276,8 @@ public:
 	UPROPERTY(SaveGame)
 	FTestNestedStruct NestedStruct;	
 
+	UPROPERTY(SaveGame)
+	FInstancedStruct InstancedStruct = FInstancedStruct::Make(SimpleStruct);
 };
 
 UCLASS()
