@@ -305,12 +305,20 @@ public:
 	 **/
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void QuickSaveGame(FText Title = FText(), bool bTakeScreenshot = true, const USpudCustomSaveInfo* ExtraInfo = nullptr);
-	/// Quick load the game from the last player-requested Quick Save slot (NOT the last autosave or manual save)
+	
+	/**
+	 * Quick load the game from the last player-requested Quick Save slot (NOT the last autosave or manual save)
+	 * @param TravelOptions Options string to include in the travel URL e.g. "Listen"
+	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
-    void QuickLoadGame();
-	/// Continue a game from the latest save of any kind - autosave, quick save, manual save. The same as calling LoadGame on the most recent. 
+    void QuickLoadGame(const FString& TravelOptions = FString(TEXT("")));
+	
+	/**
+	 * Continue a game from the latest save of any kind - autosave, quick save, manual save. The same as calling LoadGame on the most recent. 
+	 * @param TravelOptions Options string to include in the travel URL e.g. "Listen"
+	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
-    void LoadLatestSaveGame();
+    void LoadLatestSaveGame(const FString& TravelOptions = FString(TEXT("")));
 
 	/// Create a save game descriptor which you can use to store additional descriptive information about a save game.
 	/// Fill the returned object in then pass it to the SaveGame call to have additional info to display on save/load screens
@@ -328,9 +336,13 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
     void SaveGame(const FString& SlotName, const FText& Title = FText(), bool bTakeScreenshot = true, const USpudCustomSaveInfo* ExtraInfo = nullptr);
-	/// Load the game in a given slot name. Asynchronous, use the PostLoadGame event to determine when load is complete (and success)
+	/**
+	 * Load the game in a given slot name. Asynchronous, use the PostLoadGame event to determine when load is complete (and success)
+	 * @param SlotName The slot name of the save to load
+	 * @param TravelOptions Options string to include in the travel URL e.g. "Listen"
+	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
-    void LoadGame(const FString& SlotName);
+    void LoadGame(const FString& SlotName, const FString& TravelOptions = FString(TEXT("")));
 
 	/// Delete the save game in a given slot
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
