@@ -557,8 +557,16 @@ void USpudSubsystem::LoadGame(const FString& SlotName)
 
 	// This is deferred, final load process will happen in PostLoadMap
 	SlotNameInProgress = SlotName;
-	UE_LOG(LogSpudSubsystem, Verbose, TEXT("(Re)loading map: %s"), *State->GetPersistentLevel());		
-	UGameplayStatics::OpenLevel(GetWorld(), FName(State->GetPersistentLevel()));
+	UE_LOG(LogSpudSubsystem, Verbose, TEXT("(Re)loading map: %s"), *State->GetPersistentLevel());
+
+	// Preserve options
+	const auto& Context = GEngine->GetWorldContextFromWorldChecked(GetWorld());
+	FString Options;
+	if (Context.LastURL.HasOption(TEXT("Listen")))
+	{
+		Options = "Listen";
+	}
+	UGameplayStatics::OpenLevel(GetWorld(), FName(State->GetPersistentLevel()), true, Options);
 }
 
 
