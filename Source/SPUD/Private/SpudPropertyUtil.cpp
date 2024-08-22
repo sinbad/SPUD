@@ -1267,7 +1267,7 @@ bool SpudPropertyUtil::IsRuntimeActor(const AActor* Actor)
 
 bool SpudPropertyUtil::IsPersistentObject(UObject* Obj)
 {
-	return IsValid(Obj) && Obj->Implements<USpudObject>();
+	return IsValid(Obj) && Obj->Implements<USpudObject>() && !ISpudObject::Execute_ShouldSkip(Obj);
 }
 
 FStructProperty* SpudPropertyUtil::FindGuidProperty(const UObject* Obj)

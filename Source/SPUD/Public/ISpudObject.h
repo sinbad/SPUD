@@ -59,6 +59,10 @@ public:
 	// Returning an empty string means to use the object's native name.
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD Interface")
 	FString OverrideName() const; virtual FString OverrideName_Implementation() const { return FString(); }
+
+	/// Allows deciding if an object should be skipped at runtime.
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "SPUD Interface")
+	bool ShouldSkip() const; virtual bool ShouldSkip_Implementation() const { return false; }
 };
 
 UINTERFACE(MinimalAPI)
