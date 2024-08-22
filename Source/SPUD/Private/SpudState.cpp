@@ -362,6 +362,12 @@ void USpudState::StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
 		FSpudClassMetadata& Meta = SaveData.GlobalData.Metadata;
 		const bool bIsCallback = Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass());
 
+		if (Obj->Implements<USpudObject>() && ISpudObject::Execute_ShouldSkip(Obj))
+		{
+			UE_LOG(LogSpudState, Verbose, TEXT("* SKIP Global object: %s"), *Obj->GetName());
+			return;
+		}
+
 		UE_LOG(LogSpudState, Verbose, TEXT("* STORE Global object: %s"), *Obj->GetName());
 
 		if (bIsCallback)
