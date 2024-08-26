@@ -39,7 +39,7 @@ class SPUD_API USpudSaveGameInfo : public UObject
 };
 
 UENUM()
-enum class EObjectStoreFormat : uint8
+enum class ESpudObjectStoreFormat : uint8
 {
 	NestedProperties,
 	AssetPath,

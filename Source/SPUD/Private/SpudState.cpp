@@ -100,7 +100,7 @@ void USpudState::StorePropertyVisitor::StoreNestedUObjectIfNeeded(UObject* RootO
 			{
 				if (Obj->IsAsset())
 				{
-					constexpr auto Format = EObjectStoreFormat::AssetPath;
+					constexpr auto Format = ESpudObjectStoreFormat::AssetPath;
 					SpudPropertyUtil::WriteRaw(Format, Out);
 
 					// Storing asset links is potentially dangerous - their path should not change across save/load
@@ -114,7 +114,7 @@ void USpudState::StorePropertyVisitor::StoreNestedUObjectIfNeeded(UObject* RootO
 				}
 				else
 				{
-					constexpr auto Format = EObjectStoreFormat::NestedProperties;
+					constexpr auto Format = ESpudObjectStoreFormat::NestedProperties;
 					SpudPropertyUtil::WriteRaw(Format, Out);
 
 					const bool IsCallback = Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass());
@@ -845,13 +845,13 @@ void USpudState::RestorePropertyVisitor::RestoreNestedUObjectIfNeeded(UObject* R
 			// property before this contains the class (or null)
 			if (Obj)
 			{
-				auto Format = EObjectStoreFormat::NestedProperties;
+				auto Format = ESpudObjectStoreFormat::NestedProperties;
 				if (ParentState->SaveData.Info.SystemVersion >= 3)
 				{
 					SpudPropertyUtil::ReadRaw(Format, DataIn);
 				}
 
-				if (Format == EObjectStoreFormat::AssetPath)
+				if (Format == ESpudObjectStoreFormat::AssetPath)
 				{
 					// Special case for assets - we just store the path, which needs to be loaded
 					FTopLevelAssetPath Path;
