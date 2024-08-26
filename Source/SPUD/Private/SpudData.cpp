@@ -799,6 +799,9 @@ void FSpudGlobalData::Reset()
 }
 
 //------------------------------------------------------------------------------
+FSpudSaveInfo::FSpudSaveInfo(): SystemVersion(SPUD_CURRENT_SYSTEM_VERSION), CustomInfo(), Screenshot()
+{
+}
 
 void FSpudSaveInfo::WriteToArchive(FSpudChunkedDataArchive& Ar)
 {

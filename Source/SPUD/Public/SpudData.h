@@ -809,7 +809,8 @@ struct SPUD_API FSpudSaveInfo : public FSpudChunk
 	FSpudScreenshot Screenshot;
 
 	// TODO: support custom data. Should be encapsulated in child chunk(s)
-	
+
+	FSpudSaveInfo();
 	virtual const char* GetMagic() const override { return SPUDDATA_SAVEINFO_MAGIC; }
 	virtual void WriteToArchive(FSpudChunkedDataArchive& Ar) override;
 	virtual void ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSystemVersion) override;
