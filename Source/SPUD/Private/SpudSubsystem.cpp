@@ -995,14 +995,14 @@ USpudSaveGameInfo* USpudSubsystem::GetSaveGameInfo(const FString& SlotName)
 		UE_LOG(LogSpudSubsystem, Error, TEXT("Unable to open %s for reading info"), *AbsoluteFilename);
 		return nullptr;
 	}
-		
+
 	auto Info = NewObject<USpudSaveGameInfo>();
 	Info->SlotName = SlotName;
 
-	USpudState::LoadSaveInfoFromArchive(*Archive, *Info);
+	const bool bResult = USpudState::LoadSaveInfoFromArchive(*Archive, *Info);
 	Archive->Close();
-		
-	return Info;
+
+	return bResult ? Info : nullptr;
 }
 
 USpudSaveGameInfo* USpudSubsystem::GetLatestSaveGame()
