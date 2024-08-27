@@ -38,6 +38,13 @@ class SPUD_API USpudSaveGameInfo : public UObject
 
 };
 
+UENUM()
+enum class ESpudObjectStoreFormat : uint8
+{
+	NestedProperties,
+	AssetPath,
+};
+
 /// Holds the persistent state of a game.
 /// Persistent state is any state which should be restored on load; whether that's the load of a save
 /// game, or whether that's the loading of a streaming level section within an active game.

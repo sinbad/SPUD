@@ -10,7 +10,7 @@
 DEFINE_LOG_CATEGORY(LogSpudData)
 
 // System version covers our internal format changes
-#define SPUD_CURRENT_SYSTEM_VERSION 2
+#define SPUD_CURRENT_SYSTEM_VERSION 3
 
 // int32 so that Blueprint-compatible. 2 billion should be enough anyway and you can always use the negatives
 int32 GCurrentUserDataModelVersion = 0;

@@ -1,6 +1,5 @@
 #include "SpudState.h"
 
-#include "EngineUtils.h"
 #include "ISpudObject.h"
 #include "SpudPropertyUtil.h"
 #include "SpudSubsystem.h"
@@ -9,9 +8,8 @@
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/MovementComponent.h"
-#include "Kismet/GameplayStatics.h"
 #include "ImageUtils.h"
-#include "..\Public\SpudMemoryReaderWriter.h"
+#include "../Public/SpudMemoryReaderWriter.h"
 #include "GameFramework/PlayerState.h"
 
 DEFINE_LOG_CATEGORY(LogSpudState)
@@ -100,27 +98,42 @@ void USpudState::StorePropertyVisitor::StoreNestedUObjectIfNeeded(UObject* RootO
 
 			if (Obj)
 			{
-				// Storing asset links is not supported / sensible. You should store core state instead and derive
-				// assets from that in a post-load hook, otherwise it just makes your saves fragile / bloated to store derived data
-				checkf(!Obj->IsAsset(), TEXT("Cannot store %s from property %s/%s - Storing links to assets is not supported"),
-					*Obj->GetName(), *RootObject->GetName(), *Property->GetNameCPP());
-
-				const bool IsCallback = Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass());
-
-				if (IsCallback)
+				if (Obj->IsAsset())
 				{
-					ISpudObjectCallback::Execute_SpudPreStore(Obj, ParentState);
+					constexpr auto Format = ESpudObjectStoreFormat::AssetPath;
+					SpudPropertyUtil::WriteRaw(Format, Out);
+
+					// Storing asset links is potentially dangerous - their path should not change across save/load
+					// cycles; use at your own risk
+					const auto Path = FTopLevelAssetPath(Obj);
+					check(Path.IsValid());
+
+					UE_LOG(LogSpudState, Verbose, TEXT("Storing asset link for %s: %s"), *Property->GetNameCPP(), *Obj->GetName());
+
+					SpudPropertyUtil::WriteRaw(Path, Out);
 				}
-				const uint32 NewPrefixID = GetNestedPrefix(Property, CurrentPrefixID);
-				ParentState->StoreObjectProperties(Obj, NewPrefixID, PropertyOffsets, Meta, Out, Depth+1);
-
-				if (IsCallback)
+				else
 				{
-					// No custom data callbacks for nested UObjects, only root ones
-					// This is because nested UObjects don't get their own data package, and could be null sometimes etc,
-					// could interfere with data packing in nasty ways
-					// I *could* store UObjects in their own data wrappers but that becomes cumbersome so don't for now
-					ISpudObjectCallback::Execute_SpudPostStore(Obj, ParentState);					
+					constexpr auto Format = ESpudObjectStoreFormat::NestedProperties;
+					SpudPropertyUtil::WriteRaw(Format, Out);
+
+					const bool IsCallback = Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass());
+
+					if (IsCallback)
+					{
+						ISpudObjectCallback::Execute_SpudPreStore(Obj, ParentState);
+					}
+					const uint32 NewPrefixID = GetNestedPrefix(Property, CurrentPrefixID);
+					ParentState->StoreObjectProperties(Obj, NewPrefixID, PropertyOffsets, Meta, Out, Depth+1);
+
+					if (IsCallback)
+					{
+						// No custom data callbacks for nested UObjects, only root ones
+						// This is because nested UObjects don't get their own data package, and could be null sometimes etc,
+						// could interfere with data packing in nasty ways
+						// I *could* store UObjects in their own data wrappers but that becomes cumbersome so don't for now
+						ISpudObjectCallback::Execute_SpudPostStore(Obj, ParentState);
+					}
 				}
 			}
 		}	
@@ -825,29 +838,50 @@ void USpudState::RestorePropertyVisitor::RestoreNestedUObjectIfNeeded(UObject* R
 	{
 		if (const auto OProp = CastField<FObjectProperty>(Property))
 		{
-			const void* DataPtr = Property->ContainerPtrToValuePtr<void>(ContainerPtr);
+			void* DataPtr = Property->ContainerPtrToValuePtr<void>(ContainerPtr);
 			const auto Obj = OProp->GetObjectPropertyValue(DataPtr);
 
 			// By this point, the restore will have created the instance if the data was non-null, since the
 			// property before this contains the class (or null)
 			if (Obj)
 			{
-				const bool IsCallback = Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass());
-
-				if (IsCallback)
+				auto Format = ESpudObjectStoreFormat::NestedProperties;
+				if (ParentState->SaveData.Info.SystemVersion >= 3)
 				{
-					ISpudObjectCallback::Execute_SpudPreRestore(Obj, ParentState);
+					SpudPropertyUtil::ReadRaw(Format, DataIn);
 				}
-				const uint32 NewPrefixID = GetNestedPrefix(Property, CurrentPrefixID);
-				ParentState->RestoreObjectProperties(Obj, DataIn, Meta, RuntimeObjects, Depth+1);
 
-				if (IsCallback)
+				if (Format == ESpudObjectStoreFormat::AssetPath)
 				{
-					// No custom data callbacks for nested UObjects, only root ones
-					// This is because nested UObjects don't get their own data package, and could be null sometimes etc,
-					// could interfere with data packing in nasty ways
-					// I *could* store UObjects in their own data wrappers but that becomes cumbersome so don't for now
-					ISpudObjectCallback::Execute_SpudPostRestore(Obj, ParentState);					
+					// Special case for assets - we just store the path, which needs to be loaded
+					FTopLevelAssetPath Path;
+
+					SpudPropertyUtil::ReadRaw(Path, DataIn);
+
+					UE_LOG(LogSpudState, Verbose, TEXT("Restoring asset link for %s: %s"), *Property->GetNameCPP(), *Path.ToString());
+
+					const FSoftObjectPtr TmpPtr{FSoftObjectPath(Path)};
+					OProp->SetObjectPropertyValue(DataPtr, TmpPtr.LoadSynchronous());
+				}
+				else
+				{
+					const bool IsCallback = Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass());
+
+					if (IsCallback)
+					{
+						ISpudObjectCallback::Execute_SpudPreRestore(Obj, ParentState);
+					}
+					const uint32 NewPrefixID = GetNestedPrefix(Property, CurrentPrefixID);
+					ParentState->RestoreObjectProperties(Obj, DataIn, Meta, RuntimeObjects, Depth+1);
+
+					if (IsCallback)
+					{
+						// No custom data callbacks for nested UObjects, only root ones
+						// This is because nested UObjects don't get their own data package, and could be null sometimes etc,
+						// could interfere with data packing in nasty ways
+						// I *could* store UObjects in their own data wrappers but that becomes cumbersome so don't for now
+						ISpudObjectCallback::Execute_SpudPostRestore(Obj, ParentState);
+					}
 				}
 			}
 		}
