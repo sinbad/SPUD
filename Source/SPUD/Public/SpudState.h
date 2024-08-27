@@ -31,10 +31,10 @@ class SPUD_API USpudSaveGameInfo : public UObject
 	FString SlotName;
 	/// Thumbnail screenshot (may be blank if one wasn't included in the save game)
 	UPROPERTY(BlueprintReadOnly)
-	UTexture2D* Thumbnail;
+	TObjectPtr<UTexture2D> Thumbnail;
 	/// Custom fields that you chose to store with the save header information specifically for your game
 	UPROPERTY(BlueprintReadOnly)
-	USpudCustomSaveInfo* CustomInfo;
+	TObjectPtr<USpudCustomSaveInfo> CustomInfo;
 
 };
 
