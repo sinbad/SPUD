@@ -164,7 +164,7 @@ protected:
 	FString SlotNameInProgress;
 	FText TitleInProgress;
 	UPROPERTY()
-	const USpudCustomSaveInfo* ExtraInfoInProgress;
+	TObjectPtr<const USpudCustomSaveInfo> ExtraInfoInProgress;
 
 	UPROPERTY()
 	TArray<TWeakObjectPtr<UObject>> GlobalObjects;
@@ -184,7 +184,7 @@ protected:
 
 	// The currently active game state
 	UPROPERTY()
-	USpudState* ActiveState;
+	TObjectPtr<USpudState> ActiveState;
 
 	USpudState* GetActiveState()
 	{
