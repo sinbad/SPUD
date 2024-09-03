@@ -165,3 +165,30 @@ Instead, simply delay the creation of actors in any post-restore hook. Note that
 you can spawn actors indirectly, such as playing a Level Sequence which uses 
 spawnables. In all cases, simply delay spawning / playing the sequence by a small
 time so that it happens after the restore process.
+
+## What settings can I change?
+
+In DefaultEngine.ini you can change these settings:
+
+```
+[/Script/SPUD.SpudSubsystem]
+; The time delay after the last request for a streaming level is withdrawn, that the level will be unloaded
+; This is used to reduce load/unload thrashing at boundaries
+StreamLevelUnloadDelay=3
+
+; Save game thumbnail sizes
+ScreenshotWidth=240
+ScreenshotHeight=135
+
+; If true, use the show/hide events of streaming levels to save/load, which is compatible with World Partition
+; You can set this to false to change to the legacy mode which requires ASpudStreamingVolume
+bSupportWorldPartition=true
+
+; Levels with a name that matches any entry in this list will not be saved/loaded
+; Supports basic wildcard matching. Only considers the level name, not the path to the level.
+; Case insensitive.
++ExcludeLevelNamePatterns=TitleScreen
++ExcludeLevelNamePatterns=TransientLevel_*
+
+
+```

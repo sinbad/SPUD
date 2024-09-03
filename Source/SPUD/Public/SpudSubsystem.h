@@ -148,6 +148,12 @@ public:
 	UPROPERTY(BlueprintReadWrite, Config)
 	bool bSupportWorldPartition = true;
 
+	/// Levels with a name that matches any entry in this list will not be saved/loaded
+	/// Useful for excluding e.g. title screen / transition levels.
+	/// Supports basic wildcard matching. Only considers the level name, not the path to the level.
+	/// Case insensitive.
+	UPROPERTY(BlueprintReadWrite, Config)
+	TArray<FString> ExcludeLevelNamePatterns;
 
 protected:
 	FDelegateHandle OnPreLoadMapHandle;
@@ -510,6 +516,10 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	void NotifyLevelUnloadedExternally(ULevel* Level);
+
+	/// Return whether a level should be stored / restored
+	UFUNCTION(BlueprintCallable)
+	bool ShouldStoreLevel(const ULevel* Level);
 
 	static FString GetSaveGameDirectory();
 	static FString GetSaveGameFilePath(const FString& SlotName);

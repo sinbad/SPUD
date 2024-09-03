@@ -195,6 +195,8 @@ protected:
 	/// Purge the active game's level data on disk, ready for a new game or loaded game.	
 	void RemoveAllActiveGameLevelFiles();
 
+	bool ShouldStoreLevel(ULevel* Level) const;
+
 public:
 
 	static FString GetLevelName(const ULevel* Level);

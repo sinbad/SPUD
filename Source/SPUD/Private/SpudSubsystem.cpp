@@ -458,18 +458,21 @@ void USpudSubsystem::HandleLevelLoaded(FName LevelName)
 
 void USpudSubsystem::HandleLevelUnloaded(ULevel* Level)
 {
-	UnsubscribeLevelObjectEvents(Level);
-
-	if (CurrentState != ESpudSystemState::LoadingGame && !bIsTearingDown)
+	if (ShouldStoreLevel(Level))
 	{
-		// NOTE: even though we're attempting to NOT do this while tearing down, in PIE it will still happen on end play
-		// This is because for some reason, in PIE the GameInstance shutdown function is called AFTER the levels are flushed,
-		// compared to before in normal game shutdown. See the difference between UEditorEngine::EndPlayMap() and UGameEngine::PreExit()
-		// We can't really fix this; we could listen on FEditorDelegates::PrePIEEnded but that would require linking the editor module (bleh) 
-		// save the state
-		// when loading game we will unload the current level and streaming and don't want to restore the active state from that
-		// After storing, the level data is released so doesn't take up memory any more
-		StoreLevel(Level, true, false);
+		UnsubscribeLevelObjectEvents(Level);
+
+		if (CurrentState != ESpudSystemState::LoadingGame && !bIsTearingDown)
+		{
+			// NOTE: even though we're attempting to NOT do this while tearing down, in PIE it will still happen on end play
+			// This is because for some reason, in PIE the GameInstance shutdown function is called AFTER the levels are flushed,
+			// compared to before in normal game shutdown. See the difference between UEditorEngine::EndPlayMap() and UGameEngine::PreExit()
+			// We can't really fix this; we could listen on FEditorDelegates::PrePIEEnded but that would require linking the editor module (bleh) 
+			// save the state
+			// when loading game we will unload the current level and streaming and don't want to restore the active state from that
+			// After storing, the level data is released so doesn't take up memory any more
+			StoreLevel(Level, true, false);
+		}
 	}
 }
 
@@ -479,7 +482,10 @@ void USpudSubsystem::StoreWorld(UWorld* World, bool bReleaseLevels, bool bBlocki
 {
 	for (auto && Level : World->GetLevels())
 	{
-		StoreLevel(Level, bReleaseLevels, bBlocking);
+		if (ShouldStoreLevel(Level))
+		{
+			StoreLevel(Level, bReleaseLevels, bBlocking);
+		}
 	}	
 }
 
@@ -768,6 +774,11 @@ void USpudSubsystem::PostLoadStreamLevelGameThread(FName LevelName)
 			return;
 		}
 
+		if (!ShouldStoreLevel(Level))
+		{
+			return;
+		}
+
 		IsRestoringState = true;
 
 		PreLevelRestore.Broadcast(LevelName.ToString());
@@ -859,6 +870,21 @@ void USpudSubsystem::PostUnloadStreamLevelGameThread(FName LevelName)
 	PostUnloadStreamingLevel.Broadcast(LevelName);
 }
 
+bool USpudSubsystem::ShouldStoreLevel(const ULevel* Level)
+{
+	if (!Level)
+		return false;
+	
+	for (auto Pattern : ExcludeLevelNamePatterns)
+	{
+		if (USpudState::GetLevelName(Level).MatchesWildcard(Pattern))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 void USpudSubsystem::SubscribeAllLevelObjectEvents()
 {
 	const auto World = GetWorld();
@@ -866,7 +892,10 @@ void USpudSubsystem::SubscribeAllLevelObjectEvents()
 	{
 		for (ULevel* Level : World->GetLevels())
 		{
-			SubscribeLevelObjectEvents(Level);			
+			if (ShouldStoreLevel(Level))
+			{
+				SubscribeLevelObjectEvents(Level);
+			}
 		}
 	}
 }
@@ -878,7 +907,10 @@ void USpudSubsystem::UnsubscribeAllLevelObjectEvents()
 	{
 		for (ULevel* Level : World->GetLevels())
 		{
-			UnsubscribeLevelObjectEvents(Level);			
+			if (ShouldStoreLevel(Level))
+			{
+				UnsubscribeLevelObjectEvents(Level);
+			}
 		}
 	}
 }

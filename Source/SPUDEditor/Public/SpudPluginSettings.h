@@ -6,7 +6,7 @@
 
 
 /**
-* Settings for the SPUD plug-in.
+* Editor settings for the SPUD plug-in.
 */
 UCLASS(config=Engine)
 class SPUDEDITOR_API USpudPluginSettings

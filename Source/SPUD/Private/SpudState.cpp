@@ -975,6 +975,9 @@ void USpudState::RestoreLoadedWorld(UWorld* World, bool bSingleLevel, const FStr
 		if (bSingleLevel && GetLevelName(Level) != OnlyLevel)
 			continue;
 
+		if (!ShouldStoreLevel(Level))
+			continue;
+
 		RestoreLevel(Level);
 		
 	}
@@ -1330,6 +1333,18 @@ FString USpudState::GetActiveGameLevelFolder()
 void USpudState::RemoveAllActiveGameLevelFiles()
 {
 	FSpudSaveData::DeleteAllLevelDataFiles(GetActiveGameLevelFolder());
+}
+
+bool USpudState::ShouldStoreLevel(ULevel* Level) const
+{
+	if (!Level)
+		return false;
+	
+	if (auto Sys = GetSpudSubsystem(Level->GetWorld()))
+	{
+		return Sys->ShouldStoreLevel(Level);
+	}
+	return true;
 }
 
 
