@@ -248,7 +248,7 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 			const auto State = GetActiveState();
 			PreLevelRestore.Broadcast(LevelName);
 			State->RestoreLoadedWorld(World);
-			PostLevelRestore.Broadcast(LevelName, true);
+			PostLevelRestore.Broadcast(LevelName);
 			
 			IsRestoringState = false;
 			// We need to subscribe to ALL currently loaded levels, because of "AlwaysLoaded" sublevels
@@ -494,7 +494,7 @@ void USpudSubsystem::StoreLevel(ULevel* Level, bool bRelease, bool bBlocking)
 	const FString LevelName = USpudState::GetLevelName(Level);
 	PreLevelStore.Broadcast(LevelName);
 	GetActiveState()->StoreLevel(Level, bRelease, bBlocking);
-	PostLevelStore.Broadcast(LevelName, true);
+	PostLevelStore.Broadcast(LevelName);
 }
 
 void USpudSubsystem::LoadGame(const FString& SlotName, const FString& TravelOptions)
@@ -794,7 +794,7 @@ void USpudSubsystem::PostLoadStreamLevelGameThread(FName LevelName)
 		//    memory thrashing to re-use the same memory we have until unload, since it'll likely be almost identical in structure
 		StreamLevel->SetShouldBeVisible(true);
 		SubscribeLevelObjectEvents(Level);
-		PostLevelRestore.Broadcast(LevelName.ToString(), true);
+		PostLevelRestore.Broadcast(LevelName.ToString());
 
 		IsRestoringState = false;
 	}
@@ -883,6 +883,11 @@ bool USpudSubsystem::ShouldStoreLevel(const ULevel* Level)
 		}
 	}
 	return true;
+}
+
+void USpudSubsystem::StoreActorByCell(AActor* Actor, const FString& CellName)
+{
+	GetActiveState()->StoreActor(Actor, CellName);
 }
 
 void USpudSubsystem::SubscribeAllLevelObjectEvents()

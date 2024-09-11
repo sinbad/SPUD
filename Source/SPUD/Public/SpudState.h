@@ -224,6 +224,9 @@ public:
 	/// Will page in the level data concerned from disk if necessary and will retain it in memory
 	void StoreActor(AActor* Obj);
 
+	/// TODO:Store actor by cell(Changed)
+	void StoreActor(AActor* Actor, const FString& CellName);
+	
 	/// Notify the state that an actor that is part of a level is being destroyed, and that should be remembered
 	/// Will page in the level data concerned from disk if necessary and will retain it in memory
 	void StoreLevelActorDestroyed(AActor* Actor);

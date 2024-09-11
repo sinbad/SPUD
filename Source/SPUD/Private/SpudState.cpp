@@ -8,6 +8,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/MovementComponent.h"
+#include "WorldPartition/WorldPartitionRuntimeCell.h"
 #include "ImageUtils.h"
 #include "../Public/SpudMemoryReaderWriter.h"
 #include "GameFramework/PlayerState.h"
@@ -54,6 +55,8 @@ void USpudState::StoreLevel(ULevel* Level, bool bRelease, bool bBlocking)
 				StoreActor(Actor, LevelData);
 			}					
 		}
+		// TODO: Changes to make sure i am storing actors
+		GetSpudSubsystem(Level->GetWorld())->OnLevelStore.Broadcast(LevelName);
 	}
 
 	if (bRelease)
@@ -326,6 +329,15 @@ void USpudState::StoreActor(AActor* Actor)
 	auto LevelData = GetLevelData(LevelName, true);
 	StoreActor(Actor, LevelData);
 		
+}
+
+void USpudState::StoreActor(AActor* Actor, const FString& CellName)
+{
+	if (Actor->HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject|RF_BeginDestroyed))
+		return;
+
+	auto LevelData = GetLevelData(CellName, true);
+	StoreActor(Actor, LevelData);
 }
 
 void USpudState::StoreLevelActorDestroyed(AActor* Actor)
