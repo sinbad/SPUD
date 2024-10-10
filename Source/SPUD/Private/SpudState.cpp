@@ -54,6 +54,8 @@ void USpudState::StoreLevel(ULevel* Level, bool bRelease, bool bBlocking)
 				StoreActor(Actor, LevelData);
 			}					
 		}
+
+		GetSpudSubsystem(Level->GetWorld())->OnLevelStore.Broadcast(LevelName);
 	}
 
 	if (bRelease)
@@ -326,6 +328,15 @@ void USpudState::StoreActor(AActor* Actor)
 	auto LevelData = GetLevelData(LevelName, true);
 	StoreActor(Actor, LevelData);
 		
+}
+
+void USpudState::StoreActor(AActor* Actor, const FString& CellName)
+{
+	if (Actor->HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject|RF_BeginDestroyed))
+		return;
+
+	const auto LevelData = GetLevelData(CellName, true);
+	StoreActor(Actor, LevelData);
 }
 
 void USpudState::StoreLevelActorDestroyed(AActor* Actor)
