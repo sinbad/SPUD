@@ -1,6 +1,4 @@
-﻿// (c) 2024 Anxious Cat Studio
-
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"

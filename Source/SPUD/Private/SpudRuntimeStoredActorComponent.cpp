@@ -1,7 +1,4 @@
-﻿// (c) 2024 Anxious Cat Studio
-
-
-#include "SpudRuntimeStoredActorComponent.h"
+﻿#include "SpudRuntimeStoredActorComponent.h"
 
 #include "SpudSubsystem.h"
 #include "WorldPartition/WorldPartition.h"
