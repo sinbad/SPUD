@@ -57,7 +57,9 @@ void USpudRuntimeStoredActorComponent::OnPreUnloadCell(const FString& LevelName)
 
     if (CurrentCellName == LevelName)
     {
-        GetSpudSubsystem(GetWorld())->StoreActorByCell(GetOwner(), CurrentCellName);
+        const auto Actor = GetOwner();
+        GetSpudSubsystem(GetWorld())->StoreActorByCell(Actor, CurrentCellName);
+        Actor->Destroy();
     }
 }
 
@@ -103,7 +105,9 @@ void USpudRuntimeStoredActorComponent::TickComponent(float DeltaTime, ELevelTick
         UpdateCurrentCell();
         if (!bCurrentCellLoaded)
         {
-            GetSpudSubsystem(GetWorld())->StoreActorByCell(GetOwner(), CurrentCellName);
+            const auto Actor = GetOwner();
+            GetSpudSubsystem(GetWorld())->StoreActorByCell(Actor, CurrentCellName);
+            Actor->Destroy();
         }
     }
 }
