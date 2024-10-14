@@ -11,6 +11,8 @@
 
 SPUD_API DECLARE_LOG_CATEGORY_EXTERN(LogSpudState, Verbose, Verbose);
 
+DECLARE_DELEGATE_OneParam(FSpudOnStateLevelStore, const FString&);
+
 /// Description of a save game for display in load game lists, finding latest
 /// All properties are read-only because they can only be populated via calls to save game
 UCLASS(BlueprintType)
@@ -78,6 +80,8 @@ class SPUD_API USpudState : public UObject
 public:
 	/// Direct access to save data - not recommended but if you really need it...
 	FSpudSaveData SaveData;
+
+	FSpudOnStateLevelStore OnLevelStore;
 
 protected:
 

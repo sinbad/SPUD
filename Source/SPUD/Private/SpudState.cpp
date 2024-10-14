@@ -32,7 +32,7 @@ void USpudState::StoreWorldGlobals(UWorld* World)
 }
 
 
-void USpudState::StoreLevel(ULevel* Level, bool bRelease, bool bBlocking)
+void USpudState::StoreLevel(ULevel* Level, bool bReleaseAfter, bool bBlocking)
 {
 	const FString LevelName = GetLevelName(Level);
 	auto LevelData = GetLevelData(LevelName, true);
@@ -52,13 +52,14 @@ void USpudState::StoreLevel(ULevel* Level, bool bRelease, bool bBlocking)
 			if (SpudPropertyUtil::IsPersistentObject(Actor))
 			{
 				StoreActor(Actor, LevelData);
-			}					
+			}
 		}
 
-		GetSpudSubsystem(Level->GetWorld())->OnLevelStore.Broadcast(LevelName);
+		// ReSharper disable once CppExpressionWithoutSideEffects
+		OnLevelStore.ExecuteIfBound(LevelName);
 	}
 
-	if (bRelease)
+	if (bReleaseAfter)
 		ReleaseLevelData(LevelName, bBlocking);
 }
 

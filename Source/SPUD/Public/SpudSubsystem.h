@@ -199,7 +199,12 @@ protected:
 	USpudState* GetActiveState()
 	{
 		if (!IsValid(ActiveState))
+		{
 			ActiveState = NewObject<USpudState>();
+			ActiveState->OnLevelStore.BindWeakLambda(this, [this](const auto& LevelName) {
+				OnLevelStore.Broadcast(LevelName);
+			});
+		}
 
 		return ActiveState;
 	}
