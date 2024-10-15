@@ -18,6 +18,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPreSaveGame, const FString&, Sl
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSpudPostSaveGame, const FString&, SlotName, bool, bSuccess);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPreLevelStore, const FString&, LevelName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudOnLevelStore, const FString&, LevelName);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSpudPostLevelStore, const FString&, LevelName, bool, bSuccess);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPreLevelRestore, const FString&, LevelName);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSpudPostLevelRestore, const FString&, LevelName, bool, bSuccess);
@@ -100,6 +101,9 @@ public:
 	/// Event fired just before we write the contents of a level to the state database
 	UPROPERTY(BlueprintAssignable)
 	FSpudPreLevelStore PreLevelStore;
+	/// Event fired when storing level state
+	UPROPERTY(BlueprintAssignable)
+	FSpudOnLevelStore OnLevelStore;
 	/// Event fired just after we've written the contents of a level to the state database
 	UPROPERTY(BlueprintAssignable)
 	FSpudPostLevelStore PostLevelStore;
@@ -195,7 +199,12 @@ protected:
 	USpudState* GetActiveState()
 	{
 		if (!IsValid(ActiveState))
+		{
 			ActiveState = NewObject<USpudState>();
+			ActiveState->OnLevelStore.BindWeakLambda(this, [this](const auto& LevelName) {
+				OnLevelStore.Broadcast(LevelName);
+			});
+		}
 
 		return ActiveState;
 	}
@@ -520,6 +529,9 @@ public:
 	/// Return whether a level should be stored / restored
 	UFUNCTION(BlueprintCallable)
 	bool ShouldStoreLevel(const ULevel* Level);
+
+	/// Store actor by cell
+	void StoreActorByCell(AActor* Actor, const FString& CellName);
 
 	static FString GetSaveGameDirectory();
 	static FString GetSaveGameFilePath(const FString& SlotName);

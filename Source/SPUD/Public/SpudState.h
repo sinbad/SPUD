@@ -11,6 +11,8 @@
 
 SPUD_API DECLARE_LOG_CATEGORY_EXTERN(LogSpudState, Verbose, Verbose);
 
+DECLARE_DELEGATE_OneParam(FSpudOnStateLevelStore, const FString&);
+
 /// Description of a save game for display in load game lists, finding latest
 /// All properties are read-only because they can only be populated via calls to save game
 UCLASS(BlueprintType)
@@ -78,6 +80,8 @@ class SPUD_API USpudState : public UObject
 public:
 	/// Direct access to save data - not recommended but if you really need it...
 	FSpudSaveData SaveData;
+
+	FSpudOnStateLevelStore OnLevelStore;
 
 protected:
 
@@ -223,6 +227,9 @@ public:
 	/// This object will be associated with its level, and so will only be restored when its level is loaded.
 	/// Will page in the level data concerned from disk if necessary and will retain it in memory
 	void StoreActor(AActor* Obj);
+
+	/// Store actor by cell.
+	void StoreActor(AActor* Actor, const FString& CellName);
 
 	/// Notify the state that an actor that is part of a level is being destroyed, and that should be remembered
 	/// Will page in the level data concerned from disk if necessary and will retain it in memory

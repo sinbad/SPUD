@@ -885,6 +885,11 @@ bool USpudSubsystem::ShouldStoreLevel(const ULevel* Level)
 	return true;
 }
 
+void USpudSubsystem::StoreActorByCell(AActor* Actor, const FString& CellName)
+{
+	GetActiveState()->StoreActor(Actor, CellName);
+}
+
 void USpudSubsystem::SubscribeAllLevelObjectEvents()
 {
 	const auto World = GetWorld();

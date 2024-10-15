@@ -32,7 +32,7 @@ void USpudState::StoreWorldGlobals(UWorld* World)
 }
 
 
-void USpudState::StoreLevel(ULevel* Level, bool bRelease, bool bBlocking)
+void USpudState::StoreLevel(ULevel* Level, bool bReleaseAfter, bool bBlocking)
 {
 	const FString LevelName = GetLevelName(Level);
 	auto LevelData = GetLevelData(LevelName, true);
@@ -52,11 +52,14 @@ void USpudState::StoreLevel(ULevel* Level, bool bRelease, bool bBlocking)
 			if (SpudPropertyUtil::IsPersistentObject(Actor))
 			{
 				StoreActor(Actor, LevelData);
-			}					
+			}
 		}
+
+		// ReSharper disable once CppExpressionWithoutSideEffects
+		OnLevelStore.ExecuteIfBound(LevelName);
 	}
 
-	if (bRelease)
+	if (bReleaseAfter)
 		ReleaseLevelData(LevelName, bBlocking);
 }
 
@@ -326,6 +329,15 @@ void USpudState::StoreActor(AActor* Actor)
 	auto LevelData = GetLevelData(LevelName, true);
 	StoreActor(Actor, LevelData);
 		
+}
+
+void USpudState::StoreActor(AActor* Actor, const FString& CellName)
+{
+	if (Actor->HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject|RF_BeginDestroyed))
+		return;
+
+	const auto LevelData = GetLevelData(CellName, true);
+	StoreActor(Actor, LevelData);
 }
 
 void USpudState::StoreLevelActorDestroyed(AActor* Actor)
