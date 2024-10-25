@@ -6,6 +6,7 @@
 #include "WorldPartition/WorldPartitionRuntimeHash.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
 
+DEFINE_LOG_CATEGORY_STATIC(SpudRuntimeStoredActorComponent, All, All);
 
 USpudRuntimeStoredActorComponent::USpudRuntimeStoredActorComponent()
 {
@@ -19,16 +20,17 @@ void USpudRuntimeStoredActorComponent::BeginPlay()
 {
     Super::BeginPlay();
 
+    const auto SpudSubsystem = GetSpudSubsystem(GetWorld());
+    SpudSubsystem->OnLevelStore.AddDynamic(this, &ThisClass::OnLevelStore);
+    SpudSubsystem->PostUnloadStreamingLevel.AddDynamic(this, &ThisClass::OnPostUnloadCell);
+
     if (bCanCrossCell)
     {
-        return;
+        SetComponentTickEnabled(true);
     }
-
-    UpdateCurrentCell();
-
-    if (bCurrentCellLoaded)
+    else
     {
-        GetSpudSubsystem(GetWorld())->OnLevelStore.AddDynamic(this, &ThisClass::OnPreUnloadCell);
+        UpdateCurrentCell();
     }
 }
 
@@ -40,12 +42,11 @@ void USpudRuntimeStoredActorComponent::UpdateCurrentCell()
     if (OutOverlappedCell)
     {
         CurrentCellName = OutOverlappedCell->GetName();
-        bCurrentCellLoaded = OutOverlappedCell->GetCurrentState() == EWorldPartitionRuntimeCellState::Activated;
     }
 }
 
 // ReSharper disable once CppMemberFunctionMayBeConst
-void USpudRuntimeStoredActorComponent::OnPreUnloadCell(const FString& LevelName)
+void USpudRuntimeStoredActorComponent::OnLevelStore(const FString& LevelName)
 {
     if (CurrentCellName.IsEmpty() || !IsActive())
     {
@@ -55,8 +56,31 @@ void USpudRuntimeStoredActorComponent::OnPreUnloadCell(const FString& LevelName)
     if (CurrentCellName == LevelName)
     {
         const auto Actor = GetOwner();
-        GetSpudSubsystem(GetWorld())->StoreActorByCell(Actor, CurrentCellName);
-        Actor->Destroy();
+        if (const auto Id = SpudPropertyUtil::GetGuidProperty(Actor); !Id.IsValid())
+        {
+            UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("Storing actor in cell: %s"), *CurrentCellName);
+            GetSpudSubsystem(GetWorld())->StoreActorByCell(Actor, CurrentCellName);
+        }
+        else
+        {
+            UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("Actor %s in cell %s was stored already - not storing."),
+                   *Id.ToString(), *CurrentCellName);
+        }
+    }
+}
+
+// ReSharper disable once CppMemberFunctionMayBeConst
+void USpudRuntimeStoredActorComponent::OnPostUnloadCell(const FName& LevelName)
+{
+    if (CurrentCellName.IsEmpty() || !IsActive())
+    {
+        return;
+    }
+
+    if (CurrentCellName == LevelName)
+    {
+        UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("Destroying actor in cell: %s"), *CurrentCellName);
+        GetOwner()->Destroy();
     }
 }
 
@@ -69,11 +93,22 @@ void USpudRuntimeStoredActorComponent::GetCurrentOverlappedCell(
         return;
     }
 
-    const auto ForEachCellFunction = [this, &CurrentOverlappedCell](const UWorldPartitionRuntimeCell* Cell) -> bool
+    const auto OwnerLocation = GetOwner()->GetActorLocation();
+    auto SmallestCellVolume = 0.f;
+
+    const auto ForEachCellFunction = [this, &CurrentOverlappedCell, &OwnerLocation, &SmallestCellVolume](const UWorldPartitionRuntimeCell* Cell) -> bool
     {
-        if (Cell->GetCellBounds().IsInsideXY(GetOwner()->GetActorLocation()))
+        // for simplicity, assuming actor bounds are small enough that only a single cell needs to be considered
+        if (const auto CellBounds = Cell->GetCellBounds(); CellBounds.IsInsideXY(OwnerLocation))
         {
-            CurrentOverlappedCell = Cell;
+            // use the smallest cell
+            if (const auto Volume = CellBounds.GetVolume(); !CurrentOverlappedCell || Volume < SmallestCellVolume)
+            {
+                UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("GetCurrentOverlappedCell: found cell %s"), *Cell->GetName());
+
+                SmallestCellVolume = Volume;
+                CurrentOverlappedCell = Cell;
+            }
         }
         return true;
     };
@@ -100,18 +135,14 @@ void USpudRuntimeStoredActorComponent::TickComponent(float DeltaTime, ELevelTick
     if (bCanCrossCell)
     {
         UpdateCurrentCell();
-        if (!bCurrentCellLoaded)
-        {
-            const auto Actor = GetOwner();
-            GetSpudSubsystem(GetWorld())->StoreActorByCell(Actor, CurrentCellName);
-            Actor->Destroy();
-        }
     }
 }
 
 void USpudRuntimeStoredActorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-    GetSpudSubsystem(GetWorld())->OnLevelStore.RemoveDynamic(this, &ThisClass::OnPreUnloadCell);
+    const auto SpudSubsystem = GetSpudSubsystem(GetWorld());
+    SpudSubsystem->OnLevelStore.RemoveDynamic(this, &ThisClass::OnLevelStore);
+    SpudSubsystem->PostUnloadStreamingLevel.RemoveDynamic(this, &ThisClass::OnPostUnloadCell);
 
     Super::EndPlay(EndPlayReason);
 }

@@ -212,7 +212,7 @@ void USpudState::WriteCoreActorData(AActor* Actor, FArchive& Out) const
 
 }
 
-FString USpudState::GetLevelName(const ULevel* Level)
+FString USpudState::GetLevelName(const FString& PackageName)
 {
 	// Detect what level an object originated from
 	// GetLevel()->GetName / GetFName() returns "PersistentLevel" all the time
@@ -220,20 +220,22 @@ FString USpudState::GetLevelName(const ULevel* Level)
 	// Outer is "PersistentLevel"
 	// Outermost is "/Game/Maps/[UEDPIE_0_]TestAdventureStream0" so that's what we want
 	// Note that using Actor->GetOutermost() with WorldPartition will return some wrapper object.
-	const auto OuterMost = Level->GetOutermost();
-	if (OuterMost)
+	FString LevelName;
+	PackageName.Split("/", nullptr, &LevelName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+	// Strip off PIE prefix, "UEDPIE_N_" where N is a number
+	if (LevelName.StartsWith("UEDPIE_"))
+		LevelName = LevelName.Right(LevelName.Len() - 9);
+	return LevelName;
+}
+
+FString USpudState::GetLevelName(const ULevel* Level)
+{
+	if (const auto OuterMost = Level->GetOutermost())
 	{
-		FString LevelName;
-		OuterMost->GetName().Split("/", nullptr, &LevelName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
-		// Strip off PIE prefix, "UEDPIE_N_" where N is a number
-		if (LevelName.StartsWith("UEDPIE_"))
-			LevelName = LevelName.Right(LevelName.Len() - 9);
-		return LevelName;
+		return GetLevelName(OuterMost->GetName());
 	}
-	else
-	{
-		return FString();
-	}
+
+	return FString();
 }
 
 FString USpudState::GetLevelNameForActor(const AActor* Actor)
