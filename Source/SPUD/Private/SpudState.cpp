@@ -28,8 +28,8 @@ void USpudState::ResetState()
 
 void USpudState::StoreWorldGlobals(UWorld* World)
 {
-    if (UPackage* Package = World->GetPackage())
-    {
+	if (UPackage* Package = World->GetPackage())
+	{
 	    SaveData.GlobalData.CurrentLevel = Package->GetLoadedPath().GetPackageFName().ToString();
 	}
 }

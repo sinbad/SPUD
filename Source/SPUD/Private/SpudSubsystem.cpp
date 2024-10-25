@@ -600,8 +600,8 @@ void USpudSubsystem::LoadComplete(const FString& SlotName, bool bSuccess)
 	IsRestoringState = false;
 	SlotNameInProgress = "";
 	PostLoadGame.Broadcast(SlotName, bSuccess);
-
-    WorldToLoad = nullptr;
+	
+	WorldToLoad = nullptr;
 }
 
 bool USpudSubsystem::DeleteSave(const FString& SlotName)

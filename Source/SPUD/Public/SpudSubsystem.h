@@ -181,7 +181,7 @@ protected:
 	UPROPERTY()
 	TMap<FString, TWeakObjectPtr<UObject>> NamedGlobalObjects;
 	UPROPERTY(Transient)
-    TObjectPtr<UWorld> WorldToLoad;
+	TObjectPtr<UWorld> WorldToLoad;
 	
 	UPROPERTY(BlueprintReadOnly)
 	ESpudSystemState CurrentState = ESpudSystemState::RunningIdle;
