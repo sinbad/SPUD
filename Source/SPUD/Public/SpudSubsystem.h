@@ -532,6 +532,14 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool ShouldStoreLevel(const ULevel* Level);
 
+	/// Save render target to save file
+	UFUNCTION(BlueprintCallable)
+	void SetRenderTargetData(FString Name, UTextureRenderTarget2D* RenderTarget);
+
+	/// Load render target to a texture
+	UFUNCTION(BlueprintCallable)
+	UTexture2D* GetRenderTargetData(FString Name);
+	
 	/// Store actor by cell
 	void StoreActorByCell(AActor* Actor, const FString& CellName);
 

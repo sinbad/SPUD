@@ -8,6 +8,8 @@
 #include "TimerManager.h"
 #include "HAL/FileManager.h"
 #include "Async/Async.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "Kismet/KismetRenderingLibrary.h"
 
 DEFINE_LOG_CATEGORY(LogSpudSubsystem)
 
@@ -910,6 +912,19 @@ bool USpudSubsystem::ShouldStoreLevel(const ULevel* Level)
 		}
 	}
 	return true;
+}
+
+void USpudSubsystem::SetRenderTargetData(FString Name, UTextureRenderTarget2D* RenderTarget)
+{
+	UKismetRenderingLibrary::ExportRenderTarget(GetWorld(), RenderTarget, GetSaveGameDirectory(), Name + ".png");
+}
+
+UTexture2D* USpudSubsystem::GetRenderTargetData(FString Name)
+{
+	UTexture2D* texture = nullptr;
+	FString TotalFileName = FPaths::Combine(GetSaveGameDirectory(), Name + ".png");
+	texture = FImageUtils::ImportFileAsTexture2D(TotalFileName);
+	return texture;
 }
 
 void USpudSubsystem::StoreActorByCell(AActor* Actor, const FString& CellName)
