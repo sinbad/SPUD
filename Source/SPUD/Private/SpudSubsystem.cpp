@@ -1291,13 +1291,15 @@ void USpudSubsystem::Tick(float DeltaTime)
 			// Discard unloaded levels.
 			for (auto it = MonitoredStreamingLevels.CreateIterator(); it; ++it)
 			{
-				if (!streamingLevels.Contains(it.Key()))
+				if (const auto Level = it.Key(); !streamingLevels.Contains(Level))
 				{
-					UE_LOG(LogSpudSubsystem, Verbose, TEXT("Unloaded streaming level: %s"), *GetNameSafe(it.Key()));
-					check(!it.Key()->IsLevelVisible());
-					it.Key()->OnLevelShown.RemoveAll(it.Value());
-					it.Key()->OnLevelHidden.RemoveAll(it.Value());
+					UE_LOG(LogSpudSubsystem, Verbose, TEXT("Unloaded streaming level: %s"), *GetNameSafe(Level));
+					check(!Level->IsLevelVisible());
+					Level->OnLevelShown.RemoveAll(it.Value());
+					Level->OnLevelHidden.RemoveAll(it.Value());
 					it.RemoveCurrent();
+
+					PostUnloadStreamingLevel.Broadcast(FName(USpudState::GetLevelName(Level->GetWorldAssetPackageName())));
 				}
 			}
 		}
