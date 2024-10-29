@@ -30,7 +30,7 @@ void USpudState::StoreWorldGlobals(UWorld* World)
 {
 	if (UPackage* Package = World->GetPackage())
 	{
-	    SaveData.GlobalData.CurrentLevel = Package->GetLoadedPath().GetPackageFName().ToString();
+		SaveData.GlobalData.CurrentLevel = Package->GetLoadedPath().GetPackageFName().ToString();
 	}
 	else
 	{
@@ -479,6 +479,9 @@ void USpudState::RestoreLevel(ULevel* Level)
 			RuntimeObjectsByGuid.Add(SpawnedActor.Value.Guid, Actor);
 		// Spawned actors will have been added to Level->Actors, their state will be restored there
 	}
+
+	TMap<FGuid, AActor*> RestoredRuntimeActors;
+
 	// Restore existing actor state
 	for (auto Actor : Level->Actors)
 	{
@@ -488,7 +491,26 @@ void USpudState::RestoreLevel(ULevel* Level)
 			auto Guid = SpudPropertyUtil::GetGuidProperty(Actor);
 			if (Guid.IsValid())
 			{
-				RuntimeObjectsByGuid.Add(Guid, Actor);
+				if (RuntimeObjectsByGuid.Contains(Guid))
+				{
+					if (const auto DuplicatedActor = RestoredRuntimeActors.Find(Guid))
+					{
+						UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - destroying duplicate runtime actor %s"),
+						       *LevelName, *Guid.ToString(EGuidFormats::DigitsWithHyphens));
+
+						// sometimes runtime actors are duplicated in the level actors array - for example, when hiding a
+						// world partition cell and immediately showing it; need to remove duplicates in this case
+						(*DuplicatedActor)->Destroy();
+					}
+					else
+					{
+						RestoredRuntimeActors.Emplace(Guid, Actor);
+					}
+				}
+				else
+				{
+					RuntimeObjectsByGuid.Add(Guid, Actor);
+				}
 			}
 		}
 	}
