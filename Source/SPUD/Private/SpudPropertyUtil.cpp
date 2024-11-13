@@ -5,6 +5,7 @@
 #include "InstancedStruct.h"
 #include "ISpudObject.h"
 #include "..\Public\SpudMemoryReaderWriter.h"
+#include "StructUtils/InstancedStruct.h"
 
 DEFINE_LOG_CATEGORY(LogSpudProps)
 
