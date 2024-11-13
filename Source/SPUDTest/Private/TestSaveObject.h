@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "InstancedStruct.h"
 #include "ISpudObject.h"
+#include "StructUtils/InstancedStruct.h"
 #include "UObject/Object.h"
 #include "TestSaveObject.generated.h"
 
