@@ -30,7 +30,7 @@ void USpudState::StoreWorldGlobals(UWorld* World)
 {
 	if (UPackage* Package = World->GetPackage())
 	{
-	    SaveData.GlobalData.CurrentLevel = Package->GetLoadedPath().GetPackageFName().ToString();
+		SaveData.GlobalData.CurrentLevel = Package->GetLoadedPath().GetPackageFName().ToString();
 	}
 	else
 	{
@@ -219,7 +219,7 @@ void USpudState::WriteCoreActorData(AActor* Actor, FArchive& Out) const
 
 }
 
-FString USpudState::GetLevelName(const ULevel* Level)
+FString USpudState::GetLevelName(const FString& PackageName)
 {
 	// Detect what level an object originated from
 	// GetLevel()->GetName / GetFName() returns "PersistentLevel" all the time
@@ -227,20 +227,22 @@ FString USpudState::GetLevelName(const ULevel* Level)
 	// Outer is "PersistentLevel"
 	// Outermost is "/Game/Maps/[UEDPIE_0_]TestAdventureStream0" so that's what we want
 	// Note that using Actor->GetOutermost() with WorldPartition will return some wrapper object.
-	const auto OuterMost = Level->GetOutermost();
-	if (OuterMost)
+	FString LevelName;
+	PackageName.Split("/", nullptr, &LevelName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+	// Strip off PIE prefix, "UEDPIE_N_" where N is a number
+	if (LevelName.StartsWith("UEDPIE_"))
+		LevelName = LevelName.Right(LevelName.Len() - 9);
+	return LevelName;
+}
+
+FString USpudState::GetLevelName(const ULevel* Level)
+{
+	if (const auto OuterMost = Level->GetOutermost())
 	{
-		FString LevelName;
-		OuterMost->GetName().Split("/", nullptr, &LevelName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
-		// Strip off PIE prefix, "UEDPIE_N_" where N is a number
-		if (LevelName.StartsWith("UEDPIE_"))
-			LevelName = LevelName.Right(LevelName.Len() - 9);
-		return LevelName;
+		return GetLevelName(OuterMost->GetName());
 	}
-	else
-	{
-		return FString();
-	}
+
+	return FString();
 }
 
 FString USpudState::GetLevelNameForActor(const AActor* Actor)
@@ -477,6 +479,9 @@ void USpudState::RestoreLevel(ULevel* Level)
 			RuntimeObjectsByGuid.Add(SpawnedActor.Value.Guid, Actor);
 		// Spawned actors will have been added to Level->Actors, their state will be restored there
 	}
+
+	TMap<FGuid, AActor*> RestoredRuntimeActors;
+
 	// Restore existing actor state
 	for (auto Actor : Level->Actors)
 	{
@@ -486,7 +491,26 @@ void USpudState::RestoreLevel(ULevel* Level)
 			auto Guid = SpudPropertyUtil::GetGuidProperty(Actor);
 			if (Guid.IsValid())
 			{
-				RuntimeObjectsByGuid.Add(Guid, Actor);
+				if (RuntimeObjectsByGuid.Contains(Guid))
+				{
+					if (const auto DuplicatedActor = RestoredRuntimeActors.Find(Guid))
+					{
+						UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - destroying duplicate runtime actor %s"),
+						       *LevelName, *Guid.ToString(EGuidFormats::DigitsWithHyphens));
+
+						// sometimes runtime actors are duplicated in the level actors array - for example, when hiding a
+						// world partition cell and immediately showing it; need to remove duplicates in this case
+						(*DuplicatedActor)->Destroy();
+					}
+					else
+					{
+						RestoredRuntimeActors.Emplace(Guid, Actor);
+					}
+				}
+				else
+				{
+					RuntimeObjectsByGuid.Add(Guid, Actor);
+				}
 			}
 		}
 	}

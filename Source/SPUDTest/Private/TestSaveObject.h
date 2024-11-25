@@ -3,8 +3,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "InstancedStruct.h"
 #include "ISpudObject.h"
+#if ENGINE_MAJOR_VERSION==5&&ENGINE_MINOR_VERSION>=5
+#include "StructUtils/InstancedStruct.h"
+#else
+#include "InstancedStruct.h"
+#endif
 #include "UObject/Object.h"
 #include "TestSaveObject.generated.h"
 
