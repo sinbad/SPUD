@@ -14,8 +14,7 @@ public class SPUDTest : ModuleRules
                 "Core",
                 "CoreUObject",
                 "Engine",
-                "SPUD",
-                "StructUtils"
+                "SPUD"
             }
         );
         
