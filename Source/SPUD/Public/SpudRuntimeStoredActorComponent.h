@@ -26,10 +26,6 @@ public:
     UFUNCTION(BlueprintCallable)
     void UpdateCurrentCell();
 
-protected:
-    virtual void BeginPlay() override;
-
-private:
     /**
      * Can the owning actor can cross cells? Ticking will be enabled if this flag is true. If the position changes
      * infrequently, it's more efficient to manually call UpdateCurrentCell().
@@ -37,6 +33,10 @@ private:
     UPROPERTY(EditDefaultsOnly)
     bool bCanCrossCell = false;
 
+protected:
+    virtual void BeginPlay() override;
+
+private:
     FString CurrentCellName;
 
     UFUNCTION()
