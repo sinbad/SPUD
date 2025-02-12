@@ -9,6 +9,7 @@
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/MovementComponent.h"
 #include "ImageUtils.h"
+#include "SpudRuntimeStoredActorComponent.h"
 #include "../Public/SpudMemoryReaderWriter.h"
 #include "GameFramework/PlayerState.h"
 
@@ -56,7 +57,9 @@ void USpudState::StoreLevel(ULevel* Level, bool bReleaseAfter, bool bBlocking)
 
 		for (auto Actor : Level->Actors)
 		{
-			if (SpudPropertyUtil::IsPersistentObject(Actor))
+			// Skip objects(actors) with runtime stored actor component.
+			if (SpudPropertyUtil::IsPersistentObject(Actor) &&
+				Actor->GetComponentByClass(USpudRuntimeStoredActorComponent::StaticClass()) == nullptr)
 			{
 				StoreActor(Actor, LevelData);
 			}
@@ -483,7 +486,22 @@ void USpudState::RestoreLevel(ULevel* Level)
 	TMap<FGuid, AActor*> RestoredRuntimeActors;
 
 	// Restore existing actor state
-	for (auto Actor : Level->Actors)
+	// WP Fixing Start
+	TArray<TObjectPtr<AActor>> RestoringActors;
+	for (auto Object : RuntimeObjectsByGuid)
+	{
+		if (AActor* Actor = Cast<AActor>(Object.Value))
+		{
+			RestoringActors.Add(Actor);
+		}
+	}
+
+	TArray<TObjectPtr<AActor>> ExistingActors;
+	ExistingActors.Append(Level->Actors);
+	ExistingActors.Append(RestoringActors);
+	
+	for (auto Actor : ExistingActors)
+		// WP Fixing end
 	{
 		if (SpudPropertyUtil::IsPersistentObject(Actor))
 		{
@@ -562,7 +580,8 @@ AActor* USpudState::RespawnActor(const FSpudSpawnedActorData& SpawnedActor,
 		return nullptr;
 	}
 	FActorSpawnParameters Params;
-	Params.OverrideLevel = Level;
+	// Runtime actor will bind to the streaming level, it will cause unexpectable problems !!
+	// Params.OverrideLevel = Level;
 	// Need to always spawn since we're not setting position until later
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	UE_LOG(LogSpudState, Verbose, TEXT(" * Respawning actor %s of type %s"), *SpawnedActor.Guid.ToString(EGuidFormats::DigitsWithHyphens), *ClassName);
@@ -1098,7 +1117,8 @@ void USpudState::StoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelDat
 			// wasn't respawned, such as Characters, GameState, that we got an overridden name because
 			// the FName isn't reliable in non-Editor builds
 			// See https://github.com/sinbad/SPUD/issues/41
-			if (SpudPropertyUtil::IsRuntimeActor(Actor))
+			// Avoid crashing the engine when using spud runtime stored actor component!!
+			if (SpudPropertyUtil::IsRuntimeActor(Actor) && Actor->Implements<USpudObject>())
 			{
 				FString OverrideName = ISpudObject::Execute_OverrideName(Actor);
 				if (OverrideName.IsEmpty())

@@ -55,16 +55,18 @@ void USpudRuntimeStoredActorComponent::OnLevelStore(const FString& LevelName)
 
     if (CurrentCellName == LevelName)
     {
+        // Always store when cell unloaded
         const auto Actor = GetOwner();
-        if (const auto Id = SpudPropertyUtil::GetGuidProperty(Actor); !Id.IsValid())
+        UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("Storing actor in cell: %s"), *CurrentCellName);
+        GetSpudSubsystem(GetWorld())->StoreActorByCell(Actor, CurrentCellName);
+        // If this is pawn, we also store its controller (AI)
+        if (auto Pawn = Cast<APawn>(GetOwner()))
         {
-            UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("Storing actor in cell: %s"), *CurrentCellName);
-            GetSpudSubsystem(GetWorld())->StoreActorByCell(Actor, CurrentCellName);
-        }
-        else
-        {
-            UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("Actor %s in cell %s was stored already - not storing."),
-                   *Id.ToString(), *CurrentCellName);
+            if (auto Controller = Pawn->GetController())
+            {
+                UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("Storing actor's controller in cell: %s"), *CurrentCellName);
+                GetSpudSubsystem(GetWorld())->StoreActorByCell(Controller, CurrentCellName);
+            }
         }
     }
 }
@@ -79,6 +81,16 @@ void USpudRuntimeStoredActorComponent::OnPostUnloadCell(const FName& LevelName)
 
     if (CurrentCellName == LevelName)
     {
+        // If this is pawn, we also destroy its controller (AI)
+        if (auto Pawn = Cast<APawn>(GetOwner()))
+        {
+            if (auto Controller = Pawn->GetController())
+            {
+                UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("Destroying actor's controller in cell: %s"), *CurrentCellName);
+                Controller->Destroy();
+            }
+        }
+        
         UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("Destroying actor in cell: %s"), *CurrentCellName);
         GetOwner()->Destroy();
     }
@@ -104,7 +116,8 @@ void USpudRuntimeStoredActorComponent::GetCurrentOverlappedCell(
             // use the smallest cell
             if (const auto Volume = CellBounds.GetVolume(); !CurrentOverlappedCell || Volume < SmallestCellVolume)
             {
-                UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("GetCurrentOverlappedCell: found cell %s"), *Cell->GetName());
+                // we dont need this log
+                //UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("GetCurrentOverlappedCell: found cell %s"), *Cell->GetName());
 
                 SmallestCellVolume = Volume;
                 CurrentOverlappedCell = Cell;
