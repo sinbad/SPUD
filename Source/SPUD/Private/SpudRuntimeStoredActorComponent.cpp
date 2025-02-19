@@ -59,15 +59,6 @@ void USpudRuntimeStoredActorComponent::OnLevelStore(const FString& LevelName)
         const auto Actor = GetOwner();
         UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("Storing actor in cell: %s"), *CurrentCellName);
         GetSpudSubsystem(GetWorld())->StoreActorByCell(Actor, CurrentCellName);
-        // If this is pawn, we also store its controller (AI)
-        if (auto Pawn = Cast<APawn>(GetOwner()))
-        {
-            if (auto Controller = Pawn->GetController())
-            {
-                UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("Storing actor's controller in cell: %s"), *CurrentCellName);
-                GetSpudSubsystem(GetWorld())->StoreActorByCell(Controller, CurrentCellName);
-            }
-        }
     }
 }
 
@@ -84,7 +75,8 @@ void USpudRuntimeStoredActorComponent::OnPostUnloadCell(const FName& LevelName)
         // If this is pawn, we also destroy its controller (AI)
         if (auto Pawn = Cast<APawn>(GetOwner()))
         {
-            if (auto Controller = Pawn->GetController())
+            auto Controller = Pawn->GetController();
+            if (Controller && Pawn->IsBotControlled())
             {
                 UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("Destroying actor's controller in cell: %s"), *CurrentCellName);
                 Controller->Destroy();

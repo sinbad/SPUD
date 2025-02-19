@@ -487,18 +487,16 @@ void USpudState::RestoreLevel(ULevel* Level)
 
 	// Restore existing actor state
 	// WP Fixing Start
-	TArray<TObjectPtr<AActor>> RestoringActors;
+	TArray<TObjectPtr<AActor>> ExistingActors;
+	ExistingActors.Append(Level->Actors);
+	
 	for (auto Object : RuntimeObjectsByGuid)
 	{
 		if (AActor* Actor = Cast<AActor>(Object.Value))
 		{
-			RestoringActors.Add(Actor);
+			ExistingActors.AddUnique(Actor);
 		}
 	}
-
-	TArray<TObjectPtr<AActor>> ExistingActors;
-	ExistingActors.Append(Level->Actors);
-	ExistingActors.Append(RestoringActors);
 	
 	for (auto Actor : ExistingActors)
 		// WP Fixing end
