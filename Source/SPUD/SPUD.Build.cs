@@ -18,27 +18,31 @@ public class SPUD : ModuleRules
             }
             );
 
-		PublicDependencyModuleNames.AddRange(
+		PublicDependencyModuleNames.AddRange
+		(
 			new string[]
 			{
 				"Core",
 				"CoreUObject",
 				"Engine"
 			}
-			);
+		);
 			
 		
-		PrivateDependencyModuleNames.AddRange(
+		PrivateDependencyModuleNames.AddRange
+		(
+			new string[]
+			{
+                "AntixCommon"
+            }
+		);
+		
+		
+		DynamicallyLoadedModuleNames.AddRange
+		(
 			new string[]
 			{
 			}
-			);
-		
-		
-		DynamicallyLoadedModuleNames.AddRange(
-			new string[]
-			{
-			}
-			);
+		);
 	}
 }

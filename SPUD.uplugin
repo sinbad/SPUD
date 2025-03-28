@@ -33,7 +33,10 @@
 		}
 		
 	],
-	"Plugins" :
-	[
+	"Plugins": [
+		{
+			"Name": "AntixCommon",
+			"Enabled": true
+		}
 	]
 }

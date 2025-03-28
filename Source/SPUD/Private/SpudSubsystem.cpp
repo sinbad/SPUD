@@ -6,6 +6,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "ImageUtils.h"
 #include "TimerManager.h"
+#include "AntixCommon/World/AXWorldSettings.h"
 #include "HAL/FileManager.h"
 #include "Async/Async.h"
 
@@ -191,10 +192,17 @@ void USpudSubsystem::OnPreLoadMap(const FString& MapName)
 		const auto World = GetWorld();
 		if (IsValid(World))
 		{
-			UE_LOG(LogSpudSubsystem, Verbose, TEXT("OnPreLoadMap saving: %s"), *UGameplayStatics::GetCurrentLevelName(World));
-			// Map and all streaming level data will be released.
-			// Block while doing it so they all get written predictably
-			StoreWorld(World, true, true);
+			if (auto WorldSettings = Cast<AAXWorldSettings>(World->GetWorldSettings()))
+			{
+				if (WorldSettings->bShouldSaveLevelBeforeTransition)
+				{
+					UE_LOG(LogSpudSubsystem, Verbose, TEXT("OnPreLoadMap saving: %s"), *UGameplayStatics::GetCurrentLevelName(World));
+					// Map and all streaming level data will be released.
+					// Block while doing it so they all get written predictably
+
+					StoreWorld(World, true, true);
+				}
+			}
 		}
 	}
 }
