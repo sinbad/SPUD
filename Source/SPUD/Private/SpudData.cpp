@@ -698,15 +698,25 @@ void FSpudLevelData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredS
 		{
 			Ar.PreviewNextChunk(Hdr, true);
 			if (Hdr.Magic == MetadataID)
+			{
 				Metadata.ReadFromArchive(Ar, StoredSystemVersion);
+			}
 			else if (Hdr.Magic == LevelActorsID)
+			{
 				LevelActors.ReadFromArchive(Ar, StoredSystemVersion);
+			}
 			else if (Hdr.Magic == SpawnedActorsID)
+			{
 				SpawnedActors.ReadFromArchive(Ar, StoredSystemVersion);
+			}
 			else if (Hdr.Magic == DestroyedActorsID)
+			{
 				DestroyedActors.ReadFromArchive(Ar, StoredSystemVersion);
+			}
 			else
+			{
 				Ar.SkipNextChunk();
+			}
 		}
 
 		Status = LDS_Loaded;

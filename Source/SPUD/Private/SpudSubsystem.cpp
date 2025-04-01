@@ -6,7 +6,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "ImageUtils.h"
 #include "TimerManager.h"
-#include "AntixCommon/World/AXWorldSettings.h"
+#include "AntixCommon/Utils/AXStringUtils.h"
 #include "HAL/FileManager.h"
 #include "Async/Async.h"
 
@@ -15,7 +15,6 @@ DEFINE_LOG_CATEGORY(LogSpudSubsystem)
 
 #define SPUD_QUICKSAVE_SLOTNAME "__QuickSave__"
 #define SPUD_AUTOSAVE_SLOTNAME "__AutoSave__"
-
 
 void USpudSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -76,7 +75,9 @@ void USpudSubsystem::Deinitialize()
 void USpudSubsystem::NewGame(bool bCheckServerOnly, bool bAfterLevelLoad)
 {
 	if (bCheckServerOnly && !ServerCheck(true))
+	{
 		return;
+	}
 		
 	EndGame();
 	
@@ -100,11 +101,15 @@ bool USpudSubsystem::ServerCheck(bool LogWarning) const
 	// On missing world etc we just assume true for safety
 	auto GI = GetGameInstance();
 	if (!GI)
+	{
 		return true;
+	}
 
 	auto World = GI->GetWorld();
 	if (!World)
+	{
 		return true;
+	}
 	
 	return World->GetAuthGameMode() != nullptr;
 }
@@ -112,7 +117,9 @@ bool USpudSubsystem::ServerCheck(bool LogWarning) const
 void USpudSubsystem::EndGame()
 {
 	if (ActiveState)
+	{
 		ActiveState->ResetState();
+	}
 	
 	// Allow GC to collect
 	ActiveState = nullptr;
@@ -124,18 +131,12 @@ void USpudSubsystem::EndGame()
 
 void USpudSubsystem::AutoSaveGame(FText Title, bool bTakeScreenshot, const USpudCustomSaveInfo* ExtraInfo)
 {
-	SaveGame(SPUD_AUTOSAVE_SLOTNAME,
-		Title.IsEmpty() ? NSLOCTEXT("Spud", "AutoSaveTitle", "Autosave") : Title,
-		bTakeScreenshot,
-		ExtraInfo);
+	SaveGame(SPUD_AUTOSAVE_SLOTNAME, Title.IsEmpty() ? NSLOCTEXT("Spud", "AutoSaveTitle", "Autosave") : Title, bTakeScreenshot, ExtraInfo);
 }
 
 void USpudSubsystem::QuickSaveGame(FText Title, bool bTakeScreenshot, const USpudCustomSaveInfo* ExtraInfo)
 {
-	SaveGame(SPUD_QUICKSAVE_SLOTNAME,
-		Title.IsEmpty() ? NSLOCTEXT("Spud", "QuickSaveTitle", "Quick Save") : Title,
-		bTakeScreenshot,
-		ExtraInfo);
+	SaveGame(SPUD_QUICKSAVE_SLOTNAME, Title.IsEmpty() ? NSLOCTEXT("Spud", "QuickSaveTitle", "Quick Save") : Title, bTakeScreenshot, ExtraInfo);
 }
 
 void USpudSubsystem::QuickLoadGame(const FString& TravelOptions)
@@ -168,13 +169,17 @@ void USpudSubsystem::LoadLatestSaveGame(const FString& TravelOptions)
 {
 	auto Latest = GetLatestSaveGame();
 	if (Latest)
+	{
 		LoadGame(Latest->SlotName, TravelOptions);
+	}
 }
 
 void USpudSubsystem::OnPreLoadMap(const FString& MapName)
 {
 	if (!ServerCheck(false))
+	{
 		return;
+	}
 
 	PreTravelToNewMap.Broadcast(MapName);
 	// All streaming maps will be unloaded by travelling, so remove all
@@ -190,20 +195,16 @@ void USpudSubsystem::OnPreLoadMap(const FString& MapName)
 		UnsubscribeAllLevelObjectEvents();
 
 		const auto World = GetWorld();
-		if (IsValid(World))
+		if (!IsValid(World))
 		{
-			if (auto WorldSettings = Cast<AAXWorldSettings>(World->GetWorldSettings()))
-			{
-				if (WorldSettings->bShouldSaveLevelBeforeTransition)
-				{
-					UE_LOG(LogSpudSubsystem, Verbose, TEXT("OnPreLoadMap saving: %s"), *UGameplayStatics::GetCurrentLevelName(World));
-					// Map and all streaming level data will be released.
-					// Block while doing it so they all get written predictably
-
-					StoreWorld(World, true, true);
-				}
-			}
+			return;
 		}
+
+		UE_LOG(LogSpudSubsystem, Verbose, TEXT("OnPreLoadMap saving: %s"), *UGameplayStatics::GetCurrentLevelName(World));
+		// Map and all streaming level data will be released.
+		// Block while doing it so they all get written predictably
+
+		StoreWorld(World, true, true);
 	}
 }
 
@@ -221,59 +222,63 @@ void USpudSubsystem::OnSeamlessTravelTransition(UWorld* World)
 void USpudSubsystem::OnPostLoadMap(UWorld* World)
 {
 	if (!ServerCheck(false))
+	{
 		return;
+	}
 
+	UE_LOG(LogSpudSubsystem, Verbose, TEXT("USpudSubsystem::OnPostLoadMap() CurrentState: %s"), *UAXStringUtils::GetEnumValueAsString(CurrentState));
 
 	switch(CurrentState)
 	{
-	case ESpudSystemState::NewGameOnNextLevel:
-		if (IsValid(World)) // nullptr seems possible if load is aborted or something?
+		case ESpudSystemState::NewGameOnNextLevel:
 		{
-			const FString LevelName = UGameplayStatics::GetCurrentLevelName(World);
-			UE_LOG(LogSpudSubsystem,
-				   Verbose,
-				   TEXT("OnPostLoadMap NewGame starting: %s"),
-				   *LevelName);
-			// We need to subscribe to ALL currently loaded levels, because of "AlwaysLoaded" sublevels
-			SubscribeAllLevelObjectEvents();
-			CurrentState = ESpudSystemState::RunningIdle;
-		}
-		break;
-	case ESpudSystemState::RunningIdle:
-	case ESpudSystemState::LoadingGame:
-		// This is called when a new map is loaded
-		// In all cases, we try to load the state
-		if (IsValid(World)) // nullptr seems possible if load is aborted or something?
-		{
-			const FString LevelName = UGameplayStatics::GetCurrentLevelName(World);
-			UE_LOG(LogSpudSubsystem,
-			       Verbose,
-			       TEXT("OnPostLoadMap restore: %s"),
-			       *LevelName);
+			if (IsValid(World)) // nullptr seems possible if load is aborted or something?
+			{
+				const FString LevelName = UGameplayStatics::GetCurrentLevelName(World);
+				UE_LOG(LogSpudSubsystem, Verbose, TEXT("OnPostLoadMap NewGame starting: %s"), *LevelName);
 
-			IsRestoringState = true;
+				// We need to subscribe to ALL currently loaded levels, because of "AlwaysLoaded" sublevels
+				SubscribeAllLevelObjectEvents();
+				CurrentState = ESpudSystemState::RunningIdle;
+			}
 
-			const auto State = GetActiveState();
-			PreLevelRestore.Broadcast(LevelName);
-			State->RestoreLoadedWorld(World);
-			PostLevelRestore.Broadcast(LevelName, true);
-			
-			IsRestoringState = false;
-			// We need to subscribe to ALL currently loaded levels, because of "AlwaysLoaded" sublevels
-			SubscribeAllLevelObjectEvents();
+			break;
 		}
 
-		// If we were loading, this is the completion
-		if (CurrentState == ESpudSystemState::LoadingGame)
+		case ESpudSystemState::RunningIdle:
+		case ESpudSystemState::LoadingGame:
 		{
-			LoadComplete(SlotNameInProgress, true);
-			UE_LOG(LogSpudSubsystem, Log, TEXT("Load: Success"));
+			// This is called when a new map is loaded
+			// In all cases, we try to load the state
+			if (IsValid(World)) // nullptr seems possible if load is aborted or something?
+			{
+				const FString LevelName = UGameplayStatics::GetCurrentLevelName(World);
+				UE_LOG(LogSpudSubsystem, Verbose, TEXT("OnPostLoadMap restore: %s"), *LevelName);
+
+				IsRestoringState = true;
+
+				const auto State = GetActiveState();
+				PreLevelRestore.Broadcast(LevelName);
+				State->RestoreLoadedWorld(World);
+				PostLevelRestore.Broadcast(LevelName, true);
+
+				IsRestoringState = false;
+				// We need to subscribe to ALL currently loaded levels, because of "AlwaysLoaded" sublevels
+				SubscribeAllLevelObjectEvents();
+			}
+
+			// If we were loading, this is the completion
+			if (CurrentState == ESpudSystemState::LoadingGame)
+			{
+				LoadComplete(SlotNameInProgress, true);
+				UE_LOG(LogSpudSubsystem, Log, TEXT("Load: Success"));
+			}
+
+			break;
 		}
 
-		break;
-	default:
-		break;
-			
+		default:
+			break;
 	}
 
 	PostTravelToNewMap.Broadcast();
@@ -881,8 +886,10 @@ void USpudSubsystem::PostUnloadStreamLevelGameThread(FName LevelName)
 bool USpudSubsystem::ShouldStoreLevel(const ULevel* Level)
 {
 	if (!Level)
+	{
 		return false;
-	
+	}
+
 	for (auto Pattern : ExcludeLevelNamePatterns)
 	{
 		if (USpudState::GetLevelName(Level).MatchesWildcard(Pattern))

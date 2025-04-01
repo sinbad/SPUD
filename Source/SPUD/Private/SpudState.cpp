@@ -470,6 +470,10 @@ void USpudState::RestoreLevel(ULevel* Level)
 				RuntimeObjectsByGuid.Add(Guid, Actor);
 			}
 		}
+		else
+		{
+			UE_LOG(LogSpudState, Verbose, TEXT("RESTORE Actor %s is not persistent."), *GetNameSafe(Actor));
+		}
 	}
 	// Destroy actors in level but missing from save state
 	for (auto&& DestroyedActor : LevelData->DestroyedActors.Values)
@@ -607,8 +611,10 @@ bool USpudState::ShouldActorVelocityBeRestored(AActor* Actor) const
 
 void USpudState::RestoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelData, const TMap<FGuid, UObject*>* RuntimeObjects)
 {
-	if (Actor->HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject|RF_BeginDestroyed))
+	if (Actor->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject | RF_BeginDestroyed))
+	{
 		return;
+	}
 
 	const bool bRespawned = ShouldActorBeRespawnedOnRestore(Actor);
 	const FSpudObjectData* ActorData;
@@ -626,12 +632,18 @@ void USpudState::RestoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelD
 
 	if (ActorData)
 	{
+		UE_LOG(LogSpudState, Verbose, TEXT(" * RESTORE Actual Level Actor: %s"), *Actor->GetName())
+
 		PreRestoreObject(Actor, LevelData->GetUserDataModelVersion());
 		
 		RestoreCoreActorData(Actor, ActorData->CoreData);
 		RestoreObjectProperties(Actor, ActorData->Properties, LevelData->Metadata, RuntimeObjects);
 
 		PostRestoreObject(Actor, ActorData->CustomData, LevelData->GetUserDataModelVersion());		
+	}
+	else
+	{
+		UE_LOG(LogSpudState, Warning, TEXT(" * RESTORE  ActorData for Level Actor %s is not valid!"), *Actor->GetName())
 	}
 }
 
