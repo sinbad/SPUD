@@ -23,19 +23,22 @@ class SPUD_API USpudSaveGameInfo : public UObject
 	/// Top-line title string. Might include the name of the region, current quest etc
 	UPROPERTY(BlueprintReadOnly)
 	FText Title;
+
 	/// Timestamp of when this save was created
 	UPROPERTY(BlueprintReadOnly)
 	FDateTime Timestamp;
+
 	/// The name of the save game slot this refers to
 	UPROPERTY(BlueprintReadOnly)
 	FString SlotName;
+
 	/// Thumbnail screenshot (may be blank if one wasn't included in the save game)
 	UPROPERTY(BlueprintReadOnly)
 	TObjectPtr<UTexture2D> Thumbnail;
+
 	/// Custom fields that you chose to store with the save header information specifically for your game
 	UPROPERTY(BlueprintReadOnly)
 	TObjectPtr<USpudCustomSaveInfo> CustomInfo;
-
 };
 
 UENUM()
