@@ -1,7 +1,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-
 #include "SpudCustomSaveInfo.h"
 #include "SpudState.h"
 #include "Subsystems/GameInstanceSubsystem.h"
@@ -32,6 +31,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPostUnloadStreamingLevel, const
 
 // Callbacks passed to functions
 DECLARE_DYNAMIC_DELEGATE_RetVal_OneParam(bool, FSpudUpgradeSaveDelegate, class USpudState*, SaveState);
+
+enum class ELevelStreamingState : uint8;
 
 UENUM(BlueprintType)
 enum class ESpudSystemState : uint8
@@ -159,6 +160,8 @@ protected:
 	FDelegateHandle OnPreLoadMapHandle;
 	FDelegateHandle OnPostLoadMapHandle;
 	FDelegateHandle OnSeamlessTravelHandle;
+	FDelegateHandle OnLevelAddedToWorldHandle;
+	FDelegateHandle OnLevelStreamingStateChangedHandle;
 	int32 LoadUnloadRequests = 0;
 	bool FirstStreamRequestSinceMapLoad = true;
 	TMap<int32, FName> LevelsPendingLoad;
@@ -222,7 +225,11 @@ protected:
 	UFUNCTION()
 	void OnPreLoadMap(const FString& MapName);
 	UFUNCTION()
-	void OnSeamlessTravelTransition(UWorld* World);
+	void OnSeamlessTravelTransition(UWorld* World);	
+
+	void OnLevelAddedToWorld(ULevel* Level, UWorld* World);
+	void OnLevelStreamingStateChanged(UWorld* InWorld, const ULevelStreaming* InLevelStreaming, ULevel* InLevelIfLoaded, ELevelStreamingState InPreviousState, ELevelStreamingState InNewState);
+
 	UFUNCTION()
 	void OnPostLoadMap(UWorld* World);
 	UFUNCTION()

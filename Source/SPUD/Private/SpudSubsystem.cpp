@@ -1,4 +1,5 @@
 #include "SpudSubsystem.h"
+#include <Streaming/LevelStreamingDelegates.h>
 #include "EngineUtils.h"
 #include "SpudState.h"
 #include "Engine/LevelStreaming.h"
@@ -25,6 +26,9 @@ void USpudSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	OnPreLoadMapHandle = FCoreUObjectDelegates::PreLoadMap.AddUObject(this, &USpudSubsystem::OnPreLoadMap);
 	
 	OnSeamlessTravelHandle = FWorldDelegates::OnSeamlessTravelTransition.AddUObject(this, &USpudSubsystem::OnSeamlessTravelTransition);
+	OnLevelAddedToWorldHandle = FWorldDelegates::LevelAddedToWorld_Begin.AddUObject(this, &USpudSubsystem::OnLevelAddedToWorld);
+
+	OnLevelStreamingStateChangedHandle = FLevelStreamingDelegates::OnLevelStreamingStateChanged.AddUObject(this, &USpudSubsystem::OnLevelStreamingStateChanged);
 	
 #if WITH_EDITORONLY_DATA
 	// The one problem we have is that in PIE mode, PostLoadMap doesn't get fired for the current map you're on
@@ -56,6 +60,8 @@ void USpudSubsystem::Deinitialize()
 	FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(OnPostLoadMapHandle);
 	FCoreUObjectDelegates::PreLoadMap.Remove(OnPreLoadMapHandle);
 	FWorldDelegates::OnSeamlessTravelTransition.Remove(OnSeamlessTravelHandle);
+	FWorldDelegates::OnSeamlessTravelTransition.Remove(OnLevelAddedToWorldHandle);
+	FLevelStreamingDelegates::OnLevelStreamingStateChanged.Remove(OnLevelStreamingStateChangedHandle);
 
 	// Clean up streaming level event listeners, as they may fire after we've been destroyed
 	for (auto It = MonitoredStreamingLevels.CreateIterator(); It; ++It)
@@ -216,6 +222,24 @@ void USpudSubsystem::OnSeamlessTravelTransition(UWorld* World)
 		UE_LOG(LogSpudSubsystem, Verbose, TEXT("OnSeamlessTravelTransition: %s"), *MapName);
 		// Just before seamless travel, do the same thing as pre load map on OpenLevel
 		OnPreLoadMap(MapName);
+	}
+}
+
+void USpudSubsystem::OnLevelAddedToWorld(ULevel* Level, UWorld* World)
+{
+}
+
+void USpudSubsystem::OnLevelStreamingStateChanged(UWorld* InWorld, const ULevelStreaming* InLevelStreaming, ULevel* InLevelIfLoaded, ELevelStreamingState InPreviousState, ELevelStreamingState InNewState)
+{
+	if (InPreviousState == ELevelStreamingState::Loading && InNewState == ELevelStreamingState::LoadedNotVisible)
+	{
+		// restore state actors
+		HandleLevelLoaded(InLevelIfLoaded);
+	}
+	else if (InPreviousState == ELevelStreamingState::LoadedVisible && InNewState == ELevelStreamingState::MakingInvisible)
+	{
+		// save state actors
+		HandleLevelUnloaded(InLevelIfLoaded);
 	}
 }
 
