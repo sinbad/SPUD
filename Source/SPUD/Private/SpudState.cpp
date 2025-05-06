@@ -369,7 +369,6 @@ void USpudState::StoreGlobalObject(UObject* Obj, const FString& ID)
 
 void USpudState::StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
 {
-	
 	if (Data)
 	{
 		FSpudClassMetadata& Meta = SaveData.GlobalData.Metadata;
@@ -384,7 +383,9 @@ void USpudState::StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
 		UE_LOG(LogSpudState, Verbose, TEXT("* STORE Global object: %s"), *Obj->GetName());
 
 		if (bIsCallback)
+		{
 			ISpudObjectCallback::Execute_SpudPreStore(Obj, this);
+		}
 
 		StoreObjectProperties(Obj, Data->Properties, Meta);
 		

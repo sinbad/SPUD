@@ -1026,7 +1026,6 @@ struct FSaveSorter
 
 TArray<USpudSaveGameInfo*> USpudSubsystem::GetSaveGameList(bool bIncludeQuickSave, bool bIncludeAutoSave, ESpudSaveSorting Sorting)
 {
-
 	TArray<FString> SaveFiles;
 	ListSaveGameFiles(SaveFiles);
 
@@ -1043,7 +1042,9 @@ TArray<USpudSaveGameInfo*> USpudSubsystem::GetSaveGameList(bool bIncludeQuickSav
 
 		auto Info = GetSaveGameInfo(SlotName);
 		if (Info)
+		{
 			Ret.Add(Info);
+		}
 	}
 
 	if (Sorting != ESpudSaveSorting::None)
