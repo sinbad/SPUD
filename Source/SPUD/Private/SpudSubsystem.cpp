@@ -26,7 +26,6 @@ void USpudSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	OnPreLoadMapHandle = FCoreUObjectDelegates::PreLoadMap.AddUObject(this, &USpudSubsystem::OnPreLoadMap);
 	
 	OnSeamlessTravelHandle = FWorldDelegates::OnSeamlessTravelTransition.AddUObject(this, &USpudSubsystem::OnSeamlessTravelTransition);
-	OnLevelAddedToWorldHandle = FWorldDelegates::LevelAddedToWorld_Begin.AddUObject(this, &USpudSubsystem::OnLevelAddedToWorld);
 
 	OnLevelStreamingStateChangedHandle = FLevelStreamingDelegates::OnLevelStreamingStateChanged.AddUObject(this, &USpudSubsystem::OnLevelStreamingStateChanged);
 	
@@ -60,7 +59,6 @@ void USpudSubsystem::Deinitialize()
 	FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(OnPostLoadMapHandle);
 	FCoreUObjectDelegates::PreLoadMap.Remove(OnPreLoadMapHandle);
 	FWorldDelegates::OnSeamlessTravelTransition.Remove(OnSeamlessTravelHandle);
-	FWorldDelegates::OnSeamlessTravelTransition.Remove(OnLevelAddedToWorldHandle);
 	FLevelStreamingDelegates::OnLevelStreamingStateChanged.Remove(OnLevelStreamingStateChangedHandle);
 
 	// Clean up streaming level event listeners, as they may fire after we've been destroyed
@@ -223,10 +221,6 @@ void USpudSubsystem::OnSeamlessTravelTransition(UWorld* World)
 		// Just before seamless travel, do the same thing as pre load map on OpenLevel
 		OnPreLoadMap(MapName);
 	}
-}
-
-void USpudSubsystem::OnLevelAddedToWorld(ULevel* Level, UWorld* World)
-{
 }
 
 void USpudSubsystem::OnLevelStreamingStateChanged(UWorld* InWorld, const ULevelStreaming* InLevelStreaming, ULevel* InLevelIfLoaded, ELevelStreamingState InPreviousState, ELevelStreamingState InNewState)

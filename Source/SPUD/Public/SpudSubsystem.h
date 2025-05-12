@@ -160,7 +160,6 @@ protected:
 	FDelegateHandle OnPreLoadMapHandle;
 	FDelegateHandle OnPostLoadMapHandle;
 	FDelegateHandle OnSeamlessTravelHandle;
-	FDelegateHandle OnLevelAddedToWorldHandle;
 	FDelegateHandle OnLevelStreamingStateChangedHandle;
 	int32 LoadUnloadRequests = 0;
 	bool FirstStreamRequestSinceMapLoad = true;
