@@ -1,4 +1,4 @@
-﻿#include "..\Public\SpudMemoryReaderWriter.h"
+﻿#include "SpudMemoryReaderWriter.h"
 #include "UObject/Object.h"
 FArchive& FSpudMemoryWriter::operator<<(UObject*& Obj)
 {
