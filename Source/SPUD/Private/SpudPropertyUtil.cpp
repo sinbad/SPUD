@@ -3,7 +3,7 @@
 
 #include "EngineUtils.h"
 #include "ISpudObject.h"
-#include "..\Public\SpudMemoryReaderWriter.h"
+#include "../Public/SpudMemoryReaderWriter.h"
 #if ENGINE_MAJOR_VERSION==5&&ENGINE_MINOR_VERSION>=5
 #include "StructUtils/InstancedStruct.h"
 #else
