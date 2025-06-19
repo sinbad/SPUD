@@ -196,9 +196,14 @@ void USpudSubsystem::OnPreLoadMap(const FString& MapName)
 		if (IsValid(World))
 		{
 			UE_LOG(LogSpudSubsystem, Verbose, TEXT("OnPreLoadMap saving: %s"), *UGameplayStatics::GetCurrentLevelName(World));
+#ifdef USE_SAVEGAMESYSTEM
+			// Keep it in memory
+			StoreWorld(World, false, true);
+#else
 			// Map and all streaming level data will be released.
 			// Block while doing it so they all get written predictably
 			StoreWorld(World, true, true);
+#endif
 		}
 	}
 }
