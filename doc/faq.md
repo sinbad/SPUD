@@ -189,6 +189,10 @@ bSupportWorldPartition=true
 ; Case insensitive.
 +ExcludeLevelNamePatterns=TitleScreen
 +ExcludeLevelNamePatterns=TransientLevel_*
-
-
 ```
+## Console support
+
+Many consoles don't allow you to access the file system directly in the way that SPUD likes. Right now to provide maximum
+compatibility on non-Desktop platforms saving and loading is redirected through UE's generalised `ISaveGameSystem`, but this
+is less efficient. It's possible to implement a better version using the console platforms own function, but since that
+code is under NDA it's not possible to include here. Here's an example for PS5 if you have access: https://game.develop.playstation.net/forums/nodejump/2113391 
