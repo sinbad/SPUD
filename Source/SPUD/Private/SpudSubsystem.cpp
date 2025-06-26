@@ -11,6 +11,8 @@
 
 #ifdef USE_SAVEGAMESYSTEM
 #include "SaveGameSystem.h"
+//nedded
+#include "PlatformFeatures.h"
 #endif
 
 DEFINE_LOG_CATEGORY(LogSpudSubsystem)
