@@ -10,6 +10,7 @@
 #include "Async/Async.h"
 
 #ifdef USE_SAVEGAMESYSTEM
+#include "PlatformFeatures.h"
 #include "SaveGameSystem.h"
 #endif
 
