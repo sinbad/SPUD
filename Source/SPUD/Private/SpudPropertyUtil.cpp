@@ -1180,16 +1180,13 @@ void SpudPropertyUtil::RestoreContainerProperty(UObject* RootObject, FProperty* 
 	
 }
 
-bool SpudPropertyUtil::StoredClassDefMatchesRuntime(const FSpudClassDef& ClassDef, const FSpudClassMetadata& Meta)
+bool SpudPropertyUtil::StoredClassDefMatchesRuntime(const FSpudClassDef& ClassDef, const UClass* RuntimeClass, const FSpudClassMetadata& Meta)
 {
 	// This implementation needs to iterate / recurse in *exactly* the same way as the Store methods for the same
 	// Class. The visitor pattern ensures that.
 	// We *could* generate a hash of properties to compare stored to runtime, but since we'd have to generate the runtime
 	// hash every time anyway, it's actually quicker to just iterate and fail on the first non-match than calculate an entire hash
 	// We'll cache this result per file load anyway
-	const FSoftClassPath CP(ClassDef.ClassName);
-	const auto RuntimeClass = CP.TryLoadClass<UObject>();
-
 	const auto StoredPropertyIterator = ClassDef.Properties.CreateConstIterator();
 
 	StoredMatchesRuntimePropertyVisitor Visitor(StoredPropertyIterator, ClassDef, Meta);

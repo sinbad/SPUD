@@ -134,8 +134,14 @@ void USpudState::StorePropertyVisitor::StoreNestedUObjectIfNeeded(UObject* RootO
 					{
 						ISpudObjectCallback::Execute_SpudPreStore(Obj, ParentState);
 					}
+
+					TArray<uint32> ObjectPropertyOffsets;
+					TArray<uint8> ObjectData;
+					FSpudMemoryWriter ObjectOut(ObjectData);
 					const uint32 NewPrefixID = GetNestedPrefix(Property, CurrentPrefixID);
-					ParentState->StoreObjectProperties(Obj, NewPrefixID, PropertyOffsets, Meta, Out, Depth+1);
+					ParentState->StoreObjectProperties(Obj, NewPrefixID, ObjectPropertyOffsets, Meta, ObjectOut, Depth+1);
+					Out << ObjectPropertyOffsets;
+					Out << ObjectData;
 
 					if (IsCallback)
 					{
@@ -395,6 +401,7 @@ void USpudState::StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data)
 	if (Data)
 	{
 		FSpudClassMetadata& Meta = SaveData.GlobalData.Metadata;
+		Data->ClassID = Meta.FindOrAddClassIDFromName(SpudPropertyUtil::GetClassName(Obj));
 		const bool bIsCallback = Obj->GetClass()->ImplementsInterface(USpudObjectCallback::StaticClass());
 
 		if (Obj->Implements<USpudObject>() && ISpudObject::Execute_ShouldSkip(Obj))
@@ -673,7 +680,8 @@ void USpudState::RestoreActor(AActor* Actor, FSpudSaveData::TLevelDataPtr LevelD
 		PreRestoreObject(Actor, LevelData->GetUserDataModelVersion());
 		
 		RestoreCoreActorData(Actor, ActorData->CoreData);
-		RestoreObjectProperties(Actor, ActorData->Properties, LevelData->Metadata, RuntimeObjects);
+		const auto ClassDef = LevelData->Metadata.GetClassDef(ActorData->ClassID);
+		RestoreObjectProperties(Actor, ActorData->Properties, LevelData->Metadata, ClassDef, RuntimeObjects);
 
 		PostRestoreObject(Actor, ActorData->CustomData, LevelData->GetUserDataModelVersion());		
 	}
@@ -802,30 +810,32 @@ void USpudState::RestoreCoreActorData(AActor* Actor, const FSpudCoreActorData& F
 }
 
 void USpudState::RestoreObjectProperties(UObject* Obj, const FSpudPropertyData& FromData, const FSpudClassMetadata& Meta,
-	const TMap<FGuid, UObject*>* RuntimeObjects, int StartDepth)
+	TSharedPtr<const FSpudClassDef> StoredClassDef, const TMap<FGuid, UObject*>* RuntimeObjects, int StartDepth)
 {
 	FSpudMemoryReader In(FromData.Data);
-	RestoreObjectProperties(Obj, In, Meta, RuntimeObjects, StartDepth);
+	RestoreObjectProperties(Obj, In, Meta, StoredClassDef, FromData.PropertyOffsets, RuntimeObjects, StartDepth);
 
 }
 
 
 void USpudState::RestoreObjectProperties(UObject* Obj, FSpudMemoryReader& In, const FSpudClassMetadata& Meta,
-	const TMap<FGuid, UObject*>* RuntimeObjects, int StartDepth)
+										 TSharedPtr<const FSpudClassDef> StoredClassDef, const TArray<uint32>& PropertyOffsets,
+										 const TMap<FGuid, UObject*>* RuntimeObjects, int StartDepth)
 {
-	const auto ClassName = SpudPropertyUtil::GetClassName(Obj);
-	const auto ClassDef = Meta.GetClassDef(ClassName);
-	if (!ClassDef)
+	if (!StoredClassDef)
 	{
-		UE_LOG(LogSpudState, Error, TEXT("Unable to find ClassDef for: %s"), *SpudPropertyUtil::GetClassName(Obj));
+		UE_LOG(LogSpudState, Error, TEXT("Unable to find StoredClassDef for: %s"), *SpudPropertyUtil::GetClassName(Obj));
 		return;
 	}
+	
+	const auto ClassName = SpudPropertyUtil::GetClassName(Obj);
+	const auto ClassDef = Meta.GetClassDef(ClassName);
 
 	// We can use the "fast" path if the stored definition of the class properties exactly matches the runtime order
 	// ClassDef caches the result of this across the context of one loaded file
-	bool bUseFastPath = ClassDef->MatchesRuntimeClass(Meta);	
+	bool bUseFastPath = StoredClassDef->MatchesRuntimeClass(Obj->GetClass(), Meta);
 
-	UE_LOG(LogSpudState, Verbose, TEXT("%s Class: %s"), *SpudPropertyUtil::GetLogPrefix(StartDepth), *ClassDef->ClassName);
+	UE_LOG(LogSpudState, Verbose, TEXT("%s Class: %s"), *SpudPropertyUtil::GetLogPrefix(StartDepth), *StoredClassDef->ClassName);
 
 	if (!bUseFastPath && bTestRequireFastPath)
 	{
@@ -837,21 +847,22 @@ void USpudState::RestoreObjectProperties(UObject* Obj, FSpudMemoryReader& In, co
 	
 	
 	if (bUseFastPath)
-		RestoreObjectPropertiesFast(Obj, In, Meta, ClassDef, RuntimeObjects, StartDepth);
+		RestoreObjectPropertiesFast(Obj, In, Meta, StoredClassDef, PropertyOffsets, RuntimeObjects, StartDepth);
 	else
-		RestoreObjectPropertiesSlow(Obj, In, Meta, ClassDef, RuntimeObjects, StartDepth);
+		RestoreObjectPropertiesSlow(Obj, In, Meta, StoredClassDef, PropertyOffsets, RuntimeObjects, StartDepth);
 }
 
 void USpudState::RestoreObjectPropertiesFast(UObject* Obj, FSpudMemoryReader& In,
                                              const FSpudClassMetadata& Meta,
                                              TSharedPtr<const FSpudClassDef> ClassDef,
+                                             const TArray<uint32>& PropertyOffsets,
                                              const TMap<FGuid, UObject*>* RuntimeObjects,
                                              int StartDepth)
 {
 	UE_LOG(LogSpudState, Verbose, TEXT("%s FAST path, %d properties"), *SpudPropertyUtil::GetLogPrefix(StartDepth), ClassDef->Properties.Num());
 	const auto StoredPropertyIterator = ClassDef->Properties.CreateConstIterator();
 
-	RestoreFastPropertyVisitor Visitor(this, StoredPropertyIterator, In, ClassDef, Meta, RuntimeObjects);
+	RestoreFastPropertyVisitor Visitor(this, StoredPropertyIterator, In, ClassDef, PropertyOffsets, Meta, RuntimeObjects);
 	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor, StartDepth);
 	
 }
@@ -859,12 +870,13 @@ void USpudState::RestoreObjectPropertiesFast(UObject* Obj, FSpudMemoryReader& In
 void USpudState::RestoreObjectPropertiesSlow(UObject* Obj, FSpudMemoryReader& In,
                                                        const FSpudClassMetadata& Meta,
                                                        TSharedPtr<const FSpudClassDef> ClassDef,
+                                                       const TArray<uint32>& PropertyOffsets,
                                                        const TMap<FGuid, UObject*>* RuntimeObjects,
                                                        int StartDepth)
 {
 	UE_LOG(LogSpudState, Verbose, TEXT("%s SLOW path, %d properties"), *SpudPropertyUtil::GetLogPrefix(StartDepth), ClassDef->Properties.Num());
 
-	RestoreSlowPropertyVisitor Visitor(this, In, ClassDef, Meta, RuntimeObjects);
+	RestoreSlowPropertyVisitor Visitor(this, In, ClassDef, PropertyOffsets, Meta, RuntimeObjects);
 	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor, StartDepth);
 }
 
@@ -915,8 +927,16 @@ void USpudState::RestorePropertyVisitor::RestoreNestedUObjectIfNeeded(UObject* R
 					{
 						ISpudObjectCallback::Execute_SpudPreRestore(Obj, ParentState);
 					}
+					
+					TArray<uint32> ObjectPropertyOffsets;
+					TArray<uint8> ObjectData;
+					DataIn << ObjectPropertyOffsets;
+					DataIn << ObjectData;
+					
+					FSpudMemoryReader ObjectDataIn(ObjectData);
 					const uint32 NewPrefixID = GetNestedPrefix(Property, CurrentPrefixID);
-					ParentState->RestoreObjectProperties(Obj, DataIn, Meta, RuntimeObjects, Depth+1);
+					const auto StoredClassDef = Meta.GetClassDef(SpudPropertyUtil::GetClassName(Obj));
+					ParentState->RestoreObjectProperties(Obj, ObjectDataIn, Meta, StoredClassDef, ObjectPropertyOffsets, RuntimeObjects, Depth+1);
 
 					if (IsCallback)
 					{
@@ -992,7 +1012,7 @@ bool USpudState::RestoreSlowPropertyVisitor::VisitProperty(UObject* RootObject, 
 		return true;		
 	}
 	auto& StoredProperty = ClassDef->Properties[*PropertyIndexPtr];
-	
+	DataIn.Seek(PropertyOffsets[*PropertyIndexPtr]);
 	SpudPropertyUtil::RestoreProperty(RootObject, Property, ContainerPtr, StoredProperty, RuntimeObjects, Meta, Depth, DataIn);
 
 	RestoreNestedUObjectIfNeeded(RootObject, Property, CurrentPrefixID, ContainerPtr, Depth);
@@ -1044,8 +1064,9 @@ void USpudState::RestoreGlobalObject(UObject* Obj, const FSpudNamedObjectData* D
 	{
 		UE_LOG(LogSpudState, Verbose, TEXT("* RESTORE Global Object %s"), *Data->Name)
 		PreRestoreObject(Obj, SaveData.GlobalData.GetUserDataModelVersion());
-		
-		RestoreObjectProperties(Obj, Data->Properties, SaveData.GlobalData.Metadata, nullptr);
+
+		const auto StoredClassDef = SaveData.GlobalData.Metadata.GetClassDef(Data->ClassID);
+		RestoreObjectProperties(Obj, Data->Properties, SaveData.GlobalData.Metadata, StoredClassDef, nullptr);
 
 		PostRestoreObject(Obj, Data->CustomData, SaveData.GlobalData.GetUserDataModelVersion());
 	}
