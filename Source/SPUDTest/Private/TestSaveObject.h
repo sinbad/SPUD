@@ -413,3 +413,117 @@ public:
 	
 	
 };
+
+UCLASS()
+class SPUDTEST_API UTestSaveObjectRenamedClass : public UTestSaveObjectBasic
+{
+	GENERATED_BODY()
+};
+
+UCLASS()
+class SPUDTEST_API UTestSaveObjectSlowPath : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	// Same properties as in UTestSaveObjectBasic but shuffled
+
+	UPROPERTY(SaveGame)
+	TArray<float> FloatArray;
+	UPROPERTY(SaveGame)
+	TArray<double> DoubleArray;
+	UPROPERTY(SaveGame)
+	TArray<ETestEnum> EnumArray;
+	UPROPERTY(SaveGame)
+	TArray<FVector> VectorArray;
+	UPROPERTY(SaveGame)
+	TArray<FRotator> RotatorArray;
+	UPROPERTY(SaveGame)
+	TArray<FTransform> TransformArray;
+	UPROPERTY(SaveGame)
+	TArray<FName> NameArray;
+	UPROPERTY(SaveGame)
+	TArray<FString> StringArray;
+	UPROPERTY(SaveGame)
+	TArray<FText> TextArray;
+	
+	UPROPERTY(SaveGame)
+	FName NameVal;
+	UPROPERTY(SaveGame)
+	FString StringVal;
+	UPROPERTY(SaveGame)
+	FText TextVal;
+	
+	UPROPERTY(SaveGame)
+	int IntVal;
+	UPROPERTY(SaveGame)
+	uint8 UInt8Val;
+	UPROPERTY(SaveGame)
+	uint16 UInt16Val;
+	UPROPERTY(SaveGame)
+	uint32 UInt32Val;
+	UPROPERTY(SaveGame)
+	uint64 UInt64Val;
+
+	UPROPERTY(SaveGame)
+	FVector VectorVal;
+	UPROPERTY(SaveGame)
+	FRotator RotatorVal;
+	UPROPERTY(SaveGame)
+	FTransform TransformVal;
+	
+	UPROPERTY(SaveGame)
+	int8 Int8Val;
+	UPROPERTY(SaveGame)
+	int16 Int16Val;
+	UPROPERTY(SaveGame)
+	int32 Int32Val;
+	UPROPERTY(SaveGame)
+	int64 Int64Val;
+
+	UPROPERTY(SaveGame)
+	float FloatVal;
+	UPROPERTY(SaveGame)
+	double DoubleVal;
+	
+	UPROPERTY(SaveGame)
+	ETestEnum EnumVal;
+	
+
+	UPROPERTY(SaveGame)
+	TObjectPtr<UTestNestedUObject> UObjectVal;
+
+	UPROPERTY(SaveGame)
+	TObjectPtr<UTestNestedUObject> TObjectPtrVal = nullptr;
+
+	UPROPERTY(SaveGame)
+	TArray< TObjectPtr<UTestNestedUObject> > TObjectPtrArray;
+	
+	UPROPERTY(SaveGame)
+	TArray<int> IntArray;
+	UPROPERTY(SaveGame)
+	TArray<uint8> UInt8Array;
+	UPROPERTY(SaveGame)
+	TArray<uint16> UInt16Array;
+	UPROPERTY(SaveGame)
+	TArray<uint32> UInt32Array;
+	UPROPERTY(SaveGame)
+	TArray<uint64> UInt64Array;
+	UPROPERTY(SaveGame)
+	TArray<int8> Int8Array;
+	UPROPERTY(SaveGame)
+	TArray<int16> Int16Array;
+	UPROPERTY(SaveGame)
+	TArray<int32> Int32Array;
+	UPROPERTY(SaveGame)
+	TArray<int64> Int64Array;
+
+	UPROPERTY(SaveGame)
+	TSubclassOf<AActor> ActorSubclass;
+
+	UPROPERTY(SaveGame)
+	TArray< TSubclassOf<AActor> > ActorSubclassArray;
+
+	UPROPERTY(SaveGame)
+	TMap<int, TObjectPtr<UObject>> UObjectMap;
+};
