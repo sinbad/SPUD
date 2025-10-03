@@ -1,5 +1,4 @@
 #include "SpudSubsystem.h"
-#include "EngineUtils.h"
 #include "SpudState.h"
 #include "Engine/LevelStreaming.h"
 #include "Engine/LocalPlayer.h"
@@ -11,7 +10,7 @@
 
 #ifdef USE_SAVEGAMESYSTEM
 #include "SaveGameSystem.h"
-//nedded
+//needed
 #include "PlatformFeatures.h"
 #endif
 
@@ -317,8 +316,10 @@ void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title, bool 
 		TitleInProgress = Title;
 		ExtraInfoInProgress = ExtraInfo;
 		UGameViewportClient* ViewportClient = UGameplayStatics::GetPlayerController(GetWorld(), 0)->GetLocalPlayer()->ViewportClient;
-		OnScreenshotHandle = ViewportClient->OnScreenshotCaptured().AddUObject(this, &USpudSubsystem::OnScreenshotCaptured);
+		OnScreenshotCapturedHandle = ViewportClient->OnScreenshotCaptured().AddUObject(this, &USpudSubsystem::OnScreenshotCaptured);
+		OnScreenshotRequestProcessedHandle = FScreenshotRequest::OnScreenshotRequestProcessed().AddUObject(this, &USpudSubsystem::OnScreenshotRequestProcessed);
 		FScreenshotRequest::RequestScreenshot(false);
+		ScreenshotFileName = FScreenshotRequest::GetFilename();
 		// OnScreenShotCaptured will finish
 		// EXCEPT that if a Widget BP is open in the editor, this request will disappear into nowhere!! (4.26.1)
 		// So we need a failsafe
@@ -348,11 +349,7 @@ void USpudSubsystem::ScreenshotTimedOut()
 
 void USpudSubsystem::OnScreenshotCaptured(int32 Width, int32 Height, const TArray<FColor>& Colours)
 {
-	ScreenshotTimeout = 0;
-
-	UGameViewportClient* ViewportClient = UGameplayStatics::GetPlayerController(GetWorld(), 0)->GetLocalPlayer()->ViewportClient;
-	ViewportClient->OnScreenshotCaptured().Remove(OnScreenshotHandle);
-	OnScreenshotHandle.Reset();
+	ResetScreenshotState();
 
 	// Downscale the screenshot, pass to finish
 	TArray<FColor> RawDataCroppedResized;
@@ -367,8 +364,36 @@ void USpudSubsystem::OnScreenshotCaptured(int32 Width, int32 Height, const TArra
 #endif
 	
 	FinishSaveGame(SlotNameInProgress, TitleInProgress, ExtraInfoInProgress, &PngData);
-	
 }
+
+void USpudSubsystem::ResetScreenshotState()
+{
+	ScreenshotTimeout = 0;
+
+	const auto ViewportClient = UGameplayStatics::GetPlayerController(GetWorld(), 0)->GetLocalPlayer()->ViewportClient;
+	ViewportClient->OnScreenshotCaptured().Remove(OnScreenshotCapturedHandle);
+
+	FScreenshotRequest::OnScreenshotRequestProcessed().Remove(OnScreenshotRequestProcessedHandle);
+
+	OnScreenshotCapturedHandle.Reset();
+	OnScreenshotRequestProcessedHandle.Reset();
+}
+
+void USpudSubsystem::OnScreenshotRequestProcessed()
+{
+	// handles HDR screenshots
+
+	FImage Image;
+	FImageUtils::LoadImage(*ScreenshotFileName, Image);
+
+	// clean up temp screenshot
+	IFileManager::Get().Delete(*ScreenshotFileName);
+
+	Image.ChangeFormat(ERawImageFormat::BGRA8, Image.GammaSpace);
+
+	OnScreenshotCaptured(Image.GetWidth(), Image.GetHeight(), TArray<FColor>(Image.AsBGRA8()));
+}
+
 void USpudSubsystem::FinishSaveGame(const FString& SlotName, const FText& Title, const USpudCustomSaveInfo* ExtraInfo, TArray<uint8>* ScreenshotData)
 {
 	auto State = GetActiveState();

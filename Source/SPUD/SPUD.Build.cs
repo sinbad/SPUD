@@ -48,7 +48,8 @@ public class SPUD : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"StructUtils"
+				"StructUtils",
+				"ImageCore",
 			}
 			);
 		

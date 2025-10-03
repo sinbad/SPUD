@@ -145,7 +145,11 @@ public:
 	/// The desired height of screenshots taken for save games
 	UPROPERTY(BlueprintReadWrite, Config)
 	int32 ScreenshotHeight = 135;
-	FDelegateHandle OnScreenshotHandle;
+
+	FDelegateHandle OnScreenshotCapturedHandle;
+	FDelegateHandle OnScreenshotRequestProcessedHandle;
+
+	FString ScreenshotFileName;
 
 	/// If true, use the show/hide events of streaming levels to save/load, which is compatible with World Partition
 	/// You can set this to false to change to the legacy mode which requires ASpudStreamingVolume
@@ -260,6 +264,9 @@ protected:
 	void ScreenshotTimedOut();
 	UFUNCTION()
     void OnScreenshotCaptured(int32 Width, int32 Height, const TArray<FColor>& Colours);
+	UFUNCTION()
+    void OnScreenshotRequestProcessed();
+	void ResetScreenshotState();
 
 	void FinishSaveGame(const FString& SlotName, const FText& Title, const USpudCustomSaveInfo* ExtraInfo, TArray<uint8>* ScreenshotData);
 	void LoadComplete(const FString& SlotName, bool bSuccess);
