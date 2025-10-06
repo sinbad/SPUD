@@ -290,6 +290,7 @@ FSpudNamedObjectData* USpudState::GetLevelActorData(const AActor* Actor, FSpudSa
 	{
 		Ret = &LevelData->LevelActors.Contents.Add(Name);
 		Ret->Name = Name;
+		Ret->ClassID = LevelData->Metadata.FindOrAddClassIDFromName(SpudPropertyUtil::GetClassName(Actor));
 	}
 	
 	return Ret;
