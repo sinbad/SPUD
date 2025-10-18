@@ -40,12 +40,17 @@ have **caveats for arrays and maps**:
 * Nested UObject instances (null preserving, will re-instantiate based on property type)
 * Nested components marked as SaveGame
 
-All other property types - Maps, Sets, arrays of Custom UStructs or UObjects *are* supported
+~~All other property types - Maps, Sets, arrays of Custom UStructs or UObjects *are* supported 
 **but** are not quite as functional. Due to their added complexity, they are serialized
 as "opaque" records using UE's own internal serialisation methods. This means SPUD 
 doesn't "look inside" them, it just saves/restores them as a blob, and cannot 
 support SPUD's additional special processing such as retaining links between actors
-in these properties. But for simple stand-alone state retention, they will work.
+in these properties. But for simple stand-alone state retention, they will work.~~
+
+ Maps, Sets, arrays of UObjects are *not* supported anymore due to changes in recent UE 5.x
+ archive class hierarchy. We used to fall back on UE's own serialisation but that is no longer possible. If you 
+ need to use these structures then you will need to use custom data (see below).
+ Arrays of custom UStructs should be ok though.
 
 ## Upgrading Properties
 
