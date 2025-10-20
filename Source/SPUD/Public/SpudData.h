@@ -283,11 +283,11 @@ struct SPUD_API FSpudClassDef : public FSpudChunk
         Matching,
         Different
     };
-	mutable ClassDefMatch RuntimeMatchState = NotChecked;
+	mutable TMap<FString, bool> RuntimeMatchState;
 	
-	/// Return Whether this Class definition matches the current runtime class properties exactly
+	/// Return Whether this Class definition matches given runtime class properties exactly
 	/// Only calculated once after loading
-	bool MatchesRuntimeClass(const struct FSpudClassMetadata& ParentMeta) const;
+	bool MatchesRuntimeClass(const UClass* RuntimeClass, const struct FSpudClassMetadata& ParentMeta) const;
 	
 };
 
@@ -341,6 +341,8 @@ struct SPUD_API FSpudObjectData : public FSpudChunk
 	FSpudPropertyData Properties;
 	// Chunk of custom data (may be empty, only present if ISpudCallback implementation populates it)
 	FSpudCustomData CustomData;
+	// ID for the ClassName (see FSpudClassNameIndex) 
+	uint32 ClassID; 
 };
 
 
@@ -361,7 +363,6 @@ struct SPUD_API FSpudNamedObjectData : public FSpudObjectData
 /// An actor which was spawned at runtime, not present in a level
 struct SPUD_API FSpudSpawnedActorData : public FSpudObjectData
 {
-	uint32 ClassID; // ID for the ClassName (see FSpudClassNameIndex) 
 	FGuid Guid;
 
 	/// Key value for indexing this item; name is unique in the level
@@ -646,6 +647,7 @@ struct SPUD_API FSpudClassMetadata : public FSpudChunk
 
 	TSharedPtr<FSpudClassDef> FindOrAddClassDef(const FString& ClassName);
 	TSharedPtr<const FSpudClassDef> GetClassDef(const FString& ClassName) const;
+	TSharedPtr<const FSpudClassDef> GetClassDef(uint32 ID) const;
 	const FString& GetPropertyNameFromID(uint32 ID) const;
 	uint32 FindOrAddPropertyIDFromName(const FString& Name);
 	uint32 GetPropertyIDFromName(const FString& Name) const;
