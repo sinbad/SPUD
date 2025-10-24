@@ -10,39 +10,55 @@ DEFINE_LOG_CATEGORY_STATIC(SpudRuntimeStoredActorComponent, All, All);
 
 USpudRuntimeStoredActorComponent::USpudRuntimeStoredActorComponent()
 {
-    PrimaryComponentTick.bCanEverTick = true;
-    PrimaryComponentTick.bStartWithTickEnabled = false;
-
+    PrimaryComponentTick.bCanEverTick = false;
     bAutoActivate = true;
 }
 
 void USpudRuntimeStoredActorComponent::BeginPlay()
 {
     Super::BeginPlay();
-
-    const auto SpudSubsystem = GetSpudSubsystem(GetWorld());
-    SpudSubsystem->OnLevelStore.AddDynamic(this, &ThisClass::OnLevelStore);
-    SpudSubsystem->PostUnloadStreamingLevel.AddDynamic(this, &ThisClass::OnPostUnloadCell);
-    // Fixed: Using PreUnloadStreamingLevel event to update current cell to prevent level nullptr
-    SpudSubsystem->PreUnloadStreamingLevel.AddDynamic(this, &ThisClass::OnPreUnloadCell);
-
-    if (bCanCrossCell)
+    
+    if (const auto SpudSubsystem = GetSpudSubsystem(GetWorld()))
     {
-        SetComponentTickEnabled(true);
+        // Register comp to subsystem tick check.
+        if (bCanCrossCell)
+        {
+            SpudSubsystem->RegisteredRuntimeStoredActorComponents.Add(this);
+        }
+        
+        SpudSubsystem->OnLevelStore.AddDynamic(this, &ThisClass::OnLevelStore);
+        SpudSubsystem->PostUnloadStreamingLevel.AddDynamic(this, &ThisClass::OnPostUnloadCell);
+        SpudSubsystem->PreUnloadStreamingLevel.AddDynamic(this, &ThisClass::OnPreUnloadCell);
     }
-    // Fixed: BeginPlay updating current cell name is removed, it will cause OutOverlappedCell->GetLevel() is nullptr
 }
 
-void USpudRuntimeStoredActorComponent::UpdateCurrentCell()
+void USpudRuntimeStoredActorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    if (const auto SpudSubsystem = GetSpudSubsystem(GetWorld()))
+    {
+        // Unregister comp from subsystem tick check.
+        if (bCanCrossCell)
+        {
+            SpudSubsystem->RegisteredRuntimeStoredActorComponents.Remove(this);
+        }
+        
+        SpudSubsystem->OnLevelStore.RemoveDynamic(this, &ThisClass::OnLevelStore);
+        SpudSubsystem->PostUnloadStreamingLevel.RemoveDynamic(this, &ThisClass::OnPostUnloadCell);
+        SpudSubsystem->PreUnloadStreamingLevel.RemoveDynamic(this, &ThisClass::OnPreUnloadCell);
+    }
+
+    Super::EndPlay(EndPlayReason);
+}
+
+void USpudRuntimeStoredActorComponent::UpdateCurrentCell(bool& CellActivated)
 {
     const UWorldPartitionRuntimeCell* OutOverlappedCell = nullptr;
     GetCurrentOverlappedCell(OutOverlappedCell);
 
-    // Fixed: Prevent GetLevel() nullptr
-    if (OutOverlappedCell && OutOverlappedCell->GetLevel())
+    if (OutOverlappedCell)
     {
-        // Fixed: Spud state get level name
-        CurrentCellName = USpudState::GetLevelName(OutOverlappedCell->GetLevel());
+        CellActivated = OutOverlappedCell->GetCurrentState() == EWorldPartitionRuntimeCellState::Activated;
+        CurrentCellName = USpudState::GetLevelName(OutOverlappedCell);
     }
 }
 
@@ -73,29 +89,15 @@ void USpudRuntimeStoredActorComponent::OnPostUnloadCell(const FName& LevelName)
 
     if (CurrentCellName == LevelName)
     {
-        // If this is pawn, we also destroy its controller (AI)
-        if (auto Pawn = Cast<APawn>(GetOwner()))
-        {
-            auto Controller = Pawn->GetController();
-            if (Controller && Pawn->IsBotControlled())
-            {
-                UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("Destroying actor's controller in cell: %s"), *CurrentCellName);
-                Controller->Destroy();
-            }
-        }
-        
-        UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("Destroying actor in cell: %s"), *CurrentCellName);
-        GetOwner()->Destroy();
+        DestroyActor();
     }
 }
 
 void USpudRuntimeStoredActorComponent::OnPreUnloadCell(const FName& LevelName)
 {
     // Fixed: Only for can't cross cell actor(static actor) and only update when current cell is null.
-    if (!bCanCrossCell && CurrentCellName.IsEmpty())
-    {
-        UpdateCurrentCell();
-    }
+    bool bCellActivated;
+    UpdateCurrentCell(bCellActivated);
 }
 
 void USpudRuntimeStoredActorComponent::GetCurrentOverlappedCell(
@@ -142,22 +144,20 @@ void USpudRuntimeStoredActorComponent::GetCurrentOverlappedCell(
     WorldPartitionSubsystem->ForEachWorldPartition(ForEachWpFunction);
 }
 
-void USpudRuntimeStoredActorComponent::TickComponent(float DeltaTime, ELevelTick TickType,
-                                                     FActorComponentTickFunction* ThisTickFunction)
+// ReSharper disable once CppMemberFunctionMayBeConst
+void USpudRuntimeStoredActorComponent::DestroyActor()
 {
-    Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-    if (bCanCrossCell)
+    // If this is pawn, we also destroy its controller (AI)
+    if (auto Pawn = Cast<APawn>(GetOwner()))
     {
-        UpdateCurrentCell();
+        auto Controller = Pawn->GetController();
+        if (Controller && Pawn->IsBotControlled())
+        {
+            UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("Destroying actor's controller in cell: %s"), *CurrentCellName);
+            Controller->Destroy();
+        }
     }
-}
-
-void USpudRuntimeStoredActorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
-{
-    const auto SpudSubsystem = GetSpudSubsystem(GetWorld());
-    SpudSubsystem->OnLevelStore.RemoveDynamic(this, &ThisClass::OnLevelStore);
-    SpudSubsystem->PostUnloadStreamingLevel.RemoveDynamic(this, &ThisClass::OnPostUnloadCell);
-
-    Super::EndPlay(EndPlayReason);
+        
+    UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("Destroying actor in cell: %s"), *CurrentCellName);
+    GetOwner()->Destroy();
 }

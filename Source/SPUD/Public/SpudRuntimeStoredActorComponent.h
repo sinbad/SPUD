@@ -17,15 +17,6 @@ class SPUD_API USpudRuntimeStoredActorComponent : public UActorComponent
 public:
     USpudRuntimeStoredActorComponent();
 
-    virtual void TickComponent(float DeltaTime, ELevelTick TickType,
-                               FActorComponentTickFunction* ThisTickFunction) override;
-
-    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
-
-    /// Force updating current cell.
-    UFUNCTION(BlueprintCallable)
-    void UpdateCurrentCell();
-
     /**
      * Can the owning actor can cross cells? Ticking will be enabled if this flag is true. If the position changes
      * infrequently, it's more efficient to manually call UpdateCurrentCell().
@@ -33,12 +24,16 @@ public:
     UPROPERTY(EditDefaultsOnly)
     bool bCanCrossCell = false;
 
+    FString CurrentCellName;
+    
+    void UpdateCurrentCell(bool& CellActivated);
+    void DestroyActor();
+    
 protected:
     virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
-    FString CurrentCellName;
-
     UFUNCTION()
     void OnLevelStore(const FString& LevelName);
 
