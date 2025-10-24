@@ -25,10 +25,12 @@ void USpudRuntimeStoredActorComponent::BeginPlay()
         {
             SpudSubsystem->RegisteredRuntimeStoredActorComponents.Add(this);
         }
-        
-        SpudSubsystem->OnLevelStore.AddDynamic(this, &ThisClass::OnLevelStore);
-        SpudSubsystem->PostUnloadStreamingLevel.AddDynamic(this, &ThisClass::OnPostUnloadCell);
-        SpudSubsystem->PreUnloadStreamingLevel.AddDynamic(this, &ThisClass::OnPreUnloadCell);
+        else
+        {
+            SpudSubsystem->OnLevelStore.AddDynamic(this, &ThisClass::OnLevelStore);
+            SpudSubsystem->PostUnloadStreamingLevel.AddDynamic(this, &ThisClass::OnPostUnloadCell);
+            SpudSubsystem->PreUnloadStreamingLevel.AddDynamic(this, &ThisClass::OnPreUnloadCell);
+        }
     }
 }
 
@@ -41,10 +43,12 @@ void USpudRuntimeStoredActorComponent::EndPlay(const EEndPlayReason::Type EndPla
         {
             SpudSubsystem->RegisteredRuntimeStoredActorComponents.Remove(this);
         }
-        
-        SpudSubsystem->OnLevelStore.RemoveDynamic(this, &ThisClass::OnLevelStore);
-        SpudSubsystem->PostUnloadStreamingLevel.RemoveDynamic(this, &ThisClass::OnPostUnloadCell);
-        SpudSubsystem->PreUnloadStreamingLevel.RemoveDynamic(this, &ThisClass::OnPreUnloadCell);
+        else
+        {
+            SpudSubsystem->OnLevelStore.RemoveDynamic(this, &ThisClass::OnLevelStore);
+            SpudSubsystem->PostUnloadStreamingLevel.RemoveDynamic(this, &ThisClass::OnPostUnloadCell);
+            SpudSubsystem->PreUnloadStreamingLevel.RemoveDynamic(this, &ThisClass::OnPreUnloadCell);
+        }
     }
 
     Super::EndPlay(EndPlayReason);
