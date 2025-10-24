@@ -224,7 +224,8 @@ void USpudSubsystem::OnSeamlessTravelTransition(UWorld* World)
 
 void USpudSubsystem::OnPostLoadMap(UWorld* World)
 {
-	if (!ServerCheck(false))
+	// Issue #130: double-check that world has authority as well, GameInstance can be null?
+	if (!ServerCheck(false) || (World && World->GetNetMode() >= NM_Client))
 		return;
 
 
