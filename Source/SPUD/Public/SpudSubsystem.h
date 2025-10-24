@@ -10,6 +10,7 @@
 
 #include "SpudSubsystem.generated.h"
 
+class USpudRuntimeStoredActorComponent;
 DECLARE_LOG_CATEGORY_EXTERN(LogSpudSubsystem, Verbose, Verbose);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPreLoadGame, const FString&, SlotName);
@@ -163,6 +164,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, Config)
 	TArray<FString> ExcludeLevelNamePatterns;
 
+	UPROPERTY(BlueprintReadOnly)
+	TSet<USpudRuntimeStoredActorComponent*> RegisteredRuntimeStoredActorComponents;
+
 protected:
 	FDelegateHandle OnPreLoadMapHandle;
 	FDelegateHandle OnPostLoadMapHandle;
@@ -281,6 +285,8 @@ protected:
 	void StopUnloadTimer();
 	void CheckStreamUnload();
 	void UnloadStreamLevel(FName LevelName);
+
+	void UpdateRegisteredComps();
 
 public:
 
@@ -539,6 +545,14 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool ShouldStoreLevel(const ULevel* Level);
 
+	/// Save render target to save file
+	UFUNCTION(BlueprintCallable)
+	void SetRenderTargetData(FString Name, UTextureRenderTarget2D* RenderTarget);
+
+	/// Load render target to a texture
+	UFUNCTION(BlueprintCallable)
+	UTexture2D* GetRenderTargetData(FString Name);
+	
 	/// Store actor by cell
 	void StoreActorByCell(AActor* Actor, const FString& CellName);
 
