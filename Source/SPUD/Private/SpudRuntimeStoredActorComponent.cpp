@@ -23,15 +23,14 @@ void USpudRuntimeStoredActorComponent::BeginPlay()
     const auto SpudSubsystem = GetSpudSubsystem(GetWorld());
     SpudSubsystem->OnLevelStore.AddDynamic(this, &ThisClass::OnLevelStore);
     SpudSubsystem->PostUnloadStreamingLevel.AddDynamic(this, &ThisClass::OnPostUnloadCell);
+    // Fixed: Using PreUnloadStreamingLevel event to update current cell to prevent level nullptr
+    SpudSubsystem->PreUnloadStreamingLevel.AddDynamic(this, &ThisClass::OnPreUnloadCell);
 
     if (bCanCrossCell)
     {
         SetComponentTickEnabled(true);
     }
-    else
-    {
-        UpdateCurrentCell();
-    }
+    // Fixed: BeginPlay updating current cell name is removed, it will cause OutOverlappedCell->GetLevel() is nullptr
 }
 
 void USpudRuntimeStoredActorComponent::UpdateCurrentCell()
@@ -39,9 +38,11 @@ void USpudRuntimeStoredActorComponent::UpdateCurrentCell()
     const UWorldPartitionRuntimeCell* OutOverlappedCell = nullptr;
     GetCurrentOverlappedCell(OutOverlappedCell);
 
-    if (OutOverlappedCell)
+    // Fixed: Prevent GetLevel() nullptr
+    if (OutOverlappedCell && OutOverlappedCell->GetLevel())
     {
-        CurrentCellName = OutOverlappedCell->GetName();
+        // Fixed: Spud state get level name
+        CurrentCellName = USpudState::GetLevelName(OutOverlappedCell->GetLevel());
     }
 }
 
@@ -85,6 +86,15 @@ void USpudRuntimeStoredActorComponent::OnPostUnloadCell(const FName& LevelName)
         
         UE_LOG(SpudRuntimeStoredActorComponent, Log, TEXT("Destroying actor in cell: %s"), *CurrentCellName);
         GetOwner()->Destroy();
+    }
+}
+
+void USpudRuntimeStoredActorComponent::OnPreUnloadCell(const FName& LevelName)
+{
+    // Fixed: Only for can't cross cell actor(static actor) and only update when current cell is null.
+    if (!bCanCrossCell && CurrentCellName.IsEmpty())
+    {
+        UpdateCurrentCell();
     }
 }
 

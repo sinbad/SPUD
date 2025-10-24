@@ -45,5 +45,8 @@ private:
     UFUNCTION()
     void OnPostUnloadCell(const FName& LevelName);
 
+    UFUNCTION()
+    void OnPreUnloadCell(const FName& LevelName);
+    
     void GetCurrentOverlappedCell(const UWorldPartitionRuntimeCell*& CurrentOverlappedCell) const;
 };
