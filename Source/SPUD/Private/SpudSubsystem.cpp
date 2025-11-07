@@ -522,6 +522,9 @@ void USpudSubsystem::SaveComplete(const FString& SlotName, bool bSuccess)
 
 void USpudSubsystem::HandleLevelLoaded(FName LevelName)
 {
+	if (!ServerCheck(false))
+		return;
+	
 	// Defer the restore to the game thread, streaming calls happen in loading thread?
 	// However, quickly ping the state to force it to pre-load the leveldata
 	// that way the loading occurs in this thread, less latency
@@ -543,6 +546,9 @@ void USpudSubsystem::HandleLevelLoaded(FName LevelName)
 
 void USpudSubsystem::HandleLevelUnloaded(ULevel* Level)
 {
+	if (!ServerCheck(false))
+		return;
+	
 	if (ShouldStoreLevel(Level))
 	{
 		UnsubscribeLevelObjectEvents(Level);
