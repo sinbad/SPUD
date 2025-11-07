@@ -1537,7 +1537,7 @@ void USpudSubsystem::Tick(float DeltaTime)
 			// Discard unloaded levels.
 			for (auto it = MonitoredStreamingLevels.CreateIterator(); it; ++it)
 			{
-				if (const auto Level = it.Key(); !streamingLevels.Contains(Level))
+				if (const auto Level = it.Key(); Level && !streamingLevels.Contains(Level))
 				{
 					UE_LOG(LogSpudSubsystem, Verbose, TEXT("Unloaded streaming level: %s"), *GetNameSafe(Level));
 					check(!Level->IsLevelVisible());
