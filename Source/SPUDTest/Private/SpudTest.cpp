@@ -42,6 +42,10 @@ void PopulateAllTypes(T& Obj)
 	Obj.ActorSubclassArray.Add(AStaticMeshActor::StaticClass());
 	Obj.ActorSubclassArray.Add(APointLight::StaticClass());
 
+	Obj.SoftObjectPtr = TSoftObjectPtr<AStaticMeshActor>(FSoftObjectPath("/Game/StarterContent/Props/SM_Chair.SM_Chair"));
+	Obj.SoftObjectPtrArray.Add(TSoftObjectPtr<AStaticMeshActor>(FSoftObjectPath("/Game/StarterContent/Props/SM_Table.SM_Table")));
+	Obj.SoftObjectPtrArray.Add(TSoftObjectPtr<AStaticMeshActor>(nullptr)); // Empty soft pointer
+
 	UTestNestedUObject* Nested1 = NewObject<UTestNestedUObject>();
 	Nested1->NestedStringVal = "Something";
 	Nested1->NestedIntVal = 23;
@@ -198,6 +202,13 @@ void CheckAllTypes(FAutomationTestBase* Test, const FString& Prefix, const T& Ac
 	{
 		Test->TestEqual(Prefix + "SubclassOf array 0 should match", Actual.ActorSubclassArray[0].Get(), AStaticMeshActor::StaticClass());
 		Test->TestEqual(Prefix + "SubclassOf array 1 should match", Actual.ActorSubclassArray[1].Get(), APointLight::StaticClass());
+	}
+
+	Test->TestEqual(Prefix + "SoftObjectPtr should match", Actual.SoftObjectPtr.ToSoftObjectPath(), Expected.SoftObjectPtr.ToSoftObjectPath());
+	if (Test->TestEqual(Prefix + "SoftObjectPtr array should be correct size", Actual.SoftObjectPtrArray.Num(), Expected.SoftObjectPtrArray.Num()))
+	{
+		Test->TestEqual(Prefix + "SoftObjectPtr array 0 should match", Actual.SoftObjectPtrArray[0].ToSoftObjectPath(), Expected.SoftObjectPtrArray[0].ToSoftObjectPath());
+		Test->TestEqual(Prefix + "SoftObjectPtr array 1 should match", Actual.SoftObjectPtrArray[1].ToSoftObjectPath(), Expected.SoftObjectPtrArray[1].ToSoftObjectPath());
 	}
 
 	CheckMap(Test, Prefix + "UObjectMap|", Actual.UObjectMap, Expected.UObjectMap);
