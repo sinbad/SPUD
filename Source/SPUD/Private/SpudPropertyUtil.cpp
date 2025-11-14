@@ -1035,8 +1035,6 @@ void SpudPropertyUtil::StoreContainerProperty(FProperty* Property,
 	}
 	if (!bUpdateOK)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Red,
-			FString::Printf(TEXT("Spud: Unable to store property %s, unsupported type."), *Property->GetName()));
 		UE_LOG(LogSpudProps, Error, TEXT("Unable to update from property %s, unsupported type."), *Property->GetName());
 	}
 	
@@ -1177,8 +1175,6 @@ void SpudPropertyUtil::RestoreContainerProperty(UObject* RootObject, FProperty* 
 	}
 	if (!bUpdateOK)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Red,
-			FString::Printf(TEXT("Spud: Unable to restore property %s, unsupported type."), *Property->GetName()));
 		UE_LOG(LogSpudProps, Error, TEXT("Unable to restore property %s, unsupported type."), *Property->GetName());
 	}
 	
