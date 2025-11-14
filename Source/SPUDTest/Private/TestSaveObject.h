@@ -94,14 +94,20 @@ public:
 
 	UPROPERTY(SaveGame)
 	TArray< TObjectPtr<UTestNestedUObject> > TObjectPtrArray;
-	
+		
 	UPROPERTY(SaveGame)
 	TSubclassOf<AActor> ActorSubclass;
-	
+
 	UPROPERTY(SaveGame)
 	TArray< TSubclassOf<AActor> > ActorSubclassArray;
 	// sadly we can't test actor refs easily here; test example world does that though
 
+	UPROPERTY(SaveGame)
+	TSoftObjectPtr<AActor> SoftObjectPtr;
+	
+	UPROPERTY(SaveGame)
+	TArray< TSoftObjectPtr<AActor> > SoftObjectPtrArray;
+	
 	UPROPERTY(SaveGame)
 	TMap<int, TObjectPtr<UTestNestedUObject>> UObjectMap;
 
@@ -224,6 +230,12 @@ public:
 	UPROPERTY(SaveGame)
 	TArray< TSubclassOf<AActor> > ActorSubclassArray;
 
+	UPROPERTY(SaveGame)
+	TSoftObjectPtr<AActor> SoftObjectPtr;
+	
+	UPROPERTY(SaveGame)
+	TArray< TSoftObjectPtr<AActor> > SoftObjectPtrArray;
+	
 	UPROPERTY(SaveGame)
 	TMap<int, TObjectPtr<UObject>> UObjectMap;
 	
