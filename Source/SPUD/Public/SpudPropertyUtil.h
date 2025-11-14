@@ -274,7 +274,7 @@ public:
 	/// sequence of properties in a stored class definition (no saved game class changes since stored).
 	/// If so, we can restore data much more efficiently because we don't have to look anything up on instances, just
 	/// iterate through both sides.
-	static bool StoredClassDefMatchesRuntime(const FSpudClassDef& ClassDef, const FSpudClassMetadata& Meta);
+	static bool StoredClassDefMatchesRuntime(const FSpudClassDef& ClassDef, const UClass* RuntimeClass, const FSpudClassMetadata& Meta);
 
 protected:
 	static bool IsNativelySupportedArrayType(const FArrayProperty* AProp);
