@@ -11,6 +11,7 @@
 #include "ImageUtils.h"
 #include "../Public/SpudMemoryReaderWriter.h"
 #include "GameFramework/PlayerState.h"
+#include "WorldPartition/WorldPartitionRuntimeCell.h"
 
 DEFINE_LOG_CATEGORY(LogSpudState)
 
@@ -1390,6 +1391,17 @@ bool USpudState::ShouldStoreLevel(ULevel* Level) const
 	return true;
 }
 
+FString USpudState::GetLevelName(const UWorldPartitionRuntimeCell* Cell)
+{
+	if (!Cell)
+		return "";
+	
+	FString LevelName = Cell->GetWorld()->GetMapName() + "_" + Cell->GetName();
+	// Strip off PIE prefix, "UEDPIE_N_" where N is a number
+	if (LevelName.StartsWith("UEDPIE_"))
+		LevelName = LevelName.Right(LevelName.Len() - 9);
+	return LevelName;
+}
 
 void USpudState::SetCustomSaveInfo(const USpudCustomSaveInfo* ExtraInfo)
 {

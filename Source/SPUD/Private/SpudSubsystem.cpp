@@ -4,9 +4,12 @@
 #include "Engine/LocalPlayer.h"
 #include "Kismet/GameplayStatics.h"
 #include "ImageUtils.h"
+#include "SpudRuntimeStoredActorComponent.h"
 #include "TimerManager.h"
 #include "HAL/FileManager.h"
 #include "Async/Async.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "Kismet/KismetRenderingLibrary.h"
 
 #ifdef USE_SAVEGAMESYSTEM
 #include "SaveGameSystem.h"
@@ -998,6 +1001,27 @@ void USpudSubsystem::UnloadStreamLevel(FName LevelName)
 	}	
 }
 
+void USpudSubsystem::UpdateRegisteredComps()
+{
+	// Ticking registered comp's owner is moving outside the loaded area.
+	TArray<USpudRuntimeStoredActorComponent*> NeedToDestroyArray;
+	for (const auto RegComp : RegisteredRuntimeStoredActorComponents)
+	{
+		bool bCellActivated;
+		RegComp->UpdateCurrentCell(bCellActivated);
+		if (!bCellActivated)
+		{
+			NeedToDestroyArray.Add(RegComp);
+		}
+	}
+
+	for (auto Destroy : NeedToDestroyArray)
+	{
+		StoreActorByCell(Destroy->GetOwner(), Destroy->CurrentCellName);
+		Destroy->DestroyActor();
+	}
+}
+
 void USpudSubsystem::ForceReset()
 {
 	CurrentState = ESpudSystemState::RunningIdle;
@@ -1047,6 +1071,19 @@ bool USpudSubsystem::ShouldStoreLevel(const ULevel* Level)
 		}
 	}
 	return true;
+}
+
+void USpudSubsystem::SetRenderTargetData(FString Name, UTextureRenderTarget2D* RenderTarget)
+{
+	UKismetRenderingLibrary::ExportRenderTarget(GetWorld(), RenderTarget, GetSaveGameDirectory(), Name + ".png");
+}
+
+UTexture2D* USpudSubsystem::GetRenderTargetData(FString Name)
+{
+	UTexture2D* texture = nullptr;
+	FString TotalFileName = FPaths::Combine(GetSaveGameDirectory(), Name + ".png");
+	texture = FImageUtils::ImportFileAsTexture2D(TotalFileName);
+	return texture;
 }
 
 void USpudSubsystem::StoreActorByCell(AActor* Actor, const FString& CellName)
@@ -1514,7 +1551,8 @@ void USpudSubsystem::Tick(float DeltaTime)
 	if (bSupportWorldPartition)
 	{
 		auto world = GetWorld();
-		if (world)
+		// only for authority.
+		if (world && world->GetAuthGameMode())
 		{
 			TSet<ULevelStreaming*> streamingLevels(world->GetStreamingLevels());
 
@@ -1548,6 +1586,8 @@ void USpudSubsystem::Tick(float DeltaTime)
 					PostUnloadStreamingLevel.Broadcast(FName(USpudState::GetLevelName(Level->GetWorldAssetPackageName())));
 				}
 			}
+
+			UpdateRegisteredComps();
 		}
 	}
 }

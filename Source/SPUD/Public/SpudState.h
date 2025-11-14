@@ -203,6 +203,7 @@ protected:
 
 public:
 
+	static FString GetLevelName(const UWorldPartitionRuntimeCell* Cell);
 	static FString GetLevelName(const FString& PackageName);
 	static FString GetLevelName(const ULevel* Level);
 	static FString GetLevelNameForActor(const AActor* Actor);
