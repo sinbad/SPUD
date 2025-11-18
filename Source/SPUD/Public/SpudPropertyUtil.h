@@ -366,6 +366,14 @@ protected:
 	                                              TArray<uint32>& PropertyOffsets,
 	                                              FSpudClassMetadata& Meta,
 	                                              FArchive& Out);
+	static FString WriteSoftObjectPropertyData(FSoftObjectProperty* SProp,
+												 uint32 PrefixID,
+												 const void* Data,
+												 bool bIsArrayElement,
+												 TSharedPtr<FSpudClassDef> ClassDef,
+												 TArray<uint32>& PropertyOffsets,
+												 FSpudClassMetadata& Meta,
+												 FArchive& Out);
 	static FString WriteSubclassOfPropertyData(FClassProperty* CProp,
 	                                           UClass* Class,
 	                                           uint32 PrefixID,
@@ -470,6 +478,10 @@ protected:
 	                                             UObject* Outer,
 	                                             const FSpudClassMetadata& Meta,
 	                                             FArchive& In);
+	static FString ReadSoftObjectPropertyData(FSoftObjectProperty* SProp,
+												  void* Data,
+												  const FSpudClassMetadata& Meta,
+												  FArchive& In);
 	static FString ReadSubclassOfPropertyData(FClassProperty* CProp,
 	                                          void* Data,
 	                                          const RuntimeObjectMap* RuntimeObjects,
