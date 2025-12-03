@@ -70,7 +70,7 @@ class SPUD_API USpudStreamingLevelWrapper : public UObject
 
 public:
 	UPROPERTY()
-	ULevelStreaming* LevelStreaming;
+	TObjectPtr<ULevelStreaming> LevelStreaming;
 
 	UFUNCTION()
 	void OnLevelShown();
@@ -165,7 +165,7 @@ public:
 	TArray<FString> ExcludeLevelNamePatterns;
 
 	UPROPERTY(BlueprintReadOnly)
-	TSet<USpudRuntimeStoredActorComponent*> RegisteredRuntimeStoredActorComponents;
+	TSet<TObjectPtr<USpudRuntimeStoredActorComponent>> RegisteredRuntimeStoredActorComponents;
 
 protected:
 	FDelegateHandle OnPreLoadMapHandle;
@@ -234,7 +234,7 @@ protected:
 	TMap<FName, FStreamLevelRequests> LevelRequests;
 
 	UPROPERTY()
-	TMap<ULevelStreaming*, USpudStreamingLevelWrapper*> MonitoredStreamingLevels;
+	TMap<TObjectPtr<ULevelStreaming>, TObjectPtr<USpudStreamingLevelWrapper>> MonitoredStreamingLevels;
 
 	bool ServerCheck(bool LogWarning) const;
 
