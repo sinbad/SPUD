@@ -19,10 +19,10 @@ protected:
 	TArray<FSoftObjectPath> StreamingLevels;
 
 	UPROPERTY()
-	TArray<AActor*> RelevantActorsInVolume;
+	TArray<TObjectPtr<AActor>> RelevantActorsInVolume;
 
 	UPROPERTY()
-	TArray<APawn*> PawnsInVolume;
+	TArray<TObjectPtr<APawn>> PawnsInVolume;
 	
 	ASpudStreamingVolume(const FObjectInitializer& ObjectInitializer);
 
