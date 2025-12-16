@@ -196,3 +196,13 @@ Many consoles don't allow you to access the file system directly in the way that
 compatibility on non-Desktop platforms saving and loading is redirected through UE's generalised `ISaveGameSystem`, but this
 is less efficient. It's possible to implement a better version using the console platforms own function, but since that
 code is under NDA it's not possible to include here. Here's an example for PS5 if you have access: https://game.develop.playstation.net/forums/nodejump/2113391 
+
+## My GameInstance Blueprint Isn't Saving!
+
+If you register a Blueprint custom GameInstance with `AddPersistentGlobalObject` in its `Init` function you might find it doesn't work.
+This is actually because the "Spud Subsystem" Blueprint node is not valid during `Init` in a GameInstance Blueprint, because it's a 
+GameInstanceSubsystem and UE hasn't built the list of them yet (because this is the GameInstance being built).
+
+You should register your GameInstance as a global object some time *after* `Init` instead, either with a Delay node, or from a different actor e.g. your GameMode.
+C++ doesn't have this problem, because during the native `Init` the subsystems are already available; this is specific to BP GameInstances.
+subsystems yet
