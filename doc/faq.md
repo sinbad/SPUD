@@ -205,4 +205,3 @@ GameInstanceSubsystem and UE hasn't built the list of them yet (because this is 
 
 You should register your GameInstance as a global object some time *after* `Init` instead, either with a Delay node, or from a different actor e.g. your GameMode.
 C++ doesn't have this problem, because during the native `Init` the subsystems are already available; this is specific to BP GameInstances.
-subsystems yet
