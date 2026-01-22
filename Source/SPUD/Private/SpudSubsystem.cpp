@@ -727,8 +727,9 @@ void USpudSubsystem::LoadComplete(const FString& SlotName, bool bSuccess)
 {
 	CurrentState = ESpudSystemState::RunningIdle;
 	IsRestoringState = false;
-	SlotNameInProgress = "";
 	PostLoadGame.Broadcast(SlotName, bSuccess);
+	// It's possible that the reference to SlotName *is* SlotNameInProgress, so we can't reset it until after
+	SlotNameInProgress = "";
 	
 	WorldToLoad = nullptr;
 }
