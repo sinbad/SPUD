@@ -151,8 +151,8 @@ void CheckMap(FAutomationTestBase* Test, const FString& Prefix, const TMap<K, V>
 	
 }
 
-template<typename T>
-void CheckAllTypes(FAutomationTestBase* Test, const FString& Prefix, const T& Actual, const T& Expected)
+template<typename T1, typename T2>
+void CheckAllTypes(FAutomationTestBase* Test, const FString& Prefix, const T1& Actual, const T2& Expected)
 {
 	Test->TestEqual(Prefix + "IntVal should match", Actual.IntVal, Expected.IntVal);
 	Test->TestEqual(Prefix + "UInt8Val should match", Actual.UInt8Val, Expected.UInt8Val);
@@ -494,6 +494,51 @@ bool FTestNonNative::RunTest(const FString& Parameters)
 
 		
 	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTestRenamedClass, "SPUDTest.RenamedClass",
+	EAutomationTestFlags::EditorContext |
+	EAutomationTestFlags::ClientContext |
+	EAutomationTestFlags::ProductFilter)
+
+bool FTestRenamedClass::RunTest(const FString& Parameters)
+{
+	auto SavedObj = NewObject<UTestSaveObjectBasic>();
+	PopulateAllTypes(*SavedObj);
+
+	auto State = NewObject<USpudState>();
+	State->StoreGlobalObject(SavedObj, "TestObject");
+
+	// Renaming the class should not cause slow path restore
+	State->bTestRequireFastPath = true;
+	
+	auto LoadedObj = NewObject<UTestSaveObjectRenamedClass>();
+	State->RestoreGlobalObject(LoadedObj, "TestObject");
+
+	CheckAllTypes(this, "RenamedClass|", *LoadedObj, *SavedObj);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTestSlowPath_DifferentPropertyOrder, "SPUDTest.SlowPath_DifferentPropertyOrder",
+	EAutomationTestFlags::EditorContext |
+	EAutomationTestFlags::ClientContext |
+	EAutomationTestFlags::ProductFilter)
+
+bool FTestSlowPath_DifferentPropertyOrder::RunTest(const FString& Parameters)
+{
+	auto SavedObj = NewObject<UTestSaveObjectBasic>();
+	PopulateAllTypes(*SavedObj);
+
+	auto State = NewObject<USpudState>();
+	State->StoreGlobalObject(SavedObj, "TestObject");
+	
+	auto LoadedObj = NewObject<UTestSaveObjectSlowPath>();
+	State->RestoreGlobalObject(LoadedObj, "TestObject");
+
+	CheckAllTypes(this, "SlowPath_DifferentPropertyOrder|", *LoadedObj, *SavedObj);
 
 	return true;
 }

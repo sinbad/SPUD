@@ -10,7 +10,7 @@
 DEFINE_LOG_CATEGORY(LogSpudData)
 
 // System version covers our internal format changes
-#define SPUD_CURRENT_SYSTEM_VERSION 3
+#define SPUD_CURRENT_SYSTEM_VERSION 4
 
 // int32 so that Blueprint-compatible. 2 billion should be enough anyway and you can always use the negatives
 int32 GCurrentUserDataModelVersion = 0;
@@ -193,7 +193,7 @@ void FSpudClassDef::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 StoredSy
 
 			AddProperty(PropertyID, PrefixID, DataType);
 		}
-		RuntimeMatchState = NotChecked;
+		RuntimeMatchState.Empty();
 		ChunkEnd(Ar);
 	}	
 }
@@ -264,17 +264,14 @@ bool FSpudClassDef::RenameProperty(uint32 OldPropID, uint32 OldPrefixID, uint32 
 	return false;
 }
 
-bool FSpudClassDef::MatchesRuntimeClass(const FSpudClassMetadata& Meta) const
+bool FSpudClassDef::MatchesRuntimeClass(const UClass* RuntimeClass, const FSpudClassMetadata& Meta) const
 {
-	if (RuntimeMatchState == NotChecked)
+	const FString RuntimeClassName = SpudPropertyUtil::GetClassName(RuntimeClass);
+	if (auto MatchState = RuntimeMatchState.Find(RuntimeClassName))
 	{
-		// Run through the actual code class properties the same way
-		RuntimeMatchState = SpudPropertyUtil::StoredClassDefMatchesRuntime(*this, Meta) ?
-			Matching : Different;
-		
+		return *MatchState;
 	}
-	return RuntimeMatchState == Matching;
-	
+	return RuntimeMatchState.Add(RuntimeClassName, SpudPropertyUtil::StoredClassDefMatchesRuntime(*this, RuntimeClass, Meta));
 }
 
 //------------------------------------------------------------------------------
@@ -387,6 +384,7 @@ void FSpudNamedObjectData::WriteToArchive(FSpudChunkedDataArchive& Ar)
 {
 	if (ChunkStart(Ar))
 	{
+		Ar << ClassID;
 		Ar << Name;
 		CoreData.WriteToArchive(Ar);
 		Properties.WriteToArchive(Ar);
@@ -399,6 +397,11 @@ void FSpudNamedObjectData::ReadFromArchive(FSpudChunkedDataArchive& Ar, uint32 S
 {
 	if (ChunkStart(Ar))
 	{
+		// ClassID was added in save version 4
+		if (StoredSystemVersion >= 4)
+		{
+			Ar << ClassID;
+		}
 		Ar << Name;
 		CoreData.ReadFromArchive(Ar, StoredSystemVersion);
 		Properties.ReadFromArchive(Ar, StoredSystemVersion);
@@ -526,6 +529,11 @@ TSharedPtr<const FSpudClassDef> FSpudClassMetadata::GetClassDef(const FString& C
 		return ClassDefinitions.Values[Index];
 	}
 	return nullptr;
+}
+
+TSharedPtr<const FSpudClassDef> FSpudClassMetadata::GetClassDef(uint32 ID) const
+{
+	return ClassDefinitions.Values.IsValidIndex(ID) ? ClassDefinitions.Values[ID] : nullptr;
 }
 
 const FString& FSpudClassMetadata::GetPropertyNameFromID(uint32 ID) const
