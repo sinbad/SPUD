@@ -537,5 +537,11 @@ public:
 	TArray< TSubclassOf<AActor> > ActorSubclassArray;
 
 	UPROPERTY(SaveGame)
+	TSoftObjectPtr<AActor> SoftObjectPtr;
+	
+	UPROPERTY(SaveGame)
+	TArray< TSoftObjectPtr<AActor> > SoftObjectPtrArray;
+	
+	UPROPERTY(SaveGame)
 	TMap<int, TObjectPtr<UObject>> UObjectMap;
 };
