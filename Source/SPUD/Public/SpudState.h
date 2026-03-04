@@ -260,6 +260,7 @@ public:
 	/// want it to only *just* have been loaded, so it doesn't contain any runtime objects yet.
 	/// Restores actors which implement ISpudObject as the reverse of StoreLevel.
 	/// Does NOT restore any global object state (see RestoreGlobalObject).
+	void RestoreLevel(UWorld* World, const FString& LevelName);
 
 	/// Specialised function for restoring a specific level by reference
 	void RestoreLevel(ULevel* Level);

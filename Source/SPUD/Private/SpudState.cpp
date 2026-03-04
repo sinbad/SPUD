@@ -455,6 +455,24 @@ void USpudState::StoreObjectProperties(UObject* Obj, uint32 PrefixID, TArray<uin
 	StorePropertyVisitor Visitor(this, ClassDef, PropOffsets, Meta, Out);
 	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor, StartDepth);
 }
+void USpudState::RestoreLevel(UWorld* World, const FString& LevelName)
+{
+	for (auto& Level : World->GetLevels())
+	{
+		// Null levels possible
+		if (IsValid(Level))
+		{
+			if (GetLevelName(Level) == LevelName)
+			{
+				if (ShouldStoreLevel(Level))
+				{
+					RestoreLevel(Level);
+				}
+				return;
+			}
+		}
+	}
+}
 
 void USpudState::RestoreLevel(ULevel* Level)
 {
