@@ -122,9 +122,7 @@ protected:
 	void StoreGlobalObject(UObject* Obj, FSpudNamedObjectData* Data);
 	void StoreObjectProperties(UObject* Obj, FSpudPropertyData& Properties, FSpudClassMetadata& Meta, int StartDepth = 0);
 	void StoreObjectProperties(UObject* Obj, uint32 PrefixID, TArray<uint32>& PropertyOffsets, FSpudClassMetadata& Meta, FSpudMemoryWriter& Out, int StartDepth = 0);
-
-	// Actually restores the world, on the assumption that it's already loaded into the correct map
-	void RestoreLoadedWorld(UWorld* World, bool bSingleLevel, const FString& OnlyLevelName = "");
+	
 	// Returns whether this is an actor which is not technically in a level, but is auto-created so doesn't need to be
 	// spawned by the restore process. E.g. GameMode, Pawns
 	bool ShouldRespawnRuntimeActor(const AActor* Actor) const;
@@ -262,7 +260,6 @@ public:
 	/// want it to only *just* have been loaded, so it doesn't contain any runtime objects yet.
 	/// Restores actors which implement ISpudObject as the reverse of StoreLevel.
 	/// Does NOT restore any global object state (see RestoreGlobalObject).
-	void RestoreLevel(UWorld* World, const FString& LevelName);
 
 	/// Specialised function for restoring a specific level by reference
 	void RestoreLevel(ULevel* Level);
