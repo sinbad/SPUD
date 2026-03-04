@@ -455,10 +455,23 @@ void USpudState::StoreObjectProperties(UObject* Obj, uint32 PrefixID, TArray<uin
 	StorePropertyVisitor Visitor(this, ClassDef, PropOffsets, Meta, Out);
 	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor, StartDepth);
 }
-
 void USpudState::RestoreLevel(UWorld* World, const FString& LevelName)
 {
-	RestoreLoadedWorld(World, true, LevelName);
+	for (auto& Level : World->GetLevels())
+	{
+		// Null levels possible
+		if (IsValid(Level))
+		{
+			if (GetLevelName(Level) == LevelName)
+			{
+				if (ShouldStoreLevel(Level))
+				{
+					RestoreLevel(Level);
+				}
+				return;
+			}
+		}
+	}
 }
 
 void USpudState::RestoreLevel(ULevel* Level)
@@ -1023,30 +1036,15 @@ bool USpudState::RestoreSlowPropertyVisitor::VisitProperty(UObject* RootObject, 
 
 void USpudState::RestoreLoadedWorld(UWorld* World)
 {
-	RestoreLoadedWorld(World, false);
-}
+	//When restoring the world, we should only restore the PersistentLevel
+	//remaining levels will then be loaded and restored through streaming from the "streaming source", which is typically the player
+	
+	ULevel* PersistentLevel = World->PersistentLevel;
 
-void USpudState::RestoreLoadedWorld(UWorld* World, bool bSingleLevel, const FString& OnlyLevel)
-{
-	// So that we don't need to check every instance of a class for matching stored / runtime class properties
-	// we will keep a cache of whether to use the fast or slow path. It's only valid for this specific load
-	// because we may load level data or different ages
-	for (auto& Level : World->GetLevels())
+	if (IsValid(PersistentLevel) && ShouldStoreLevel(PersistentLevel))
 	{
-		// Null levels possible
-		if (!IsValid(Level))
-			continue;
-
-		if (bSingleLevel && GetLevelName(Level) != OnlyLevel)
-			continue;
-
-		if (!ShouldStoreLevel(Level))
-			continue;
-
-		RestoreLevel(Level);
-		
+		RestoreLevel(PersistentLevel);
 	}
-
 }
 
 void USpudState::RestoreGlobalObject(UObject* Obj)
