@@ -129,7 +129,7 @@ void UWanderingActorTrackerSubsystem::OnStreamingStateUpdated()
         if (WorldPartition)
             WorldPartition->RuntimeHash->ForEachStreamingCells([&ActualCellCount](const UWorldPartitionRuntimeCell* Cell) -> bool
             {
-                if (Cell && Cell->GetContentBounds().IsValid)
+                //if (Cell && Cell->GetContentBounds().IsValid)
                     ++ActualCellCount;
                 return true;
             });
@@ -162,7 +162,7 @@ void UWanderingActorTrackerSubsystem::RebuildCellCache()
         if (Cell)
         {
             // Skip cells with no content
-            if (!Cell->GetContentBounds().IsValid) return true;
+            //if (!Cell->GetContentBounds().IsValid) return true;
 
             FCachedCellData& Data = CellCache.AddDefaulted_GetRef();
             Data.Cell = Cell;
