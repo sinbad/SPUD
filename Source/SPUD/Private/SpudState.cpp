@@ -517,48 +517,22 @@ void USpudState::RestoreLevel(ULevel* Level)
 		}
 		// Spawned actors will have been added to Level->Actors, their state will be restored there
 	}
-
-	TMap<FGuid, AActor*> RestoredRuntimeActors;
-
-	// Restore existing actor state
+	
 	for (auto Actor : Level->Actors)
 	{
 		if (SpudPropertyUtil::IsPersistentObject(Actor))
 		{
-			//Когда мы востанавливаем пресистант мы не сохраняем бегуна
+			//Skip Wandering Actor restoration by PersistentLevel
 			if (Actor->Implements<USpudWanderingActor>())
-			{
 				continue;
-			}
-			
+
 			RestoreActor(Actor, LevelData, &RuntimeObjectsByGuid);
 			auto Guid = SpudPropertyUtil::GetGuidProperty(Actor);
 			if (Guid.IsValid())
-			{
-				if (RuntimeObjectsByGuid.Contains(Guid))
-				{
-					if (const auto DuplicatedActor = RestoredRuntimeActors.Find(Guid))
-					{
-						UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - destroying duplicate runtime actor %s"),
-						       *LevelName, *Guid.ToString(EGuidFormats::DigitsWithHyphens));
-
-						// sometimes runtime actors are duplicated in the level actors array - for example, when hiding a
-						// world partition cell and immediately showing it; need to remove duplicates in this case
-						(*DuplicatedActor)->Destroy();
-					}
-					else
-					{
-						RestoredRuntimeActors.Emplace(Guid, Actor);
-					}
-				}
-				else
-				{
-					RuntimeObjectsByGuid.Add(Guid, Actor);
-				}
-			}
+				RuntimeObjectsByGuid.Add(Guid, Actor);
 		}
 	}
-	
+
 	for (auto Actor : CrossCellActors)
 	{
 		if (SpudPropertyUtil::IsPersistentObject(Actor))
@@ -566,27 +540,7 @@ void USpudState::RestoreLevel(ULevel* Level)
 			RestoreActor(Actor, LevelData, &RuntimeObjectsByGuid);
 			auto Guid = SpudPropertyUtil::GetGuidProperty(Actor);
 			if (Guid.IsValid())
-			{
-				if (RuntimeObjectsByGuid.Contains(Guid))
-				{
-					if (const auto DuplicatedActor = RestoredRuntimeActors.Find(Guid))
-					{
-						UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - destroying duplicate runtime actor %s"),
-							   *LevelName, *Guid.ToString(EGuidFormats::DigitsWithHyphens));
-						// sometimes runtime actors are duplicated in the level actors array - for example, when hiding a
-						// world partition cell and immediately showing it; need to remove duplicates in this case
-						(*DuplicatedActor)->Destroy();
-					}
-					else
-					{
-						RestoredRuntimeActors.Emplace(Guid, Actor);
-					}
-				}
-				else
-				{
-					RuntimeObjectsByGuid.Add(Guid, Actor);
-				}
-			}
+				RuntimeObjectsByGuid.Add(Guid, Actor);
 		}
 	}
 	
