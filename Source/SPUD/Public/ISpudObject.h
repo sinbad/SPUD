@@ -142,3 +142,20 @@ public:
     void SpudPostRestore(const USpudState* State);
 
 };
+
+UINTERFACE(MinimalAPI)
+class USpudWanderingActor : public UInterface
+{
+	GENERATED_BODY()
+};
+
+/**
+* Opts an actor into the WanderingActorTracker system.
+* Implement this interface on actors that can move between World Partition cells.
+* The tracker subsystem will automatically manage saving and destroying them
+* when they leave loaded cells.
+*/
+class SPUD_API ISpudWanderingActor
+{
+	GENERATED_BODY()
+};
