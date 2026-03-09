@@ -166,7 +166,7 @@ void UWanderingActorTrackerSubsystem::RebuildCellCache()
 
             FCachedCellData& Data = CellCache.AddDefaulted_GetRef();
             Data.Cell = Cell;
-            Data.Bounds = Cell->GetCellBounds();
+            Data.Bounds = Cell->GetStreamingBounds();
             Data.LevelName = USpudState::GetLevelName(Cell);
             Data.State = Cell->GetCurrentState();
         }
@@ -212,7 +212,7 @@ bool UWanderingActorTrackerSubsystem::FindCellForLocation(
     if (BestIndex == INDEX_NONE)
         return false;
 
-    OutCellName    = CellCache[BestIndex].LevelName;
+    OutCellName = CellCache[BestIndex].LevelName;
     OutIsActivated = CellCache[BestIndex].State == EWorldPartitionRuntimeCellState::Activated;
     return true;
 }
