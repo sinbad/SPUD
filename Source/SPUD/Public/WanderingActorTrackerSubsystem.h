@@ -40,6 +40,9 @@ protected:
     
     UFUNCTION()
     void OnPostUnloadStreamingLevel(const FName& LevelName);
+    
+    UFUNCTION()
+    void OnPreUnloadStreamingLevel(const FName& LevelName);
 
 private:
     struct FTrackedActor
@@ -54,6 +57,7 @@ private:
         FBox Bounds;
         FString LevelName;
         EWorldPartitionRuntimeCellState State;
+        bool bPendingUnload = false;
     };
 
     TArray<FTrackedActor> TrackedActors;

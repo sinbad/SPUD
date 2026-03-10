@@ -26,7 +26,9 @@ void UWanderingActorTrackerSubsystem::Initialize(FSubsystemCollectionBase& Colle
         Spud->OnLevelStore.AddDynamic(this, &ThisClass::OnLevelStore);
         // Track streaming level load/unload to keep cell state cache up to date
         Spud->PostLoadStreamingLevel.AddDynamic(this, &ThisClass::OnPostLoadStreamingLevel);
+        Spud->PreUnloadStreamingLevel.AddDynamic(this, &ThisClass::OnPreUnloadStreamingLevel);
         Spud->PostUnloadStreamingLevel.AddDynamic(this, &ThisClass::OnPostUnloadStreamingLevel);
+
     }
 }
 
@@ -36,6 +38,7 @@ void UWanderingActorTrackerSubsystem::Deinitialize()
     {
         Spud->OnLevelStore.RemoveDynamic(this, &ThisClass::OnLevelStore);
         Spud->PostLoadStreamingLevel.RemoveDynamic(this, &ThisClass::OnPostLoadStreamingLevel);
+        Spud->PreUnloadStreamingLevel.RemoveDynamic(this, &ThisClass::OnPreUnloadStreamingLevel);
         Spud->PostUnloadStreamingLevel.RemoveDynamic(this, &ThisClass::OnPostUnloadStreamingLevel);
     }
 
@@ -50,7 +53,10 @@ void UWanderingActorTrackerSubsystem::Deinitialize()
 bool UWanderingActorTrackerSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
     const UWorld* World = Cast<UWorld>(Outer);
-    return World && World->IsGameWorld();
+    if (!World || !World->IsGameWorld()) return false;
+
+    // Only create on server / standalone
+    return World->GetNetMode() != NM_Client;
 }
 
 void UWanderingActorTrackerSubsystem::RegisterActor(AActor* Actor)
@@ -78,39 +84,90 @@ void UWanderingActorTrackerSubsystem::UnregisterActor(AActor* Actor)
 // falling back to LastValidCellName if no cell is found at the current location.
 void UWanderingActorTrackerSubsystem::OnLevelStore(const FString& LevelName)
 {
+    // Only save on the authority
+    if (!GetWorld()->GetAuthGameMode()) return;
+    
     USpudSubsystem* Spud = CachedSpudSubsystem.Get();
     if (!Spud) return;
 
-    for (auto& [Actor, LastValidCellName] : TrackedActors)
-    {
-        if (!Actor.IsValid()) continue;
+    TArray<AActor*> ActorsToDestroy;
 
-        // Find the physical cell the actor is currently inside
+    for (FTrackedActor& Tracked : TrackedActors)
+    {
+        if (!Tracked.Actor.IsValid()) continue;
+
         FString CurrentCell;
         bool bIsActivated = false;
-        FindCellForLocation(Actor->GetActorLocation(), CurrentCell, bIsActivated);
+        FindCellForLocation(Tracked.Actor->GetActorLocation(), CurrentCell, bIsActivated);
 
-        // Prefer the physical cell; fall back to last known valid cell
         const FString& TargetCell = !CurrentCell.IsEmpty()
             ? CurrentCell
-            : LastValidCellName;
+            : Tracked.LastValidCellName;
 
         if (TargetCell.IsEmpty()) continue;
-
-        // Only store if this is the level SPUD is currently saving
         if (TargetCell != LevelName) continue;
 
-        Spud->StoreActorByCell(Actor.Get(), TargetCell);
+        const FCachedCellData* CellData = CellCache.FindByPredicate([&TargetCell](const FCachedCellData& D)
+        {
+            return D.LevelName == TargetCell;
+        });
+
+        if (CellData && CellData->bPendingUnload)
+        {
+            // Cell is about to unload, clamp, save and destroy
+            SaveAndDestroyActor(Tracked, TargetCell, Spud, ActorsToDestroy);
+        }
+        else
+        {
+            // Normal save, just store without destroying
+            Spud->StoreActorByCell(Tracked.Actor.Get(), TargetCell);
+        }
+    }
+
+    for (AActor* Actor : ActorsToDestroy)
+    {
+        //Actor->SetNetDormancy(DORM_DormantAll);
+        Actor->Destroy();
+    }
+}
+
+void UWanderingActorTrackerSubsystem::OnPreUnloadStreamingLevel(const FName& LevelName)
+{
+    for (auto& Data : CellCache)
+    {
+        if (Data.LevelName == LevelName.ToString())
+        {
+            Data.bPendingUnload = true;
+            break;
+        }
     }
 }
 
 void UWanderingActorTrackerSubsystem::OnPostUnloadStreamingLevel(const FName& LevelName)
 {
+    for (auto& Data : CellCache)
+    {
+        if (Data.LevelName == LevelName.ToString())
+        {
+            Data.bPendingUnload = false;
+            break;
+        }
+    }
+
     OnStreamingStateUpdated();
 }
 
 void UWanderingActorTrackerSubsystem::OnPostLoadStreamingLevel(const FName& LevelName)
 {
+    for (auto& Data : CellCache)
+    {
+        if (Data.LevelName == LevelName.ToString())
+        {
+            Data.bPendingUnload = false;
+            break;
+        }
+    }
+    
     OnStreamingStateUpdated();
 }
 
@@ -311,7 +368,7 @@ void UWanderingActorTrackerSubsystem::Tick(float DeltaTime)
     for (AActor* Actor : ActorsToDestroy)
     {
         // Suppress network replication before destroying
-        Actor->SetNetDormancy(DORM_DormantAll);
+        //Actor->SetNetDormancy(DORM_DormantAll);
         Actor->Destroy();
     }
 
