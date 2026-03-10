@@ -59,8 +59,8 @@ void USpudState::StoreLevel(ULevel* Level, bool bReleaseAfter, bool bBlocking)
 		{
 			if (SpudPropertyUtil::IsPersistentObject(Actor))
 			{
-				// Wandering акторы управляются WanderingActorTrackerSubsystem — пропускаем
-				if (Actor->Implements<USpudWanderingActor>())
+				// Skip RoamingActors
+				if (Actor->Implements<USpudRoamingActor>())
 				{
 					continue;
 				}
@@ -501,7 +501,7 @@ void USpudState::RestoreLevel(ULevel* Level)
 	UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - Start"), *LevelName);
 	TMap<FGuid, UObject*> RuntimeObjectsByGuid;
 	
-	TArray<AActor*> CrossCellActors;
+	TArray<AActor*> RoamingActors;
 	
 	// Respawn dynamic actors first; they need to exist in order for cross-references in level actors to work
 	for (auto&& SpawnedActor : LevelData->SpawnedActors.Contents)
@@ -509,9 +509,9 @@ void USpudState::RestoreLevel(ULevel* Level)
 		auto Actor = RespawnActor(SpawnedActor.Value, LevelData->Metadata, Level);
 		if (Actor)
 		{
-			if (Actor->Implements<USpudWanderingActor>())
+			if (Actor->Implements<USpudRoamingActor>())
 			{
-				CrossCellActors.Add(Actor);
+				RoamingActors.Add(Actor);
 			}
 			RuntimeObjectsByGuid.Add(SpawnedActor.Value.Guid, Actor);
 		}
@@ -522,8 +522,8 @@ void USpudState::RestoreLevel(ULevel* Level)
 	{
 		if (SpudPropertyUtil::IsPersistentObject(Actor))
 		{
-			//Skip Wandering Actor restoration by PersistentLevel
-			if (Actor->Implements<USpudWanderingActor>())
+			//Skip RoamingActors restoration by PersistentLevel
+			if (Actor->Implements<USpudRoamingActor>())
 				continue;
 
 			RestoreActor(Actor, LevelData, &RuntimeObjectsByGuid);
@@ -533,7 +533,7 @@ void USpudState::RestoreLevel(ULevel* Level)
 		}
 	}
 
-	for (auto Actor : CrossCellActors)
+	for (auto Actor : RoamingActors)
 	{
 		if (SpudPropertyUtil::IsPersistentObject(Actor))
 		{
@@ -596,7 +596,7 @@ AActor* USpudState::RespawnActor(const FSpudSpawnedActorData& SpawnedActor,
 	
 	FActorSpawnParameters Params;
 	
-	if (Class->ImplementsInterface(USpudWanderingActor::StaticClass()))
+	if (Class->ImplementsInterface(USpudRoamingActor::StaticClass()))
 	{
 		Params.OverrideLevel = Level->GetWorld()->PersistentLevel;
 	}

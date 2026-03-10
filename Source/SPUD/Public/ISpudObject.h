@@ -144,18 +144,18 @@ public:
 };
 
 UINTERFACE(MinimalAPI)
-class USpudWanderingActor : public UInterface
+class USpudRoamingActor : public UInterface
 {
 	GENERATED_BODY()
 };
 
 /**
-* Opts an actor into the WanderingActorTracker system.
+* Opts an actor into the RoamingActorSubsystem.
 * Implement this interface on actors that can move between World Partition cells.
 * The tracker subsystem will automatically manage saving and destroying them
 * when they leave loaded cells.
 */
-class SPUD_API ISpudWanderingActor
+class SPUD_API ISpudRoamingActor
 {
 	GENERATED_BODY()
 };

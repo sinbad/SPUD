@@ -1,17 +1,17 @@
-#include "WanderingActorTrackerSubsystem.h"
+#include "SpudRoamingActorSubsystem.h"
 
 #include "SpudSubsystem.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
 
 // Console variable to toggle debug drawing of WP cell cache bounds at runtime
-// Usage: WanderingActorTracker.DebugDrawCells 1
+// Usage: RoamingActorSubsystem.DebugDrawCells 1
 static TAutoConsoleVariable<bool> CVarDebugDrawCells(
-    TEXT("WanderingActorTracker.DebugDrawCells"),
+    TEXT("RoamingActorSubsystem.DebugDrawCells"),
     false,
     TEXT("Draw debug boxes for WP cell cache")
 );
 
-void UWanderingActorTrackerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+void USpudRoamingActorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
 
@@ -32,7 +32,7 @@ void UWanderingActorTrackerSubsystem::Initialize(FSubsystemCollectionBase& Colle
     }
 }
 
-void UWanderingActorTrackerSubsystem::Deinitialize()
+void USpudRoamingActorSubsystem::Deinitialize()
 {
     if (USpudSubsystem* Spud = CachedSpudSubsystem.Get())
     {
@@ -50,7 +50,7 @@ void UWanderingActorTrackerSubsystem::Deinitialize()
 }
 
 // Only create this subsystem in game worlds
-bool UWanderingActorTrackerSubsystem::ShouldCreateSubsystem(UObject* Outer) const
+bool USpudRoamingActorSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
     const UWorld* World = Cast<UWorld>(Outer);
     if (!World || !World->IsGameWorld()) return false;
@@ -59,7 +59,7 @@ bool UWanderingActorTrackerSubsystem::ShouldCreateSubsystem(UObject* Outer) cons
     return World->GetNetMode() != NM_Client;
 }
 
-void UWanderingActorTrackerSubsystem::RegisterActor(AActor* Actor)
+void USpudRoamingActorSubsystem::RegisterActor(AActor* Actor)
 {
     if (!Actor) return;
 
@@ -72,7 +72,7 @@ void UWanderingActorTrackerSubsystem::RegisterActor(AActor* Actor)
     // LastValidCellName will be populated on the first Tick
 }
 
-void UWanderingActorTrackerSubsystem::UnregisterActor(AActor* Actor)
+void USpudRoamingActorSubsystem::UnregisterActor(AActor* Actor)
 {
     if (!Actor) return;
 
@@ -82,7 +82,7 @@ void UWanderingActorTrackerSubsystem::UnregisterActor(AActor* Actor)
 // Called by SPUD when it is about to save a specific streaming level.
 // We store each tracked actor into whichever cell it physically occupies,
 // falling back to LastValidCellName if no cell is found at the current location.
-void UWanderingActorTrackerSubsystem::OnLevelStore(const FString& LevelName)
+void USpudRoamingActorSubsystem::OnLevelStore(const FString& LevelName)
 {
     // Only save on the authority
     if (!GetWorld()->GetAuthGameMode()) return;
@@ -131,7 +131,7 @@ void UWanderingActorTrackerSubsystem::OnLevelStore(const FString& LevelName)
     }
 }
 
-void UWanderingActorTrackerSubsystem::OnPreUnloadStreamingLevel(const FName& LevelName)
+void USpudRoamingActorSubsystem::OnPreUnloadStreamingLevel(const FName& LevelName)
 {
     for (auto& Data : CellCache)
     {
@@ -143,7 +143,7 @@ void UWanderingActorTrackerSubsystem::OnPreUnloadStreamingLevel(const FName& Lev
     }
 }
 
-void UWanderingActorTrackerSubsystem::OnPostUnloadStreamingLevel(const FName& LevelName)
+void USpudRoamingActorSubsystem::OnPostUnloadStreamingLevel(const FName& LevelName)
 {
     for (auto& Data : CellCache)
     {
@@ -157,7 +157,7 @@ void UWanderingActorTrackerSubsystem::OnPostUnloadStreamingLevel(const FName& Le
     OnStreamingStateUpdated();
 }
 
-void UWanderingActorTrackerSubsystem::OnPostLoadStreamingLevel(const FName& LevelName)
+void USpudRoamingActorSubsystem::OnPostLoadStreamingLevel(const FName& LevelName)
 {
     for (auto& Data : CellCache)
     {
@@ -174,7 +174,7 @@ void UWanderingActorTrackerSubsystem::OnPostLoadStreamingLevel(const FName& Leve
 // Keeps the cell state cache in sync with the current WP streaming state.
 // If the number of valid cells has changed, performs a full rebuild.
 // Otherwise just refreshes the State field of each cached entry.
-void UWanderingActorTrackerSubsystem::OnStreamingStateUpdated()
+void USpudRoamingActorSubsystem::OnStreamingStateUpdated()
 {
     UWorldPartitionSubsystem* WorldPartitionSubsystem = GetWorld()->GetSubsystem<UWorldPartitionSubsystem>();
     if (!WorldPartitionSubsystem) return;
@@ -207,7 +207,7 @@ void UWanderingActorTrackerSubsystem::OnStreamingStateUpdated()
 
 // Rebuilds the cell cache from scratch by iterating all WP streaming cells.
 // Cells without valid content bounds are skipped
-void UWanderingActorTrackerSubsystem::RebuildCellCache()
+void USpudRoamingActorSubsystem::RebuildCellCache()
 {
     CellCache.Empty();
 
@@ -242,7 +242,7 @@ void UWanderingActorTrackerSubsystem::RebuildCellCache()
 
 // Finds the most specific WP cell that contains the given location.
 // "Most specific" = smallest XY area (e.g. a house cell inside a landscape cell).
-bool UWanderingActorTrackerSubsystem::FindCellForLocation(
+bool USpudRoamingActorSubsystem::FindCellForLocation(
     const FVector& Location,
     FString& OutCellName,
     bool& OutIsActivated) const
@@ -277,7 +277,7 @@ bool UWanderingActorTrackerSubsystem::FindCellForLocation(
 // Clamps the actor's location to within the bounds of the given cell (with a small inset).
 // This ensures the actor restores strictly inside its cell and doesn't immediately
 // trigger the unload logic due to a boundary position.
-void UWanderingActorTrackerSubsystem::ClampActorToCell(AActor* Actor, const FString& CellName) const
+void USpudRoamingActorSubsystem::ClampActorToCell(AActor* Actor, const FString& CellName) const
 {
     const FCachedCellData* TargetCell = CellCache.FindByPredicate([&CellName](const FCachedCellData& Data)
     {
@@ -302,7 +302,7 @@ void UWanderingActorTrackerSubsystem::ClampActorToCell(AActor* Actor, const FStr
 
 // Clamps the actor into its target cell, stores it in SPUD, then queues it for destruction.
 // Actual Destroy() is deferred to after the Tick loop to avoid invalidating iterators.
-void UWanderingActorTrackerSubsystem::SaveAndDestroyActor(
+void USpudRoamingActorSubsystem::SaveAndDestroyActor(
     FTrackedActor& Tracked,
     const FString& CellName,
     USpudSubsystem* Spud,
@@ -316,7 +316,7 @@ void UWanderingActorTrackerSubsystem::SaveAndDestroyActor(
     OutActorsToDestroy.Add(Tracked.Actor.Get());
 }
 
-void UWanderingActorTrackerSubsystem::Tick(float DeltaTime)
+void USpudRoamingActorSubsystem::Tick(float DeltaTime)
 {
     // Only tick on the authority
     if (!GetWorld()->GetAuthGameMode()) return;
@@ -359,7 +359,7 @@ void UWanderingActorTrackerSubsystem::Tick(float DeltaTime)
         else
         {
             //If no cell found and no fallback, cannot save, log a warning
-            UE_LOG(LogTemp, Warning, TEXT("WanderingActorTracker: %s has no valid cell, cannot save"),
+            UE_LOG(LogTemp, Warning, TEXT("RoamingActorSubsystem: %s has no valid cell, cannot save"),
                 *Tracked.Actor->GetName());
         }
     }
@@ -374,7 +374,7 @@ void UWanderingActorTrackerSubsystem::Tick(float DeltaTime)
 
 #if ENABLE_DRAW_DEBUG
     // Visualize cell cache bounds
-    // Enable via console: WanderingActorTracker.DebugDrawCells 1
+    // Enable via console: RoamingActorSubsystem.DebugDrawCells 1
     if (CVarDebugDrawCells.GetValueOnGameThread())
     {
         for (const FCachedCellData& Data : CellCache)

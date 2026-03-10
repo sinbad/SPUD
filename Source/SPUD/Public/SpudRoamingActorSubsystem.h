@@ -3,20 +3,20 @@
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "WorldPartition/WorldPartitionLevelStreamingPolicy.h"
-#include "WanderingActorTrackerSubsystem.generated.h"
+#include "SpudRoamingActorSubsystem.generated.h"
 
 class USpudSubsystem;
 
 UCLASS()
-class SPUD_API UWanderingActorTrackerSubsystem : public UTickableWorldSubsystem
+class SPUD_API USpudRoamingActorSubsystem : public UTickableWorldSubsystem
 {
     GENERATED_BODY()
 
 public:
-    UFUNCTION(BlueprintCallable, Category = "WanderingActorTracker")
+    UFUNCTION(BlueprintCallable, Category = "RoamingActorSubsystem")
     void RegisterActor(AActor* Actor);
 
-    UFUNCTION(BlueprintCallable, Category = "WanderingActorTracker")
+    UFUNCTION(BlueprintCallable, Category = "RoamingActorSubsystem")
     void UnregisterActor(AActor* Actor);
 
 protected:
@@ -26,7 +26,7 @@ protected:
 
     virtual TStatId GetStatId() const override
     {
-        RETURN_QUICK_DECLARE_CYCLE_STAT(UWanderingActorTrackerSubsystem, STATGROUP_Tickables);
+        RETURN_QUICK_DECLARE_CYCLE_STAT(USpudRoamingActorSubsystem , STATGROUP_Tickables);
     }
 
     virtual void Tick(float DeltaTime) override;
