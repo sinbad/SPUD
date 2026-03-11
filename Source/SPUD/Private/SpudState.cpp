@@ -1435,11 +1435,16 @@ FString USpudState::GetLevelName(const UWorldPartitionRuntimeCell* Cell)
 {
 	if (!Cell)
 		return "";
-	
-	FString LevelName = Cell->GetWorld()->GetMapName() + "_" + Cell->GetName();
+
+	FString LevelName = Cell->GetName();
+	//For builds, cell name will already match what SPUD uses for WP streaming processing
+#if WITH_EDITOR
+	LevelName = Cell->GetWorld()->GetMapName() + "_" + LevelName;
 	// Strip off PIE prefix, "UEDPIE_N_" where N is a number
 	if (LevelName.StartsWith("UEDPIE_"))
 		LevelName = LevelName.Right(LevelName.Len() - 9);
+#endif
+
 	return LevelName;
 }
 
