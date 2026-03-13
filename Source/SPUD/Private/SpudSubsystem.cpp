@@ -29,7 +29,7 @@ void USpudSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	bIsTearingDown = false;
 	// Note: this will register for clients too, but callbacks will be ignored
 	// We can't call ServerCheck() here because GameMode won't be valid (which is what we use to determine server mode)
-	OnPostLoadMapHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &USpudSubsystem::OnPostLoadMap);
+	OnPostLoadMapHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &USpudSubsystem::OnPostLoadMap, 0);
 	OnPreLoadMapHandle = FCoreUObjectDelegates::PreLoadMap.AddUObject(this, &USpudSubsystem::OnPreLoadMap);
 	
 	OnSeamlessTravelHandle = FWorldDelegates::OnSeamlessTravelTransition.AddUObject(this, &USpudSubsystem::OnSeamlessTravelTransition);
@@ -129,25 +129,27 @@ void USpudSubsystem::EndGame()
 	IsRestoringState = false;
 }
 
-void USpudSubsystem::AutoSaveGame(FText Title, bool bTakeScreenshot, const USpudCustomSaveInfo* ExtraInfo)
+void USpudSubsystem::AutoSaveGame(FText Title, const int32 UserIndex, bool bTakeScreenshot, const USpudCustomSaveInfo* ExtraInfo)
 {
 	SaveGame(SPUD_AUTOSAVE_SLOTNAME,
+		UserIndex,
 		Title.IsEmpty() ? NSLOCTEXT("Spud", "AutoSaveTitle", "Autosave") : Title,
 		bTakeScreenshot,
 		ExtraInfo);
 }
 
-void USpudSubsystem::QuickSaveGame(FText Title, bool bTakeScreenshot, const USpudCustomSaveInfo* ExtraInfo)
+void USpudSubsystem::QuickSaveGame(FText Title, const int32 UserIndex, bool bTakeScreenshot, const USpudCustomSaveInfo* ExtraInfo)
 {
 	SaveGame(SPUD_QUICKSAVE_SLOTNAME,
+		UserIndex,
 		Title.IsEmpty() ? NSLOCTEXT("Spud", "QuickSaveTitle", "Quick Save") : Title,
 		bTakeScreenshot,
 		ExtraInfo);
 }
 
-void USpudSubsystem::QuickLoadGame(const FString& TravelOptions)
+void USpudSubsystem::QuickLoadGame(const int32 UserIndex, const FString& TravelOptions)
 {
-	LoadGame(SPUD_QUICKSAVE_SLOTNAME, TravelOptions);
+	LoadGame(SPUD_QUICKSAVE_SLOTNAME, UserIndex, TravelOptions);
 }
 
 
@@ -171,11 +173,11 @@ void USpudSubsystem::NotifyLevelUnloadedExternally(ULevel* Level)
 	HandleLevelUnloaded(Level);
 }
 
-void USpudSubsystem::LoadLatestSaveGame(const FString& TravelOptions)
+void USpudSubsystem::LoadLatestSaveGame(const int32 UserIndex, const FString& TravelOptions)
 {
 	auto Latest = GetLatestSaveGame();
 	if (Latest)
-		LoadGame(Latest->SlotName, TravelOptions);
+		LoadGame(Latest->SlotName, UserIndex, TravelOptions);
 }
 
 void USpudSubsystem::OnPreLoadMap(const FString& MapName)
@@ -223,7 +225,7 @@ void USpudSubsystem::OnSeamlessTravelTransition(UWorld* World)
 	}
 }
 
-void USpudSubsystem::OnPostLoadMap(UWorld* World)
+void USpudSubsystem::OnPostLoadMap(UWorld* World, const int32 UserIndex)
 {
 	// Issue #130: double-check that world has authority as well, GameInstance can be null?
 	if (!ServerCheck(false) || (World && World->GetNetMode() >= NM_Client))
@@ -272,7 +274,7 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 		// If we were loading, this is the completion
 		if (CurrentState == ESpudSystemState::LoadingGame)
 		{
-			LoadComplete(SlotNameInProgress, true);
+			LoadComplete(SlotNameInProgress, UserIndex, true);
 			UE_LOG(LogSpudSubsystem, Log, TEXT("Load: Success"));
 		}
 
@@ -285,18 +287,18 @@ void USpudSubsystem::OnPostLoadMap(UWorld* World)
 	PostTravelToNewMap.Broadcast();
 }
 
-void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title, bool bTakeScreenshot, const USpudCustomSaveInfo* ExtraInfo)
+void USpudSubsystem::SaveGame(const FString& SlotName, const int32 UserIndex, const FText& Title, bool bTakeScreenshot, const USpudCustomSaveInfo* ExtraInfo, bool async)
 {
 	if (!ServerCheck(true))
 	{
-		SaveComplete(SlotName, false);
+		SaveComplete(SlotName, UserIndex, false);
         return;
 	}
 
 	if (SlotName.IsEmpty())
 	{
 		UE_LOG(LogSpudSubsystem, Error, TEXT("Cannot save a game with a blank slot name"));		
-		SaveComplete(SlotName, false);
+		SaveComplete(SlotName, UserIndex, false);
 		return;
 	}
 
@@ -304,11 +306,11 @@ void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title, bool 
 	{
 		// TODO: ignore or queue?
 		UE_LOG(LogSpudSubsystem, Error, TEXT("TODO: Overlapping calls to save/load, resolve this"));
-		SaveComplete(SlotName, false);
+		SaveComplete(SlotName, UserIndex, false);
 		return;
 	}
 
-	CurrentState = ESpudSystemState::SavingGame;
+	CurrentState = async ? ESpudSystemState::SavingGameAsync : ESpudSystemState::SavingGame;
 	PreSaveGame.Broadcast(SlotName);
 
 	if (bTakeScreenshot)
@@ -319,25 +321,25 @@ void USpudSubsystem::SaveGame(const FString& SlotName, const FText& Title, bool 
 		SlotNameInProgress = SlotName;
 		TitleInProgress = Title;
 		ExtraInfoInProgress = ExtraInfo;
-		UGameViewportClient* ViewportClient = UGameplayStatics::GetPlayerController(GetWorld(), 0)->GetLocalPlayer()->ViewportClient;
-		OnScreenshotCapturedHandle = ViewportClient->OnScreenshotCaptured().AddUObject(this, &USpudSubsystem::OnScreenshotCaptured);
-		OnScreenshotRequestProcessedHandle = FScreenshotRequest::OnScreenshotRequestProcessed().AddUObject(this, &USpudSubsystem::OnScreenshotRequestProcessed);
+		UGameViewportClient* ViewportClient = UGameplayStatics::GetPlayerController(GetWorld(), UserIndex)->GetLocalPlayer()->ViewportClient;
+		OnScreenshotCapturedHandle = ViewportClient->OnScreenshotCaptured().AddUObject(this, &USpudSubsystem::OnScreenshotCaptured, UserIndex);
+		OnScreenshotRequestProcessedHandle = FScreenshotRequest::OnScreenshotRequestProcessed().AddUObject(this, &USpudSubsystem::OnScreenshotRequestProcessed, UserIndex);
 		FScreenshotRequest::RequestScreenshot(false);
 		ScreenshotFileName = FScreenshotRequest::GetFilename();
 		// OnScreenShotCaptured will finish
 		// EXCEPT that if a Widget BP is open in the editor, this request will disappear into nowhere!! (4.26.1)
 		// So we need a failsafe
 		// Wait for 1 second. Can't use FTimerManager because there's no option for those to tick while game paused (which is common in saves!)
-		ScreenshotTimeout = 1;
+		float& ScreenShotTimeout = ScreenshotTimeouts.FindOrAdd(UserIndex);
+		ScreenShotTimeout = 1.0f;
 	}
 	else
 	{
-		FinishSaveGame(SlotName, Title, ExtraInfo, nullptr);
+		FinishSaveGame(SlotName, UserIndex, Title, ExtraInfo, nullptr);
 	}
 }
 
-
-void USpudSubsystem::ScreenshotTimedOut()
+void USpudSubsystem::ScreenshotTimedOut(const int32 UserIndex)
 {
 	// We failed to get a screenshot back in time
 	// This is mostly likely down to a weird fecking issue in PIE where if ANY Widget Blueprint is open while a screenshot
@@ -346,14 +348,14 @@ void USpudSubsystem::ScreenshotTimedOut()
 	UE_LOG(LogSpudSubsystem, Error, TEXT("Request for save screenshot timed out. This is most likely a UE4 bug: "
 		"Widget Blueprints being open in the editor during PIE seems to break screenshots. Completing save game without a screenshot."))
 
-	ScreenshotTimeout = 0;
-	FinishSaveGame(SlotNameInProgress, TitleInProgress, ExtraInfoInProgress, nullptr);
-	
+	float& ScreenShotTimeout = ScreenshotTimeouts.FindOrAdd(UserIndex);
+	ScreenShotTimeout = 0.0f;
+	FinishSaveGame(SlotNameInProgress, UserIndex, TitleInProgress, ExtraInfoInProgress, nullptr);
 }
 
-void USpudSubsystem::OnScreenshotCaptured(int32 Width, int32 Height, const TArray<FColor>& Colours)
+void USpudSubsystem::OnScreenshotCaptured(int32 Width, int32 Height, const TArray<FColor>& Colours, const int32 UserIndex)
 {
-	ResetScreenshotState();
+	ResetScreenshotState(UserIndex);
 
 	// Downscale the screenshot, pass to finish
 	TArray<FColor> RawDataCroppedResized;
@@ -367,14 +369,15 @@ void USpudSubsystem::OnScreenshotCaptured(int32 Width, int32 Height, const TArra
 	FImageUtils::CompressImageArray(ScreenshotWidth, ScreenshotHeight, RawDataCroppedResized, PngData);
 #endif
 	
-	FinishSaveGame(SlotNameInProgress, TitleInProgress, ExtraInfoInProgress, &PngData);
+	FinishSaveGame(SlotNameInProgress, UserIndex, TitleInProgress, ExtraInfoInProgress, &PngData);
 }
 
-void USpudSubsystem::ResetScreenshotState()
+void USpudSubsystem::ResetScreenshotState(const int32 UserIndex)
 {
-	ScreenshotTimeout = 0;
+	float& ScreenShotTimeout = ScreenshotTimeouts.FindOrAdd(UserIndex);
+	ScreenShotTimeout = 0.0f;
 
-	const auto ViewportClient = UGameplayStatics::GetPlayerController(GetWorld(), 0)->GetLocalPlayer()->ViewportClient;
+	const auto ViewportClient = UGameplayStatics::GetPlayerController(GetWorld(), UserIndex)->GetLocalPlayer()->ViewportClient;
 	ViewportClient->OnScreenshotCaptured().Remove(OnScreenshotCapturedHandle);
 
 	FScreenshotRequest::OnScreenshotRequestProcessed().Remove(OnScreenshotRequestProcessedHandle);
@@ -383,7 +386,7 @@ void USpudSubsystem::ResetScreenshotState()
 	OnScreenshotRequestProcessedHandle.Reset();
 }
 
-void USpudSubsystem::OnScreenshotRequestProcessed()
+void USpudSubsystem::OnScreenshotRequestProcessed(const int32 UserIndex)
 {
 	// handles HDR screenshots
 
@@ -395,10 +398,10 @@ void USpudSubsystem::OnScreenshotRequestProcessed()
 
 	Image.ChangeFormat(ERawImageFormat::BGRA8, Image.GammaSpace);
 
-	OnScreenshotCaptured(Image.GetWidth(), Image.GetHeight(), TArray<FColor>(Image.AsBGRA8()));
+	OnScreenshotCaptured(Image.GetWidth(), Image.GetHeight(), TArray<FColor>(Image.AsBGRA8()), UserIndex);
 }
 
-void USpudSubsystem::FinishSaveGame(const FString& SlotName, const FText& Title, const USpudCustomSaveInfo* ExtraInfo, TArray<uint8>* ScreenshotData)
+void USpudSubsystem::FinishSaveGame(const FString& SlotName, const int32 UserIndex, const FText& Title, const USpudCustomSaveInfo* ExtraInfo, TArray<uint8>* ScreenshotData)
 {
 	auto State = GetActiveState();
 	auto World = GetWorld();
@@ -431,51 +434,70 @@ void USpudSubsystem::FinishSaveGame(const FString& SlotName, const FText& Title,
 
 #ifdef USE_SAVEGAMESYSTEM
 	// VIVI: Consoles require using the SaveGameSystem
-	ISaveGameSystem* SaveSystem = IPlatformFeaturesModule::Get().GetSaveGameSystem();
-	bool SaveOK;
-
-	if (SaveSystem)
+	if (ISaveGameSystem* SaveSystem = IPlatformFeaturesModule::Get().GetSaveGameSystem())
 	{
-		TArray<uint8> OutSaveData;
-		auto Archive = FMemoryWriter(OutSaveData, true);
+		TSharedRef<TArray<uint8>> OutSaveData(new TArray<uint8>());
+		auto Archive = FMemoryWriter(*OutSaveData, true);
 		State->SaveToArchive(Archive);
 		Archive.Close();
 
 		if (Archive.IsError() || Archive.IsCriticalError())
 		{
 			UE_LOG(LogSpudSubsystem, Error, TEXT("Error while creating save game for slot %s"), *SlotName);
-			SaveOK = false;
+			SaveComplete(SlotName, UserIndex, false);
 		}
 		else
 		{
-			if (OutSaveData.Num() > 0 && SlotName.Len() > 0)
+			if ((OutSaveData->Num() > 0) && (SlotName.Len() > 0))
 			{
-				// VIVI: 0 = first player controller. Figure out if there's a better way to do this.
-				if (!SaveSystem->SaveGame(false, *SlotName, 0, OutSaveData))
+				if (CurrentState == ESpudSystemState::SavingGameAsync)
 				{
-					UE_LOG(LogSpudSubsystem, Error, TEXT("Error while saving game to %s"), *SlotName);
-					SaveOK = false;
+					SaveSystem->SaveGameAsync(false, *SlotName, FPlatformMisc::GetPlatformUserForUserIndex(UserIndex), OutSaveData,
+						[&, UserIndex](const FString& SlotName, FPlatformUserId PlatformUserId, bool bSuccess)
+						{
+							check(IsInGameThread());
+
+							if (bSuccess)
+							{
+								UE_LOG(LogSpudSubsystem, Log, TEXT("Save to slot %s: Success"), *SlotName);
+							}
+							else
+							{
+								UE_LOG(LogSpudSubsystem, Error, TEXT("Error while saving game to %s"), *SlotName);
+							}
+
+							SaveComplete(SlotName, UserIndex, bSuccess);
+						});
 				}
 				else
 				{
-					UE_LOG(LogSpudSubsystem, Log, TEXT("Save to slot %s: Success"), *SlotName);
-					SaveOK = true;
+					bool SaveOK;
+
+					if (!SaveSystem->SaveGame(false, *SlotName, UserIndex, *OutSaveData))
+					{
+						UE_LOG(LogSpudSubsystem, Error, TEXT("Error while saving game to %s"), *SlotName);
+						SaveOK = false;
+					}
+					else
+					{
+						UE_LOG(LogSpudSubsystem, Log, TEXT("Save to slot %s: Success"), *SlotName);
+						SaveOK = true;
+					}
+
+					SaveComplete(SlotName, UserIndex, SaveOK);
 				}
 			}
 			else
 			{
 				UE_LOG(LogSpudSubsystem, Error, TEXT("Error while creating save game for slot %s"), *SlotName);
-				SaveOK = false;
+				SaveComplete(SlotName, UserIndex, false);
 			}
 		}
 	}
 	else
 	{
-		SaveOK = false;
+		SaveComplete(SlotName, UserIndex, false);
 	}
-
-	SaveComplete(SlotName, SaveOK);
-	
 #else
 	// UGameplayStatics::SaveGameToSlot prefixes our save with a lot of crap that we don't need
 	// And also wraps it with FObjectAndNameAsStringProxyArchive, which again we don't need
@@ -509,14 +531,14 @@ void USpudSubsystem::FinishSaveGame(const FString& SlotName, const FText& Title,
 		SaveOK = false;
 	}
 
-	SaveComplete(SlotName, SaveOK);
+	SaveComplete(SlotName, UserIndex, SaveOK);
 #endif
 }
 
-void USpudSubsystem::SaveComplete(const FString& SlotName, bool bSuccess)
+void USpudSubsystem::SaveComplete(const FString& SlotName, const int32 UserIndex, bool bSuccess)
 {
 	CurrentState = ESpudSystemState::RunningIdle;
-	PostSaveGame.Broadcast(SlotName, bSuccess);
+	PostSaveGame.Broadcast(SlotName, UserIndex, bSuccess);
 	// It's possible that the reference to SlotName *is* SlotNameInProgress, so we can't reset it until after
 	SlotNameInProgress = "";
 	TitleInProgress = FText();
@@ -591,11 +613,11 @@ void USpudSubsystem::StoreLevel(ULevel* Level, bool bRelease, bool bBlocking)
 	PostLevelStore.Broadcast(LevelName, true);
 }
 
-void USpudSubsystem::LoadGame(const FString& SlotName, const FString& TravelOptions)
+void USpudSubsystem::LoadGame(const FString& SlotName, const int32 UserIndex, const FString& TravelOptions)
 {
 	if (!ServerCheck(true))
 	{
-		LoadComplete(SlotName, false);
+		LoadComplete(SlotName, UserIndex, false);
 		return;
 	}
 
@@ -603,7 +625,7 @@ void USpudSubsystem::LoadGame(const FString& SlotName, const FString& TravelOpti
 	{
 		// TODO: ignore or queue?
 		UE_LOG(LogSpudSubsystem, Error, TEXT("TODO: Overlapping calls to save/load, resolve this"));
-		LoadComplete(SlotName, false);
+		LoadComplete(SlotName, UserIndex, false);
 		return;
 	}
 
@@ -625,7 +647,7 @@ void USpudSubsystem::LoadGame(const FString& SlotName, const FString& TravelOpti
 	if (SaveSystem)
 	{
 		TArray<uint8> InSaveData;
-		if (SaveSystem->LoadGame(false, *SlotName, 0, InSaveData))
+		if (SaveSystem->LoadGame(false, *SlotName, UserIndex, InSaveData))
 		{
 			auto Archive = FMemoryReader(InSaveData, true);
 			// Whole thing is in memory, might as well load it all
@@ -635,14 +657,14 @@ void USpudSubsystem::LoadGame(const FString& SlotName, const FString& TravelOpti
 			if (Archive.IsError() || Archive.IsCriticalError())
 			{
 				UE_LOG(LogSpudSubsystem, Error, TEXT("Error while loading game from %s"), *SlotName);
-				LoadComplete(SlotName, false);
+				LoadComplete(SlotName, UserIndex, false);
 				return;
 			}
 		}
 		else
 		{
 			UE_LOG(LogSpudSubsystem, Error, TEXT("Error while loading game from %s"), *SlotName);
-			LoadComplete(SlotName, false);
+			LoadComplete(SlotName, UserIndex, false);
 			return;
 		}
 	}
@@ -663,19 +685,18 @@ void USpudSubsystem::LoadGame(const FString& SlotName, const FString& TravelOpti
 		if (Archive->IsError() || Archive->IsCriticalError())
 		{
 			UE_LOG(LogSpudSubsystem, Error, TEXT("Error while loading game from %s"), *SlotName);
-			LoadComplete(SlotName, false);
+			LoadComplete(SlotName, UserIndex, false);
 			return;
 		}
 	}
 	else
 	{
 		UE_LOG(LogSpudSubsystem, Error, TEXT("Error while opening save game for slot %s"), *SlotName);		
-		LoadComplete(SlotName, false);
+		LoadComplete(SlotName, UserIndex, false);
 		return;
 	}
 	
 #endif
-
 
     // The world package gets loaded way before we end up loading the world
     // this cause an issue with the world being garbage collected from the package before we load, thus the load failing
@@ -718,23 +739,22 @@ void USpudSubsystem::LoadGame(const FString& SlotName, const FString& TravelOpti
 	// This is deferred, final load process will happen in PostLoadMap
 	SlotNameInProgress = SlotName;
 	UE_LOG(LogSpudSubsystem, Verbose, TEXT("(Re)loading map: %s"), *State->GetPersistentLevel());
-	
 	UGameplayStatics::OpenLevel(GetWorld(), FName(State->GetPersistentLevel()), true, TravelOptions);
 }
 
 
-void USpudSubsystem::LoadComplete(const FString& SlotName, bool bSuccess)
+void USpudSubsystem::LoadComplete(const FString& SlotName, const int32 UserIndex, bool bSuccess)
 {
 	CurrentState = ESpudSystemState::RunningIdle;
 	IsRestoringState = false;
-	PostLoadGame.Broadcast(SlotName, bSuccess);
+	PostLoadGame.Broadcast(SlotName, UserIndex, bSuccess);
 	// It's possible that the reference to SlotName *is* SlotNameInProgress, so we can't reset it until after
 	SlotNameInProgress = "";
 	
 	WorldToLoad = nullptr;
 }
 
-bool USpudSubsystem::DeleteSave(const FString& SlotName)
+bool USpudSubsystem::DeleteSave(const FString& SlotName, const int32 UserIndex)
 {
 	if (!ServerCheck(true))
 		return false;
@@ -745,7 +765,7 @@ bool USpudSubsystem::DeleteSave(const FString& SlotName)
 
 	if (SaveSystem)
 	{
-		return SaveSystem->DeleteGame(false, *SlotName, 0);
+		return SaveSystem->DeleteGame(false, *SlotName, UserIndex);
 	}
 	return false;
 #else
@@ -1192,11 +1212,11 @@ struct FSaveSorter
 	}
 };
 
-TArray<USpudSaveGameInfo*> USpudSubsystem::GetSaveGameList(bool bIncludeQuickSave, bool bIncludeAutoSave, ESpudSaveSorting Sorting)
+TArray<USpudSaveGameInfo*> USpudSubsystem::GetSaveGameList(bool bIncludeQuickSave, bool bIncludeAutoSave, ESpudSaveSorting Sorting, const int32 UserIndex)
 {
 
 	TArray<FString> SaveFiles;
-	ListSaveGameFiles(SaveFiles);
+	ListSaveGameFiles(SaveFiles, UserIndex);
 
 	TArray<USpudSaveGameInfo*> Ret;
 	for (auto && File : SaveFiles)
@@ -1209,7 +1229,7 @@ TArray<USpudSaveGameInfo*> USpudSubsystem::GetSaveGameList(bool bIncludeQuickSav
 			continue;			
 		}
 
-		auto Info = GetSaveGameInfo(SlotName);
+		auto Info = GetSaveGameInfo(SlotName, UserIndex);
 		if (Info)
 			Ret.Add(Info);
 	}
@@ -1222,7 +1242,7 @@ TArray<USpudSaveGameInfo*> USpudSubsystem::GetSaveGameList(bool bIncludeQuickSav
 	return Ret;
 }
 
-USpudSaveGameInfo* USpudSubsystem::GetSaveGameInfo(const FString& SlotName)
+USpudSaveGameInfo* USpudSubsystem::GetSaveGameInfo(const FString& SlotName, const int32 UserIndex)
 {
 
 #ifdef USE_SAVEGAMESYSTEM
@@ -1235,7 +1255,7 @@ USpudSaveGameInfo* USpudSubsystem::GetSaveGameInfo(const FString& SlotName)
 		TArray<uint8> InSaveData;
 		// Usually we'd want to parse just the very first part of the file, not all of it.
 		// But the Save Game System has to give us the entire thing.
-		if (SaveSystem->LoadGame(false, *SlotName, 0, InSaveData))
+		if (SaveSystem->LoadGame(false, *SlotName, UserIndex, InSaveData))
 		{
 			auto Archive = FMemoryReader(InSaveData, true);
 
@@ -1291,9 +1311,9 @@ USpudSaveGameInfo* USpudSubsystem::GetSaveGameInfo(const FString& SlotName)
 #endif
 }
 
-USpudSaveGameInfo* USpudSubsystem::GetLatestSaveGame()
+USpudSaveGameInfo* USpudSubsystem::GetLatestSaveGame(const int32 UserIndex)
 {
-	auto SaveGameList = GetSaveGameList();
+	auto SaveGameList = GetSaveGameList(true, true, ESpudSaveSorting::None, UserIndex);
 	USpudSaveGameInfo* Best = nullptr;
 	for (auto Curr : SaveGameList)
 	{
@@ -1304,14 +1324,14 @@ USpudSaveGameInfo* USpudSubsystem::GetLatestSaveGame()
 }
 
 
-USpudSaveGameInfo* USpudSubsystem::GetQuickSaveGame()
+USpudSaveGameInfo* USpudSubsystem::GetQuickSaveGame(const int32 UserIndex)
 {
-	return GetSaveGameInfo(SPUD_QUICKSAVE_SLOTNAME);
+	return GetSaveGameInfo(SPUD_QUICKSAVE_SLOTNAME, UserIndex);
 }
 
-USpudSaveGameInfo* USpudSubsystem::GetAutoSaveGame()
+USpudSaveGameInfo* USpudSubsystem::GetAutoSaveGame(const int32 UserIndex)
 {
-	return GetSaveGameInfo(SPUD_AUTOSAVE_SLOTNAME);
+	return GetSaveGameInfo(SPUD_AUTOSAVE_SLOTNAME, UserIndex);
 }
 
 FString USpudSubsystem::GetSaveGameDirectory()
@@ -1324,7 +1344,7 @@ FString USpudSubsystem::GetSaveGameFilePath(const FString& SlotName)
 	return FString::Printf(TEXT("%s%s.sav"), *GetSaveGameDirectory(), *SlotName);
 }
 
-void USpudSubsystem::ListSaveGameFiles(TArray<FString>& OutSaveFileList)
+void USpudSubsystem::ListSaveGameFiles(TArray<FString>& OutSaveFileList, const int32 UserIndex)
 {
 #ifdef USE_SAVEGAMESYSTEM
 	// VIVI: Consoles require using the SaveGameSystem
@@ -1332,7 +1352,7 @@ void USpudSubsystem::ListSaveGameFiles(TArray<FString>& OutSaveFileList)
 
 	if (SaveSystem)
 	{
-		SaveSystem->GetSaveGameNames(OutSaveFileList, 0);
+		SaveSystem->GetSaveGameNames(OutSaveFileList, UserIndex);
 	}
 #else
 	IFileManager& FM = IFileManager::Get();
@@ -1363,8 +1383,9 @@ public:
 	{
 		bool bUpgradeAlways;
 		FSpudUpgradeSaveDelegate UpgradeCallback;
-		
-		FUpgradeTask(bool InUpgradeAlways, FSpudUpgradeSaveDelegate InCallback) : bUpgradeAlways(InUpgradeAlways), UpgradeCallback(InCallback) {}
+		int32 UserIndex;
+
+		FUpgradeTask(bool InUpgradeAlways, FSpudUpgradeSaveDelegate InCallback, int32 InUserIndex) : bUpgradeAlways(InUpgradeAlways), UpgradeCallback(InCallback), UserIndex(InUserIndex) {}
 
 		bool SaveNeedsUpgrading(const USpudState* State)
 		{
@@ -1384,9 +1405,9 @@ public:
 		{
 			if (!UpgradeCallback.IsBound())
 				return;
-			
+
 			TArray<FString> SaveFiles;
-			USpudSubsystem::ListSaveGameFiles(SaveFiles);
+			USpudSubsystem::ListSaveGameFiles(SaveFiles, UserIndex);
 
 #ifdef USE_SAVEGAMESYSTEM
 			// VIVI: Consoles require using the SaveGameSystem
@@ -1397,7 +1418,7 @@ public:
 				for (auto && SaveFile : SaveFiles)
 				{
 					TArray<uint8> InSaveData;
-					if (SaveSystem->LoadGame(false, *SaveFile, 0, InSaveData))
+					if (SaveSystem->LoadGame(false, *SaveFile, UserIndex, InSaveData))
 					{
 						auto Archive = FMemoryReader(InSaveData, true);	
 
@@ -1417,7 +1438,7 @@ public:
 							if (UpgradeCallback.Execute(State))
 							{
 								// VIVI: Do we really want to make a new "old" save?
-								SaveSystem->SaveGame(false, *FString::Printf(TEXT("%s_Backup"), *SaveFile), 0, InSaveData);
+								SaveSystem->SaveGame(false, *FString::Printf(TEXT("%s_Backup"), *SaveFile), UserIndex, InSaveData);
 								
 								// Now save
 								TArray<uint8> OutSaveData;
@@ -1428,7 +1449,7 @@ public:
 								if (OutSaveData.Num() > 0 && SaveFile.Len() > 0)
 								{
 									// VIVI: 0 = first player controller. Figure out if there's a better way to do this.
-									if (!SaveSystem->SaveGame(false, *SaveFile, 0, OutSaveData))
+									if (!SaveSystem->SaveGame(false, *SaveFile, UserIndex, OutSaveData))
 									{
 										UE_LOG(LogSpudSubsystem, Error, TEXT("Error while upgrading save %s"), *SaveFile);
 									}
@@ -1488,11 +1509,11 @@ public:
 
 	FAsyncTask<FUpgradeTask> UpgradeTask;
 
-	FUpgradeAllSavesAction(bool UpgradeAlways, FSpudUpgradeSaveDelegate InUpgradeCallback, const FLatentActionInfo& LatentInfo)
+	FUpgradeAllSavesAction(bool UpgradeAlways, FSpudUpgradeSaveDelegate InUpgradeCallback, const FLatentActionInfo& LatentInfo, const int32 UserIndex)
         : ExecutionFunction(LatentInfo.ExecutionFunction)
         , OutputLink(LatentInfo.Linkage)
         , CallbackTarget(LatentInfo.CallbackTarget)
-        , UpgradeTask(UpgradeAlways, InUpgradeCallback)
+        , UpgradeTask(UpgradeAlways, InUpgradeCallback, UserIndex)
 	{
 		// We do the actual upgrade work in a background task, this action is just to monitor when it's done
 		UpgradeTask.StartBackgroundTask();
@@ -1515,7 +1536,8 @@ public:
 
 void USpudSubsystem::UpgradeAllSaveGames(bool bUpgradeEvenIfNoUserDataModelVersionDifferences,
                                          FSpudUpgradeSaveDelegate SaveNeedsUpgradingCallback,
-                                         FLatentActionInfo LatentInfo)
+                                         FLatentActionInfo LatentInfo,
+                                         const int32 UserIndex)
 {
 	
 	FLatentActionManager& LatentActionManager = GetGameInstance()->GetLatentActionManager();
@@ -1523,7 +1545,7 @@ void USpudSubsystem::UpgradeAllSaveGames(bool bUpgradeEvenIfNoUserDataModelVersi
 	{
 		LatentActionManager.AddNewAction(LatentInfo.CallbackTarget, LatentInfo.UUID,
 		                                 new FUpgradeAllSavesAction(bUpgradeEvenIfNoUserDataModelVersionDifferences,
-		                                                            SaveNeedsUpgradingCallback, LatentInfo));
+		                                                            SaveNeedsUpgradingCallback, LatentInfo, UserIndex));
 	}
 }
 
@@ -1539,13 +1561,16 @@ USpudCustomSaveInfo* USpudSubsystem::CreateCustomSaveInfo()
 
 void USpudSubsystem::Tick(float DeltaTime)
 {
-	if (ScreenshotTimeout > 0)
+	for (TPair<int32, float>& ScreenShotTimeout : ScreenshotTimeouts)
 	{
-		ScreenshotTimeout -= DeltaTime;
-		if (ScreenshotTimeout <= 0)
+		if (ScreenShotTimeout.Value > 0)
 		{
-			ScreenshotTimeout = 0;
-			ScreenshotTimedOut();
+			ScreenShotTimeout.Value -= DeltaTime;
+			if (ScreenShotTimeout.Value <= 0)
+			{
+				ScreenShotTimeout.Value = 0;
+				ScreenshotTimedOut(ScreenShotTimeout.Key);
+			}
 		}
 	}
 
