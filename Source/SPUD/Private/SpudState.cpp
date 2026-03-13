@@ -9,7 +9,7 @@
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/MovementComponent.h"
 #include "ImageUtils.h"
-#include "../Public/SpudMemoryReaderWriter.h"
+#include "SpudMemoryReaderWriter.h"
 #include "GameFramework/PlayerState.h"
 #include "WorldPartition/WorldPartitionRuntimeCell.h"
 
