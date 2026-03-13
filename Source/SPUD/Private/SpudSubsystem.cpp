@@ -1067,6 +1067,9 @@ UTexture2D* USpudSubsystem::GetRenderTargetData(FString Name)
 
 void USpudSubsystem::StoreActorByCell(AActor* Actor, const FString& CellName)
 {
+	if (!SpudPropertyUtil::IsPersistentObject(Actor))
+		return;
+	
 	GetActiveState()->StoreActor(Actor, CellName);
 }
 
