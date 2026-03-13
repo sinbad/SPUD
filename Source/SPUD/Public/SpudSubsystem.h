@@ -10,7 +10,6 @@
 
 #include "SpudSubsystem.generated.h"
 
-class USpudRuntimeStoredActorComponent;
 DECLARE_LOG_CATEGORY_EXTERN(LogSpudSubsystem, Verbose, Verbose);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPreLoadGame, const FString&, SlotName);
@@ -163,9 +162,6 @@ public:
 	/// Case insensitive.
 	UPROPERTY(BlueprintReadWrite, Config)
 	TArray<FString> ExcludeLevelNamePatterns;
-
-	UPROPERTY(BlueprintReadOnly)
-	TSet<TObjectPtr<USpudRuntimeStoredActorComponent>> RegisteredRuntimeStoredActorComponents;
 
 protected:
 	FDelegateHandle OnPreLoadMapHandle;

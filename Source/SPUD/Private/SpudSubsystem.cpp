@@ -4,7 +4,6 @@
 #include "Engine/LocalPlayer.h"
 #include "Kismet/GameplayStatics.h"
 #include "ImageUtils.h"
-#include "SpudRuntimeStoredActorComponent.h"
 #include "TimerManager.h"
 #include "HAL/FileManager.h"
 #include "Async/Async.h"
@@ -1002,27 +1001,6 @@ void USpudSubsystem::UnloadStreamLevel(FName LevelName)
 	}	
 }
 
-void USpudSubsystem::UpdateRegisteredComps()
-{
-	// Ticking registered comp's owner is moving outside the loaded area.
-	TArray<USpudRuntimeStoredActorComponent*> NeedToDestroyArray;
-	for (const auto RegComp : RegisteredRuntimeStoredActorComponents)
-	{
-		bool bCellActivated;
-		RegComp->UpdateCurrentCell(bCellActivated);
-		if (!bCellActivated)
-		{
-			NeedToDestroyArray.Add(RegComp);
-		}
-	}
-
-	for (auto Destroy : NeedToDestroyArray)
-	{
-		StoreActorByCell(Destroy->GetOwner(), Destroy->CurrentCellName);
-		Destroy->DestroyActor();
-	}
-}
-
 void USpudSubsystem::ForceReset()
 {
 	CurrentState = ESpudSystemState::RunningIdle;
@@ -1089,6 +1067,9 @@ UTexture2D* USpudSubsystem::GetRenderTargetData(FString Name)
 
 void USpudSubsystem::StoreActorByCell(AActor* Actor, const FString& CellName)
 {
+	if (!SpudPropertyUtil::IsPersistentObject(Actor))
+		return;
+	
 	GetActiveState()->StoreActor(Actor, CellName);
 }
 
@@ -1587,8 +1568,6 @@ void USpudSubsystem::Tick(float DeltaTime)
 					PostUnloadStreamingLevel.Broadcast(FName(USpudState::GetLevelName(Level->GetWorldAssetPackageName())));
 				}
 			}
-
-			UpdateRegisteredComps();
 		}
 	}
 }
