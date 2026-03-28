@@ -483,75 +483,101 @@ void USpudState::RestoreLevel(UWorld* World, const FString& LevelName)
 
 void USpudState::RestoreLevel(ULevel* Level)
 {
-	if (!IsValid(Level))
-		return;
+    if (!IsValid(Level))
+        return;
+
+    const FString LevelName = GetLevelName(Level);
+    const auto LevelData = GetLevelData(LevelName, false);
+
+    if (!LevelData.IsValid())
+    {
+        UE_LOG(LogSpudState, Log, TEXT("Skipping restore level %s, no data (this may be fine)"), *LevelName);
+        return;
+    }
 	
-	FString LevelName = GetLevelName(Level);
-	auto LevelData = GetLevelData(LevelName, false);
-
-	if (!LevelData.IsValid())
-	{
-		UE_LOG(LogSpudState, Log, TEXT("Skipping restore level %s, no data (this may be fine)"), *LevelName);
-		return;
-	}
-
 	// Mutex lock the level (load and unload events on streaming can be in loading threads)
-	FScopeLock LevelLock(&LevelData->Mutex);
-	
-	UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - Start"), *LevelName);
-	TMap<FGuid, UObject*> RuntimeObjectsByGuid;
-	
-	TArray<AActor*> RoamingActors;
-	
-	// Respawn dynamic actors first; they need to exist in order for cross-references in level actors to work
-	for (auto&& SpawnedActor : LevelData->SpawnedActors.Contents)
-	{
-		auto Actor = RespawnActor(SpawnedActor.Value, LevelData->Metadata, Level);
-		if (Actor)
-		{
-			if (Actor->Implements<USpudRoamingActor>())
-			{
-				RoamingActors.Add(Actor);
-			}
-			RuntimeObjectsByGuid.Add(SpawnedActor.Value.Guid, Actor);
-		}
-		// Spawned actors will have been added to Level->Actors, their state will be restored there
-	}
-	
-	for (auto Actor : Level->Actors)
-	{
-		if (SpudPropertyUtil::IsPersistentObject(Actor))
-		{
-			//Skip RoamingActors restoration by PersistentLevel
-			if (Actor->Implements<USpudRoamingActor>())
-				continue;
+    FScopeLock LevelLock(&LevelData->Mutex);
+    UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - Start"), *LevelName);
 
-			RestoreActor(Actor, LevelData, &RuntimeObjectsByGuid);
-			auto Guid = SpudPropertyUtil::GetGuidProperty(Actor);
-			if (Guid.IsValid())
-				RuntimeObjectsByGuid.Add(Guid, Actor);
-		}
-	}
+    TMap<FGuid, UObject*> PersistentObjectsByGuid;
+    TArray<AActor*> LevelActorsToRestore;
+    TArray<AActor*> RoamingActorsToRestore;
 
-	for (auto Actor : RoamingActors)
-	{
-		if (SpudPropertyUtil::IsPersistentObject(Actor))
-		{
-			RestoreActor(Actor, LevelData, &RuntimeObjectsByGuid);
-			auto Guid = SpudPropertyUtil::GetGuidProperty(Actor);
-			if (Guid.IsValid())
-				RuntimeObjectsByGuid.Add(Guid, Actor);
-		}
-	}
-	
-	
-	// Destroy actors in level but missing from save state
-	for (auto&& DestroyedActor : LevelData->DestroyedActors.Values)
-	{
-		DestroyActor(*DestroyedActor, Level);			
-	}
-	UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - Complete"), *LevelName);
+    // Collect persistent actors and pre-populate guid map
+    for (AActor* Actor : Level->Actors)
+    {
+        if (!Actor) continue;
+        if (!SpudPropertyUtil::IsPersistentObject(Actor)) continue;
 
+        LevelActorsToRestore.Add(Actor);
+
+        const FGuid Guid = SpudPropertyUtil::GetGuidProperty(Actor);
+        if (Guid.IsValid())
+            PersistentObjectsByGuid.Add(Guid, Actor);
+    }
+	
+	// Respawn dynamic actors first so cross-references resolve correctly
+	// Skip if actor already exists on level (e.g. WP cell reloaded before GC collected old actors)
+    for (auto&& SpawnedActor : LevelData->SpawnedActors.Contents)
+    {
+        const FGuid& Guid = SpawnedActor.Value.Guid;
+
+    	if (UObject** Existing = PersistentObjectsByGuid.Find(Guid))
+    	{
+#if WITH_EDITOR
+    		if (AActor* ExistingActor = Cast<AActor>(*Existing))
+    		{
+    			if (ExistingActor->Implements<USpudRoamingActor>())
+    			{
+    				UE_LOG(LogSpudState, Warning,
+						TEXT("RESTORE level %s - roaming actor %s already exists, something went wrong"),
+						*LevelName, *ExistingActor->GetName());
+    			}
+    		}
+#endif
+    		continue;
+    	}
+
+        auto Actor = RespawnActor(SpawnedActor.Value, LevelData->Metadata, Level);
+        if (Actor)
+        {
+            if (Actor->Implements<USpudRoamingActor>())
+                RoamingActorsToRestore.Add(Actor);
+            else
+                LevelActorsToRestore.Add(Actor);
+
+            PersistentObjectsByGuid.Add(Guid, Actor);
+        }
+    }
+
+    // Restore all non-roaming actors
+    for (AActor* Actor : LevelActorsToRestore)
+    {
+    	//Skip RoamingActors restoration by PersistentLevel
+        if (Actor->Implements<USpudRoamingActor>()) continue;
+
+        RestoreActor(Actor, LevelData, &PersistentObjectsByGuid);
+
+        const FGuid Guid = SpudPropertyUtil::GetGuidProperty(Actor);
+        if (Guid.IsValid() && !PersistentObjectsByGuid.Contains(Guid))
+            PersistentObjectsByGuid.Add(Guid, Actor);
+    }
+
+    // Restore roaming actors
+    for (AActor* Actor : RoamingActorsToRestore)
+    {
+        RestoreActor(Actor, LevelData, &PersistentObjectsByGuid);
+
+        const FGuid Guid = SpudPropertyUtil::GetGuidProperty(Actor);
+        if (Guid.IsValid() && !PersistentObjectsByGuid.Contains(Guid))
+            PersistentObjectsByGuid.Add(Guid, Actor);
+    }
+
+    // Destroy actors missing from save state
+    for (auto&& DestroyedActor : LevelData->DestroyedActors.Values)
+        DestroyActor(*DestroyedActor, Level);
+
+    UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - Complete"), *LevelName);
 }
 
 bool USpudState::PreLoadLevelData(const FString& LevelName)
