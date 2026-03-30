@@ -504,6 +504,17 @@ void USpudState::RestoreLevel(ULevel* Level)
     TArray<AActor*> RoamingActorsToRestore;
 
     // Collect persistent actors and pre-populate guid map
+    /*
+    Dynamically spawned actors can be retained in a level during streaming,
+    until the level's data is collected by the GC:
+    https://dev.epicgames.com/community/learning/knowledge-base/r6wl/unreal-engine-world-building-guide#wp-limitations
+    
+    This means when a level is reloaded before GC runs, both the old and new instances
+    of a spawned actor can exist simultaneously on the level. To avoid respawning
+    duplicates during RestoreLevel, we pre-populate PersistentObjectsByGuid with
+    already-existing actors. If a SpawnedActor entry has a GUID that's already in the map,
+    we skip respawning it, the existing instance will be restored instead.
+    */
     for (AActor* Actor : Level->Actors)
     {
         if (!Actor) continue;
