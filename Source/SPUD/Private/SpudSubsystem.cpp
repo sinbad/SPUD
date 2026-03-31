@@ -533,16 +533,22 @@ void USpudSubsystem::HandleLevelLoaded(FName LevelName)
 	// that way the loading occurs in this thread, less latency
 	GetActiveState()->PreLoadLevelData(LevelName.ToString());
 
-	AsyncTask(ENamedThreads::GameThread, [this, LevelName]()
+	TWeakObjectPtr<USpudSubsystem> WeakThis(this);
+	AsyncTask(ENamedThreads::GameThread, [WeakThis, LevelName]()
 	{
-		// But also add a slight delay so we get a tick in between so physics works
-		FTimerHandle H;
-		if (UWorld* World = GetWorld())
+		USpudSubsystem* Self = WeakThis.Get();
+		if (!Self)
 		{
-			World->GetTimerManager().SetTimer(H, [this, LevelName]()
-			{
-				PostLoadStreamLevelGameThread(LevelName);
-			}, 0.01, false);
+			return;
+		}
+		FTimerHandle H;
+		if (UWorld* World = Self->GetWorld())
+		{
+			World->GetTimerManager().SetTimer(H,
+				FTimerDelegate::CreateWeakLambda(Self, [Self, LevelName]()
+				{
+					Self->PostLoadStreamLevelGameThread(LevelName);
+				}), 0.01f, false);
 		}
 	});
 }
