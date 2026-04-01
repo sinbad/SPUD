@@ -59,6 +59,12 @@ void USpudState::StoreLevel(ULevel* Level, bool bReleaseAfter, bool bBlocking)
 		{
 			if (SpudPropertyUtil::IsPersistentObject(Actor))
 			{
+				// Skip RoamingActors
+				if (Actor->Implements<USpudRoamingActor>())
+				{
+					continue;
+				}
+        
 				StoreActor(Actor, LevelData);
 			}
 		}
@@ -455,6 +461,7 @@ void USpudState::StoreObjectProperties(UObject* Obj, uint32 PrefixID, TArray<uin
 	StorePropertyVisitor Visitor(this, ClassDef, PropOffsets, Meta, Out);
 	SpudPropertyUtil::VisitPersistentProperties(Obj, Visitor, StartDepth);
 }
+
 void USpudState::RestoreLevel(UWorld* World, const FString& LevelName)
 {
 	for (auto& Level : World->GetLevels())
@@ -476,73 +483,112 @@ void USpudState::RestoreLevel(UWorld* World, const FString& LevelName)
 
 void USpudState::RestoreLevel(ULevel* Level)
 {
-	if (!IsValid(Level))
-		return;
+    if (!IsValid(Level))
+        return;
+
+    const FString LevelName = GetLevelName(Level);
+    const auto LevelData = GetLevelData(LevelName, false);
+
+    if (!LevelData.IsValid())
+    {
+        UE_LOG(LogSpudState, Log, TEXT("Skipping restore level %s, no data (this may be fine)"), *LevelName);
+        return;
+    }
 	
-	FString LevelName = GetLevelName(Level);
-	auto LevelData = GetLevelData(LevelName, false);
-
-	if (!LevelData.IsValid())
-	{
-		UE_LOG(LogSpudState, Log, TEXT("Skipping restore level %s, no data (this may be fine)"), *LevelName);
-		return;
-	}
-
 	// Mutex lock the level (load and unload events on streaming can be in loading threads)
-	FScopeLock LevelLock(&LevelData->Mutex);
+    FScopeLock LevelLock(&LevelData->Mutex);
+    UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - Start"), *LevelName);
+
+    TMap<FGuid, UObject*> PersistentObjectsByGuid;
+    TArray<AActor*> LevelActorsToRestore;
+    TArray<AActor*> RoamingActorsToRestore;
+
+    // Collect persistent actors and pre-populate guid map
+    /*
+    Dynamically spawned actors can be retained in a level during streaming,
+    until the level's data is collected by the GC:
+    https://dev.epicgames.com/community/learning/knowledge-base/r6wl/unreal-engine-world-building-guide#wp-limitations
+    
+    This means when a level is reloaded before GC runs, both the old and new instances
+    of a spawned actor can exist simultaneously on the level. To avoid respawning
+    duplicates during RestoreLevel, we pre-populate PersistentObjectsByGuid with
+    already-existing actors. If a SpawnedActor entry has a GUID that's already in the map,
+    we skip respawning it, the existing instance will be restored instead.
+    */
+    for (AActor* Actor : Level->Actors)
+    {
+        if (!Actor) continue;
+        if (!SpudPropertyUtil::IsPersistentObject(Actor)) continue;
+
+        LevelActorsToRestore.Add(Actor);
+
+        const FGuid Guid = SpudPropertyUtil::GetGuidProperty(Actor);
+        if (Guid.IsValid())
+            PersistentObjectsByGuid.Add(Guid, Actor);
+    }
 	
-	UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - Start"), *LevelName);
-	TMap<FGuid, UObject*> RuntimeObjectsByGuid;
-	// Respawn dynamic actors first; they need to exist in order for cross-references in level actors to work
-	for (auto&& SpawnedActor : LevelData->SpawnedActors.Contents)
-	{
-		auto Actor = RespawnActor(SpawnedActor.Value, LevelData->Metadata, Level);
-		if (Actor)
-			RuntimeObjectsByGuid.Add(SpawnedActor.Value.Guid, Actor);
-		// Spawned actors will have been added to Level->Actors, their state will be restored there
-	}
+	// Respawn dynamic actors first so cross-references resolve correctly
+	// Skip if actor already exists on level (e.g. WP cell reloaded before GC collected old actors)
+    for (auto&& SpawnedActor : LevelData->SpawnedActors.Contents)
+    {
+        const FGuid& Guid = SpawnedActor.Value.Guid;
 
-	TMap<FGuid, AActor*> RestoredRuntimeActors;
+    	if (UObject** Existing = PersistentObjectsByGuid.Find(Guid))
+    	{
+#if WITH_EDITOR
+    		if (AActor* ExistingActor = Cast<AActor>(*Existing))
+    		{
+    			if (ExistingActor->Implements<USpudRoamingActor>())
+    			{
+    				UE_LOG(LogSpudState, Warning,
+						TEXT("RESTORE level %s - roaming actor %s already exists, something went wrong"),
+						*LevelName, *ExistingActor->GetName());
+    			}
+    		}
+#endif
+    		continue;
+    	}
 
-	// Restore existing actor state
-	for (auto Actor : Level->Actors)
-	{
-		if (SpudPropertyUtil::IsPersistentObject(Actor))
-		{
-			RestoreActor(Actor, LevelData, &RuntimeObjectsByGuid);
-			auto Guid = SpudPropertyUtil::GetGuidProperty(Actor);
-			if (Guid.IsValid())
-			{
-				if (RuntimeObjectsByGuid.Contains(Guid))
-				{
-					if (const auto DuplicatedActor = RestoredRuntimeActors.Find(Guid))
-					{
-						UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - destroying duplicate runtime actor %s"),
-						       *LevelName, *Guid.ToString(EGuidFormats::DigitsWithHyphens));
+        auto Actor = RespawnActor(SpawnedActor.Value, LevelData->Metadata, Level);
+        if (Actor)
+        {
+            if (Actor->Implements<USpudRoamingActor>())
+                RoamingActorsToRestore.Add(Actor);
+            else
+                LevelActorsToRestore.Add(Actor);
 
-						// sometimes runtime actors are duplicated in the level actors array - for example, when hiding a
-						// world partition cell and immediately showing it; need to remove duplicates in this case
-						(*DuplicatedActor)->Destroy();
-					}
-					else
-					{
-						RestoredRuntimeActors.Emplace(Guid, Actor);
-					}
-				}
-				else
-				{
-					RuntimeObjectsByGuid.Add(Guid, Actor);
-				}
-			}
-		}
-	}
-	// Destroy actors in level but missing from save state
-	for (auto&& DestroyedActor : LevelData->DestroyedActors.Values)
-	{
-		DestroyActor(*DestroyedActor, Level);			
-	}
-	UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - Complete"), *LevelName);
+            PersistentObjectsByGuid.Add(Guid, Actor);
+        }
+    }
 
+    // Restore all non-roaming actors
+    for (AActor* Actor : LevelActorsToRestore)
+    {
+    	//Skip RoamingActors restoration by PersistentLevel
+        if (Actor->Implements<USpudRoamingActor>()) continue;
+
+        RestoreActor(Actor, LevelData, &PersistentObjectsByGuid);
+
+        const FGuid Guid = SpudPropertyUtil::GetGuidProperty(Actor);
+        if (Guid.IsValid() && !PersistentObjectsByGuid.Contains(Guid))
+            PersistentObjectsByGuid.Add(Guid, Actor);
+    }
+
+    // Restore roaming actors
+    for (AActor* Actor : RoamingActorsToRestore)
+    {
+        RestoreActor(Actor, LevelData, &PersistentObjectsByGuid);
+
+        const FGuid Guid = SpudPropertyUtil::GetGuidProperty(Actor);
+        if (Guid.IsValid() && !PersistentObjectsByGuid.Contains(Guid))
+            PersistentObjectsByGuid.Add(Guid, Actor);
+    }
+
+    // Destroy actors missing from save state
+    for (auto&& DestroyedActor : LevelData->DestroyedActors.Values)
+        DestroyActor(*DestroyedActor, Level);
+
+    UE_LOG(LogSpudState, Verbose, TEXT("RESTORE level %s - Complete"), *LevelName);
 }
 
 bool USpudState::PreLoadLevelData(const FString& LevelName)
@@ -583,8 +629,19 @@ AActor* USpudState::RespawnActor(const FSpudSpawnedActorData& SpawnedActor,
 		UE_LOG(LogSpudState, Error, TEXT("Cannot respawn instance of %s, class not found"), *ClassName);
 		return nullptr;
 	}
+	
+	
 	FActorSpawnParameters Params;
-	Params.OverrideLevel = Level;
+	
+	if (Class->ImplementsInterface(USpudRoamingActor::StaticClass()))
+	{
+		Params.OverrideLevel = Level->GetWorld()->PersistentLevel;
+	}
+	else
+	{
+		Params.OverrideLevel = Level;
+	}
+	
 	// Need to always spawn since we're not setting position until later
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	UE_LOG(LogSpudState, Verbose, TEXT(" * Respawning actor %s of type %s"), *SpawnedActor.Guid.ToString(EGuidFormats::DigitsWithHyphens), *ClassName);
@@ -1415,11 +1472,16 @@ FString USpudState::GetLevelName(const UWorldPartitionRuntimeCell* Cell)
 {
 	if (!Cell)
 		return "";
-	
-	FString LevelName = Cell->GetWorld()->GetMapName() + "_" + Cell->GetName();
+
+	FString LevelName = Cell->GetName();
+	//For builds, cell name will already match what SPUD uses for WP streaming processing
+#if WITH_EDITOR
+	LevelName = Cell->GetWorld()->GetMapName() + "_" + LevelName;
 	// Strip off PIE prefix, "UEDPIE_N_" where N is a number
 	if (LevelName.StartsWith("UEDPIE_"))
 		LevelName = LevelName.Right(LevelName.Len() - 9);
+#endif
+
 	return LevelName;
 }
 
