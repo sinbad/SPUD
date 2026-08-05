@@ -75,6 +75,8 @@ template <> const ESpudStorageType SpudTypeInfo<FText>::EnumType = ESST_Text;
 class SPUD_API SpudPropertyUtil
 {
 public:
+	///Cleanup the module 
+	static void ClearModule();
 	/**
 	 * @brief The PropertyVisitor class is able to receive a predictable sequence of properties from a UObject, including
 	 * nested struct properties.

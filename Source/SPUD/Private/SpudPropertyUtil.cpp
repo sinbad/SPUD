@@ -21,6 +21,11 @@ struct FCachedPersistentProperty
 
 static TMap<TPair<const UStruct*, bool>, TArray<FCachedPersistentProperty>> PersistentPropertyCache;
 
+void SpudPropertyUtil::ClearModule()
+{
+	PersistentPropertyCache.Empty();
+}
+
 bool SpudPropertyUtil::ShouldPropertyBeIncluded(FProperty* Property, bool IsChildOfSaveGame)
 {
 	if (Property->HasAnyPropertyFlags(CPF_Deprecated))
