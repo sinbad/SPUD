@@ -2,6 +2,9 @@
 #include <limits>
 
 #include "EngineUtils.h"
+#include "Engine/Engine.h"
+#include "Engine/Level.h"
+#include "Engine/World.h"
 #include "ISpudObject.h"
 #include "SpudMemoryReaderWriter.h"
 #if ENGINE_MAJOR_VERSION==5&&ENGINE_MINOR_VERSION>=5
@@ -1328,20 +1331,107 @@ uint32 SpudPropertyUtil::StoredMatchesRuntimePropertyVisitor::GetNestedPrefix(
 }
 bool SpudPropertyUtil::IsRuntimeActor(const AActor* Actor)
 {
-	// RF_WasLoaded means it was part of a level
-	// But not being part of a level might not means it needs to be respawned, it might have been
-	// auto-spawned e.g. Game Modes, pawns
+	if (!IsValid(Actor))
+		return false;
 
-	bool Ret = IsValid(Actor) && !Actor->HasAnyFlags(RF_WasLoaded);
+	if (Actor->HasAnyFlags(RF_WasLoaded))
+		return false;
 
-	// Interestingly, objects which have been created in the editor but the level hasn't been saved yet will
-	// cause the object to incorrectly be marked as spawned after level load, because RF_WasLoaded is false
-	// In fact the only flags these unsaved objects have is RF_Transactional, but all actors have that
-	// We can detect this by checking if the package is dirty, but this can only really be done in an editor lib
-	// to avoid circular references.
-	
+#if WITH_EDITOR
+	// Saving an editor level does not recreate newly placed or duplicated
+	// actors, so they do not acquire RF_WasLoaded. When PIE duplicates the
+	// level, look for the corresponding actor in the source editor world.
+	//
+	// ActorGuid validity alone is insufficient because SpawnActor assigns
+	// ActorGuid values to genuinely runtime-spawned actors in editor builds.
+	const UWorld* ActorWorld = Actor->GetWorld();
+	const ULevel* ActorLevel = Actor->GetLevel();
 
-	return Ret;
+	if (GEngine &&
+		ActorWorld &&
+		ActorWorld->WorldType == EWorldType::PIE &&
+		ActorLevel &&
+		ActorLevel->bWasDuplicatedForPIE)
+	{
+		const FString SourceLevelPackageName =
+			UWorld::RemovePIEPrefix(ActorLevel->GetOutermost()->GetName());
+
+		for (const FWorldContext& WorldContext : GEngine->GetWorldContexts())
+		{
+			const UWorld* EditorWorld = WorldContext.World();
+			if (!EditorWorld || EditorWorld->WorldType != EWorldType::Editor)
+				continue;
+
+			for (const ULevel* EditorLevel : EditorWorld->GetLevels())
+			{
+				if (!EditorLevel ||
+					EditorLevel->GetOutermost()->GetName() != SourceLevelPackageName)
+				continue;
+
+				for (const AActor* EditorActor : EditorLevel->Actors)
+				{
+					if (!IsValid(EditorActor))
+						continue;
+
+					const bool bBothGuidsValid =
+						Actor->GetActorGuid().IsValid() &&
+						EditorActor->GetActorGuid().IsValid();
+
+					const bool bIdentityMatches = bBothGuidsValid
+						? Actor->GetActorGuid() == EditorActor->GetActorGuid()
+						: Actor->GetFName() == EditorActor->GetFName();
+
+					if (bIdentityMatches)
+					{
+						UE_LOG(
+							LogSpudProps,
+							Verbose,
+							TEXT(
+								"Actor classification: %s class=%s "
+								"WasLoaded=false ActorGuid=%s Level=%s "
+								"Package=%s Outermost=%s Dirty=%s "
+								"=> LevelActor (matched editor-world actor)"
+							),
+							*Actor->GetName(),
+							*GetNameSafe(Actor->GetClass()),
+							*Actor->GetActorGuid().ToString(),
+							*GetNameSafe(ActorLevel),
+							*GetNameSafe(Actor->GetPackage()),
+							*GetNameSafe(Actor->GetOutermost()),
+							Actor->GetPackage() &&
+								Actor->GetPackage()->IsDirty()
+									? TEXT("true")
+									: TEXT("false")
+						);
+
+						return false;
+					}
+				}
+			}
+		}
+	}
+
+	UE_LOG(
+		LogSpudProps,
+		Verbose,
+		TEXT(
+			"Actor classification: %s class=%s WasLoaded=false "
+			"ActorGuid=%s Level=%s Package=%s Outermost=%s Dirty=%s "
+			"=> RuntimeActor"
+		),
+		*Actor->GetName(),
+		*GetNameSafe(Actor->GetClass()),
+		*Actor->GetActorGuid().ToString(),
+		*GetNameSafe(ActorLevel),
+		*GetNameSafe(Actor->GetPackage()),
+		*GetNameSafe(Actor->GetOutermost()),
+		Actor->GetPackage() && Actor->GetPackage()->IsDirty()
+			? TEXT("true")
+			: TEXT("false")
+	);
+#endif
+
+	return true;
 }
 
 bool SpudPropertyUtil::IsPersistentObject(UObject* Obj)
