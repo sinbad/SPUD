@@ -82,10 +82,10 @@ void PopulateAllTypes(T& Obj)
 	Obj.Int64Array.Add(49562);
 	Obj.Int64Array.Add(-7723765);
 	Obj.Int64Array.Add(30035560992345);
-	Obj.FloatArray.Add(-3456.236);
-	Obj.FloatArray.Add(-1.99);
-	Obj.FloatArray.Add(87.666);
-	Obj.FloatArray.Add(39496.1);
+	Obj.FloatArray.Add(-3456.236f);
+	Obj.FloatArray.Add(-1.99f);
+	Obj.FloatArray.Add(87.666f);
+	Obj.FloatArray.Add(39496.1f);
 	Obj.DoubleArray.Add(349587.233456);
 	Obj.DoubleArray.Add(8833.2233);
 	Obj.DoubleArray.Add(24983.8923956238);
@@ -347,7 +347,7 @@ bool FTestCustomData::RunTest(const FString& Parameters)
 	SavedObj->bSomeBoolean = true;
 	SavedObj->SomeInteger = 203001;
 	SavedObj->SomeString = "Hello from custom data";
-	SavedObj->SomeFloat = 1.3245978893;
+	SavedObj->SomeFloat = 1.3245978893f;
 
 	auto State = NewObject<USpudState>();
 	State->StoreGlobalObject(SavedObj, "TestObject");
@@ -410,17 +410,17 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTestNonNative, "SPUDTest.NonNative",
 bool FTestNonNative::RunTest(const FString& Parameters)
 {
 	auto SavedObj = NewObject<UTestSaveObjectNonNative>();
-	SavedObj->ArrayOfCustomStructs.Add(FTestSmallStruct { "Item 0", FText::FromString("Text Item 0"), 0.01});
-	SavedObj->ArrayOfCustomStructs.Add(FTestSmallStruct { "Item 1", FText::FromString("Text Item 1"), 1.02});
-	SavedObj->ArrayOfCustomStructs.Add(FTestSmallStruct { "Item 2", FText::FromString("Text Item 2"), 2.03});
-	SavedObj->ArrayOfCustomStructs.Add(FTestSmallStruct { "Item 3", FText::FromString("Text Item 3"), 3.04});
+	SavedObj->ArrayOfCustomStructs.Add(FTestSmallStruct { "Item 0", FText::FromString("Text Item 0"), 0.01f});
+	SavedObj->ArrayOfCustomStructs.Add(FTestSmallStruct { "Item 1", FText::FromString("Text Item 1"), 1.02f});
+	SavedObj->ArrayOfCustomStructs.Add(FTestSmallStruct { "Item 2", FText::FromString("Text Item 2"), 2.03f});
+	SavedObj->ArrayOfCustomStructs.Add(FTestSmallStruct { "Item 3", FText::FromString("Text Item 3"), 3.04f});
 	SavedObj->IntVal = 99;
-	SavedObj->Map.Add("Map0", FTestSmallStruct { "Map Item 0", FText::FromString("Map Text Item 0"), 0.99});
-	SavedObj->Map.Add("Map1", FTestSmallStruct { "Map Item 1", FText::FromString("Map Text Item 1"), 1.99});
-	SavedObj->Map.Add("Map2", FTestSmallStruct { "Map Item 2", FText::FromString("Map Text Item 2"), 2.99});
-	SavedObj->Map.Add("Map3", FTestSmallStruct { "Map Item 3", FText::FromString("Map Text Item 3"), 3.99});
-	SavedObj->Map.Add("Map4", FTestSmallStruct { "Map Item 4", FText::FromString("Map Text Item 4"), 4.99});
-	SavedObj->Map.Add("Map5", FTestSmallStruct { "Map Item 5", FText::FromString("Map Text Item 5"), 5.99});
+	SavedObj->Map.Add("Map0", FTestSmallStruct { "Map Item 0", FText::FromString("Map Text Item 0"), 0.99f});
+	SavedObj->Map.Add("Map1", FTestSmallStruct { "Map Item 1", FText::FromString("Map Text Item 1"), 1.99f});
+	SavedObj->Map.Add("Map2", FTestSmallStruct { "Map Item 2", FText::FromString("Map Text Item 2"), 2.99f});
+	SavedObj->Map.Add("Map3", FTestSmallStruct { "Map Item 3", FText::FromString("Map Text Item 3"), 3.99f});
+	SavedObj->Map.Add("Map4", FTestSmallStruct { "Map Item 4", FText::FromString("Map Text Item 4"), 4.99f});
+	SavedObj->Map.Add("Map5", FTestSmallStruct { "Map Item 5", FText::FromString("Map Text Item 5"), 5.99f});
 
 	auto State = NewObject<USpudState>();
 	State->StoreGlobalObject(SavedObj, "TestObject");
