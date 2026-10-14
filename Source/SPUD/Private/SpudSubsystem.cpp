@@ -47,7 +47,7 @@ void USpudSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 			// TODO: make this more configurable, use a known save etc
 			NewGame(false);
 
-		}, 0.2, false);
+		}, 0.2f, false);
 	}
 
 	
