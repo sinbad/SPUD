@@ -12,4 +12,11 @@ public:
 	/** IModuleInterface implementation */
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
+
+private:
+	FDelegateHandle PostGarbageCollectHandle;
+	FDelegateHandle PreWorldFinishDestroyHandle;
+#if WITH_EDITOR
+	FDelegateHandle ObjectsReinstancedHandle;
+#endif
 };
