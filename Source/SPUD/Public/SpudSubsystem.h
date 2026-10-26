@@ -35,6 +35,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpudPostUnloadStreamingLevel, const
 // Callbacks passed to functions
 DECLARE_DYNAMIC_DELEGATE_RetVal_OneParam(bool, FSpudUpgradeSaveDelegate, class USpudState*, SaveState);
 
+/// Native, because handlers fill the custom info in place; see USpudSubsystem::PopulateCustomSaveInfo
+DECLARE_MULTICAST_DELEGATE_OneParam(FSpudPopulateCustomSaveInfo, USpudCustomSaveInfo&);
+
 UENUM(BlueprintType)
 enum class ESpudSystemState : uint8
 {
@@ -136,6 +139,10 @@ public:
 	/// Event fired just after a streaming level has unloaded
 	UPROPERTY(BlueprintAssignable)
 	FSpudPostUnloadStreamingLevel PostUnloadStreamingLevel;
+	/// Event fired by every save just before its header is written, whichever call made the save. The info passed
+	/// in is a copy of the ExtraInfo given to the save, or empty when there was none, and the header stores whatever
+	/// the handlers leave in it
+	FSpudPopulateCustomSaveInfo PopulateCustomSaveInfo;
 
 	/// The time delay after the last request for a streaming level is withdrawn, that the level will be unloaded
 	/// This is used to reduce load/unload thrashing at boundaries

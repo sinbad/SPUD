@@ -592,7 +592,20 @@ void USpudSubsystem::FinishSaveGame(const FString& SlotName, const int32 UserInd
 
 	State->SetTitle(Title);
 	State->SetTimestamp(FDateTime::Now());
-	State->SetCustomSaveInfo(ExtraInfo);
+	if (PopulateCustomSaveInfo.IsBound())
+	{
+		const auto CustomInfo = NewObject<USpudCustomSaveInfo>();
+		if (ExtraInfo)
+		{
+			CustomInfo->SetData(ExtraInfo->GetData());
+		}
+		PopulateCustomSaveInfo.Broadcast(*CustomInfo);
+		State->SetCustomSaveInfo(CustomInfo);
+	}
+	else
+	{
+		State->SetCustomSaveInfo(ExtraInfo);
+	}
 	if (ScreenshotData)
 		State->SetScreenshot(*ScreenshotData);
 
