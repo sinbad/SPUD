@@ -1341,6 +1341,7 @@ bool SpudPropertyUtil::IsRuntimeActor(const AActor* Actor)
 	// Saving an editor level does not recreate newly placed or duplicated
 	// actors, so they do not acquire RF_WasLoaded. When PIE duplicates the
 	// level, look for the corresponding actor in the source editor world.
+	// The PIE copy keeps the editor actor's name and ActorGuid.
 	//
 	// ActorGuid validity alone is insufficient because SpawnActor assigns
 	// ActorGuid values to genuinely runtime-spawned actors in editor builds.
@@ -1362,51 +1363,44 @@ bool SpudPropertyUtil::IsRuntimeActor(const AActor* Actor)
 			if (!EditorWorld || EditorWorld->WorldType != EWorldType::Editor)
 				continue;
 
-			for (const ULevel* EditorLevel : EditorWorld->GetLevels())
+			for (const auto EditorLevel : EditorWorld->GetLevels())
 			{
 				if (!EditorLevel ||
 					EditorLevel->GetOutermost()->GetName() != SourceLevelPackageName)
-				continue;
+					continue;
 
-				for (const AActor* EditorActor : EditorLevel->Actors)
-				{
-					if (!IsValid(EditorActor))
-						continue;
+				const auto EditorActor = FindObjectFast<AActor>(EditorLevel, Actor->GetFName());
+				if (!IsValid(EditorActor))
+					continue;
 
-					const bool bBothGuidsValid =
-						Actor->GetActorGuid().IsValid() &&
-						EditorActor->GetActorGuid().IsValid();
+				// A runtime actor can still end up with the name of a placed one
+				if (Actor->GetActorGuid().IsValid() &&
+					EditorActor->GetActorGuid().IsValid() &&
+					Actor->GetActorGuid() != EditorActor->GetActorGuid())
+					continue;
 
-					const bool bIdentityMatches = bBothGuidsValid
-						? Actor->GetActorGuid() == EditorActor->GetActorGuid()
-						: Actor->GetFName() == EditorActor->GetFName();
+				UE_LOG(
+					LogSpudProps,
+					Verbose,
+					TEXT(
+						"Actor classification: %s class=%s "
+						"WasLoaded=false ActorGuid=%s Level=%s "
+						"Package=%s Outermost=%s Dirty=%s "
+						"=> LevelActor (matched editor-world actor)"
+					),
+					*Actor->GetName(),
+					*GetNameSafe(Actor->GetClass()),
+					*Actor->GetActorGuid().ToString(),
+					*GetNameSafe(ActorLevel),
+					*GetNameSafe(Actor->GetPackage()),
+					*GetNameSafe(Actor->GetOutermost()),
+					Actor->GetPackage() &&
+						Actor->GetPackage()->IsDirty()
+							? TEXT("true")
+							: TEXT("false")
+				);
 
-					if (bIdentityMatches)
-					{
-						UE_LOG(
-							LogSpudProps,
-							Verbose,
-							TEXT(
-								"Actor classification: %s class=%s "
-								"WasLoaded=false ActorGuid=%s Level=%s "
-								"Package=%s Outermost=%s Dirty=%s "
-								"=> LevelActor (matched editor-world actor)"
-							),
-							*Actor->GetName(),
-							*GetNameSafe(Actor->GetClass()),
-							*Actor->GetActorGuid().ToString(),
-							*GetNameSafe(ActorLevel),
-							*GetNameSafe(Actor->GetPackage()),
-							*GetNameSafe(Actor->GetOutermost()),
-							Actor->GetPackage() &&
-								Actor->GetPackage()->IsDirty()
-									? TEXT("true")
-									: TEXT("false")
-						);
-
-						return false;
-					}
-				}
+				return false;
 			}
 		}
 	}
