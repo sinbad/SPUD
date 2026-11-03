@@ -358,14 +358,8 @@ void USpudSubsystem::OnPreLoadMap(const FString& MapName)
 		if (IsValid(World))
 		{
 			UE_LOG(LogSpudSubsystem, Verbose, TEXT("OnPreLoadMap saving: %s"), *UGameplayStatics::GetCurrentLevelName(World));
-#ifdef USE_SAVEGAMESYSTEM
 			// Keep it in memory
 			StoreWorld(World, false, true);
-#else
-			// Map and all streaming level data will be released.
-			// Block while doing it so they all get written predictably
-			StoreWorld(World, true, true);
-#endif
 		}
 	}
 }
@@ -887,9 +881,6 @@ void USpudSubsystem::LoadGame(const FString& SlotName, const FString& TravelOpti
 
 	State->ResetState();
 
-#ifdef USE_SAVEGAMESYSTEM
-	
-	// VIVI: Consoles require using the SaveGameSystem
 	ISaveGameSystem* SaveSystem = IPlatformFeaturesModule::Get().GetSaveGameSystem();
 
 	if (SaveSystem)
@@ -916,35 +907,6 @@ void USpudSubsystem::LoadGame(const FString& SlotName, const FString& TravelOpti
 			return;
 		}
 	}
-	
-#else
-
-	// TODO: async load
-
-	IFileManager& FileMgr = IFileManager::Get();
-	auto Archive = TUniquePtr<FArchive>(FileMgr.CreateFileReader(*GetSaveGameFilePath(SlotName)));
-
-	if(Archive)
-	{
-		// Load only global data and page in level data as needed
-		State->LoadFromArchive(*Archive, false);
-		Archive->Close();
-
-		if (Archive->IsError() || Archive->IsCriticalError())
-		{
-			UE_LOG(LogSpudSubsystem, Error, TEXT("Error while loading game from %s"), *SlotName);
-			LoadComplete(SlotName, UserIndex, false);
-			return;
-		}
-	}
-	else
-	{
-		UE_LOG(LogSpudSubsystem, Error, TEXT("Error while opening save game for slot %s"), *SlotName);		
-		LoadComplete(SlotName, UserIndex, false);
-		return;
-	}
-	
-#endif
 
     // The world package gets loaded way before we end up loading the world
     // this cause an issue with the world being garbage collected from the package before we load, thus the load failing
@@ -1007,8 +969,6 @@ bool USpudSubsystem::DeleteSave(const FString& SlotName, const int32 UserIndex)
 	if (!ServerCheck(true))
 		return false;
 
-#ifdef USE_SAVEGAMESYSTEM
-	// VIVI: Consoles require using the SaveGameSystem
 	ISaveGameSystem* SaveSystem = IPlatformFeaturesModule::Get().GetSaveGameSystem();
 
 	if (SaveSystem)
@@ -1016,10 +976,6 @@ bool USpudSubsystem::DeleteSave(const FString& SlotName, const int32 UserIndex)
 		return SaveSystem->DeleteGame(false, *SlotName, UserIndex);
 	}
 	return false;
-#else
-	IFileManager& FileMgr = IFileManager::Get();
-	return FileMgr.Delete(*GetSaveGameFilePath(SlotName), false, true);
-#endif
 }
 
 void USpudSubsystem::AddPersistentGlobalObject(UObject* Obj)
@@ -1477,10 +1433,6 @@ TArray<USpudSaveGameInfo*> USpudSubsystem::GetSaveGameList(bool bIncludeQuickSav
 
 USpudSaveGameInfo* USpudSubsystem::GetSaveGameInfo(const FString& SlotName, const int32 UserIndex)
 {
-
-#ifdef USE_SAVEGAMESYSTEM
-	
-	// VIVI: Consoles require using the SaveGameSystem
 	ISaveGameSystem* SaveSystem = IPlatformFeaturesModule::Get().GetSaveGameSystem();
 
 	if (SaveSystem)
@@ -1518,30 +1470,6 @@ USpudSaveGameInfo* USpudSubsystem::GetSaveGameInfo(const FString& SlotName, cons
 		UE_LOG(LogSpudSubsystem, Error, TEXT("Unable to open slot %s for reading info"), *SlotName);
 		return nullptr;
 	}
-
-	
-#else
-
-	IFileManager& FM = IFileManager::Get();
-	// We want to parse just the very first part of the file, not all of it
-	FString AbsoluteFilename = FPaths::Combine(GetSaveGameDirectory(), SlotName + ".sav");
-	auto Archive = TUniquePtr<FArchive>(FM.CreateFileReader(*AbsoluteFilename));
-
-	if(!Archive)
-	{
-		UE_LOG(LogSpudSubsystem, Error, TEXT("Unable to open %s for reading info"), *AbsoluteFilename);
-		return nullptr;
-	}
-
-	auto Info = NewObject<USpudSaveGameInfo>();
-	Info->SlotName = SlotName;
-
-	const bool bResult = USpudState::LoadSaveInfoFromArchive(*Archive, *Info);
-	Archive->Close();
-
-	return bResult ? Info : nullptr;
-	
-#endif
 }
 
 USpudSaveGameInfo* USpudSubsystem::GetLatestSaveGame(const int32 UserIndex)
@@ -1610,19 +1538,12 @@ FString USpudSubsystem::GetSaveGameFilePath(const FString& SlotName)
 
 void USpudSubsystem::ListSaveGameFiles(TArray<FString>& OutSaveFileList, const int32 UserIndex)
 {
-#ifdef USE_SAVEGAMESYSTEM
-	// VIVI: Consoles require using the SaveGameSystem
 	ISaveGameSystem* SaveSystem = IPlatformFeaturesModule::Get().GetSaveGameSystem();
 
 	if (SaveSystem)
 	{
 		SaveSystem->GetSaveGameNames(OutSaveFileList, UserIndex);
 	}
-#else
-	IFileManager& FM = IFileManager::Get();
-
-	FM.FindFiles(OutSaveFileList, *GetSaveGameDirectory(), TEXT(".sav"));
-#endif
 }
 
 FString USpudSubsystem::GetActiveGameFolder()
@@ -1673,8 +1594,6 @@ public:
 			TArray<FString> SaveFiles;
 			USpudSubsystem::ListSaveGameFiles(SaveFiles, UserIndex);
 
-#ifdef USE_SAVEGAMESYSTEM
-			// VIVI: Consoles require using the SaveGameSystem
 			ISaveGameSystem* SaveSystem = IPlatformFeaturesModule::Get().GetSaveGameSystem();
 
 			if (SaveSystem)
@@ -1723,45 +1642,6 @@ public:
 					}
 				}
 			}
-#else
-			IFileManager& FileMgr = IFileManager::Get();
-			for (auto && SaveFile : SaveFiles)
-			{
-				FString AbsoluteFilename = FPaths::Combine(USpudSubsystem::GetSaveGameDirectory(), SaveFile);
-				auto Archive = TUniquePtr<FArchive>(FileMgr.CreateFileReader(*AbsoluteFilename));
-
-				if(Archive)
-				{
-					auto State = NewObject<USpudState>();
-					// Load all data because we want to upgrade
-					State->LoadFromArchive(*Archive, true);
-					Archive->Close();
-
-					if (Archive->IsError() || Archive->IsCriticalError())
-					{
-						UE_LOG(LogSpudSubsystem, Error, TEXT("Error while loading game to check for upgrades: %s"), *SaveFile);
-						continue;
-					}
-
-					if (bUpgradeAlways || SaveNeedsUpgrading(State))
-					{
-						if (UpgradeCallback.Execute(State))
-						{
-							// Move aside old save
-							FString BackupFilename = AbsoluteFilename + ".bak"; 
-							FileMgr.Move(*BackupFilename, *AbsoluteFilename, true, true);
-							// Now save
-							auto OutArchive = TUniquePtr<FArchive>(FileMgr.CreateFileWriter(*AbsoluteFilename));
-							if (OutArchive)
-							{
-								State->SaveToArchive(*OutArchive);
-							}
-						}
-					}
-				}
-			}
-#endif
-
 		}
 
 		FORCEINLINE TStatId GetStatId() const
